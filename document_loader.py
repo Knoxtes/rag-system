@@ -1,6 +1,7 @@
-# document_loader.py - Load and process all file types with Shared Drive support
+# document_loader.py - Load and process all file types with Shared Drive support and OCR
 
 import io
+import logging
 from googleapiclient.http import MediaIoBaseDownload
 from PyPDF2 import PdfReader
 from docx import Document as DocxDocument
@@ -10,11 +11,22 @@ from config import (
     CHUNK_SIZE, 
     CHUNK_OVERLAP, 
     USE_PARENT_DOCUMENT_RETRIEVAL, 
-    PARENT_CHUNK_SIZE
+    PARENT_CHUNK_SIZE,
+    # OCR Settings
+    OCR_BACKEND,
+    OCR_CONFIDENCE_THRESHOLD,
+    OCR_LANGUAGES,
+    OCR_ENABLED
 )
 # --- OPTIMIZATION: Use Langchain for robust, standard chunning ---
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import re
+
+# OCR Integration
+from ocr_service import OCRServiceFactory, is_image_file, get_image_format_from_mime
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 class GoogleDriveLoader:
@@ -22,6 +34,21 @@ class GoogleDriveLoader:
     
     def __init__(self, service):
         self.service = service
+        self.ocr_service = None
+        self._initialize_ocr()
+    
+    def _initialize_ocr(self):
+        """Initialize OCR service if enabled"""
+        if OCR_ENABLED:
+            try:
+                self.ocr_service = OCRServiceFactory.create_service(
+                    backend=OCR_BACKEND,
+                    confidence_threshold=OCR_CONFIDENCE_THRESHOLD
+                )
+                logger.info(f"OCR service initialized: {OCR_BACKEND}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize OCR service: {e}")
+                self.ocr_service = None
     
     # --- REMOVED: list_files() method was unused (dead code) ---
     
@@ -165,9 +192,48 @@ def extract_text_from_csv(file_content):
         return file_content.read().decode('utf-8', errors='ignore')
 
 
-def extract_text(file_content, mime_type):
-    """Extract text from any supported file type"""
+def extract_text_from_image(file_content, ocr_service, filename=""):
+    """Extract text from image using OCR"""
     try:
+        if not ocr_service:
+            logger.warning("OCR service not available for image processing")
+            return f"[IMAGE FILE: {filename}] - OCR not available"
+        
+        # Read image bytes
+        if hasattr(file_content, 'read'):
+            image_data = file_content.read()
+        else:
+            image_data = file_content
+        
+        # Use OCR to extract text
+        ocr_result = ocr_service.extract_text(image_data, languages=OCR_LANGUAGES)
+        
+        if ocr_result.text.strip():
+            # Format extracted text with metadata
+            text_parts = [f"[IMAGE FILE: {filename}]"]
+            text_parts.append(f"OCR Confidence: {ocr_result.confidence:.2f}")
+            if ocr_result.language:
+                text_parts.append(f"Detected Language: {ocr_result.language}")
+            text_parts.append("\n--- Extracted Text ---")
+            text_parts.append(ocr_result.text)
+            
+            return "\n".join(text_parts)
+        else:
+            return f"[IMAGE FILE: {filename}] - No text detected or confidence too low"
+            
+    except Exception as e:
+        logger.error(f"Error extracting text from image {filename}: {e}")
+        return f"[IMAGE FILE: {filename}] - OCR processing failed: {str(e)}"
+
+
+def extract_text(file_content, mime_type, filename="", ocr_service=None):
+    """Extract text from any supported file type including images"""
+    try:
+        # Check if it's an image file first
+        if is_image_file(mime_type, filename):
+            return extract_text_from_image(file_content, ocr_service, filename)
+        
+        # Existing document processing logic
         if mime_type == 'application/pdf':
             pdf_reader = PdfReader(file_content)
             text = ""

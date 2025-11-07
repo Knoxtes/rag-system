@@ -622,7 +622,7 @@ class FolderIndexer:
                         if content is None:
                             failed += 1
                             continue
-                        text = extract_text(content, mime_type)
+                        text = extract_text(content, mime_type, file.get('name', ''), loader.ocr_service)
                     
                     if not text or len(text.strip()) < 50:
                         print("  ⚠️  Empty")

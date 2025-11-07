@@ -71,3 +71,16 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive.metadata.readonly'
 ]
 
+# OCR Settings
+OCR_ENABLED = True  # Enable/disable OCR processing for images
+OCR_BACKEND = "easyocr"  # Options: "easyocr", "tesseract", "google_vision"
+OCR_CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence score for OCR text (0.0-1.0)
+OCR_LANGUAGES = ["en"]  # Languages for OCR processing (e.g., ["en", "es", "fr"])
+OCR_GPU_ENABLED = True  # Use GPU acceleration for EasyOCR (if available)
+
+# Supported image formats for OCR
+OCR_SUPPORTED_FORMATS = {
+    'image/jpeg', 'image/jpg', 'image/png', 'image/tiff', 
+    'image/bmp', 'image/gif', 'image/webp'
+}
+
