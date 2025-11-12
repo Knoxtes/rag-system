@@ -12,10 +12,11 @@ def print_menu():
     print("=" * 80)
     print("\n1. Test Authentication")
     print("2. Index Specific Folders (Creates separate chat modes)")
-    print("3. Start Q&A System (Command Line)")
-    print("4. Check Status")
-    print("5. Clear & Reset ALL Indexes")
-    print("6. Exit")
+    print("3. 🌟 Unified Q&A System (Smart search across ALL folders)")
+    print("4. Individual Folder Q&A System (Legacy mode)")
+    print("5. Check Status")
+    print("6. Clear & Reset ALL Indexes")
+    print("7. Exit")
     print("\n---")
     # --- ✅ FIX: Corrected filename ---
     print("To run the Web App, stop this and run: streamlit run app.py")
@@ -92,9 +93,17 @@ def select_chat_mode():
         print(f"An error occurred: {e}")
         return None, None
 
-def run_rag():
+def run_unified_rag():
     """
-    Prompts user to select a chat mode first, then starts
+    Start the unified RAG system that searches across all collections
+    with intelligent folder routing
+    """
+    from unified_rag_system import interactive_unified_mode
+    interactive_unified_mode()
+
+def run_legacy_rag():
+    """
+    Legacy mode: Prompts user to select a chat mode first, then starts
     the interactive mode for that specific collection.
     """
     from rag_system import interactive_mode
@@ -190,19 +199,21 @@ def check_status():
 def main():
     while True:
         print_menu()
-        choice = input("Select (1-6): ").strip()
+        choice = input("Select (1-7): ").strip()
         
         if choice == '1':
             test_auth()
         elif choice == '2':
             run_folder_indexer()
         elif choice == '3':
-            run_rag()
+            run_unified_rag()
         elif choice == '4':
-            check_status()
+            run_legacy_rag()
         elif choice == '5':
-            clear_index()
+            check_status()
         elif choice == '6':
+            clear_index()
+        elif choice == '7':
             print("\nGoodbye!")
             break
         else:

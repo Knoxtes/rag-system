@@ -78,6 +78,22 @@ OCR_CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence score for OCR text (0.0-1.0
 OCR_LANGUAGES = ["en"]  # Languages for OCR processing (e.g., ["en", "es", "fr"])
 OCR_GPU_ENABLED = True  # Use GPU acceleration for EasyOCR (if available)
 
+# Text Clarification Settings
+TEXT_CLARIFICATION_ENABLED = True  # Enable/disable AI text clarification for OCR
+CLARIFICATION_MODEL_TEMPERATURE = 0.1  # AI model temperature for text clarification (0.0-1.0)
+CLARIFICATION_MAX_TOKENS = 2000  # Maximum tokens for clarified text output
+AUTO_CLARIFY_OCR = True  # Automatically clarify all OCR text
+CLARIFICATION_MIN_LENGTH = 20  # Minimum text length to trigger clarification
+
+# Text Quality Filter Settings
+TEXT_QUALITY_FILTER_ENABLED = True  # Enable/disable text quality filtering
+QUALITY_MIN_READABLE_RATIO = 0.6  # Minimum ratio of readable words (0.0-1.0)
+QUALITY_MAX_SPECIAL_CHAR_RATIO = 0.3  # Maximum ratio of special characters (0.0-1.0)
+QUALITY_MIN_COHERENCE_SCORE = 0.4  # Minimum coherence score (0.0-1.0)
+QUALITY_MIN_CONTENT_LENGTH = 50  # Minimum meaningful content length
+QUALITY_MIN_OVERALL_SCORE = 0.3  # Minimum overall quality score (0.0-1.0)
+QUALITY_OCR_THRESHOLD = 0.25  # Lower threshold for known OCR content (0.0-1.0)
+
 # Supported image formats for OCR
 OCR_SUPPORTED_FORMATS = {
     'image/jpeg', 'image/jpg', 'image/png', 'image/tiff', 

@@ -7,6 +7,7 @@ from google.generativeai.protos import Part, FunctionResponse
 import google.generativeai.types as genai_types # Use this for Schema/Tool
 from embeddings import LocalEmbedder, LocalReranker, HybridSearcher
 from vector_store import VectorStore
+from answer_logger import AnswerLogger
 from config import (
     TOP_K_RESULTS, GOOGLE_API_KEY, MAX_CONTEXT_CHARACTERS, 
     INDEXED_FOLDERS_FILE, MAX_AGENT_ITERATIONS, AGENT_TEMPERATURE,
@@ -156,6 +157,15 @@ When the user mentions folder names, paths, or organizational structures:
 - "explain all 2025 Projects" → use `search_folder("2025 Projects", "")`
 - "summaries in Q1 Reports" → use `search_folder("Q1 Reports", "summary")`
 
+**BUSINESS PROCESS & ACTION-ORIENTED RESPONSES:**
+The documents have been AI-enhanced to provide clear, actionable business processes. When users ask about procedures, workflows, or "what are the next steps":
+- **Identify the specific business process** mentioned (onboarding, project management, brand development, etc.)
+- **Present steps in order** with clear numbering and descriptions
+- **Provide actionable guidance** - each step should tell the user exactly what to do
+- **Include relevant context** like timelines, responsible parties, or prerequisites
+- **For client/project queries**: Focus on practical next steps, deliverables, and stakeholder actions
+- **Example response format**: "For client onboarding, here are the next steps: 1. [Action] - [Description] 2. [Action] - [Description]"
+
 **SYNTHESIS & MULTI-DOCUMENT QUERIES:**
 When asked to summarize, compare, or aggregate information across multiple documents:
 - "Summarize Q1, Q2, Q3 reports" → System automatically generates multiple queries for better coverage
@@ -187,14 +197,23 @@ When asked to summarize, compare, or aggregate information across multiple docum
 - Always check snippet content - it often contains the direct answer
 
 **Tool Response Format:**
-* `rag_search` returns: `[{"source_path": "...", "snippet": "...", "relevance": -2.15}, ...]`
+* `rag_search` returns: `[{"source_path": "...", "snippet": "...", "relevance": -2.15, "file_info": {"file_name": "...", "file_type": "...", "google_drive_link": "..."}}, ...]`
   - Lower (more negative) scores = less relevant, but still potentially useful
   - The snippets are already ranked best-first
   - For synthesis queries: You may receive 20-30 results from 5-10+ files - USE THEM ALL
+  - **IMPORTANT**: Each result includes "file_info" with a "google_drive_link" - ALWAYS include relevant links in your response
 * `search_folder` returns: Same format but filtered to specific folder
 * `live_drive_search` returns: `[{"file_name": "...", "link": "..."}, ...]`
 
-**Remember:** The search is smart - it auto-expands queries AND generates multiple variations for synthesis tasks. Keep queries focused and specific. Read ALL snippets before answering!
+**CRITICAL: Always Include Source Links in Your Response**
+- When referencing information from documents, **ALWAYS include the Google Drive link**
+- Format links as: "Source: [filename](google_drive_link)" 
+- For multiple sources, list each with its link
+- Example: "According to the Q1 report, sales increased 15%. Source: [Q1_Sales_Report.pdf](https://docs.google.com/document/d/abc123/edit)"
+- This allows users to immediately access and verify the source documents
+- Make links clickable by using proper markdown format: [text](url)
+
+**Remember:** The search is smart - it auto-expands queries AND generates multiple variations for synthesis tasks. Keep queries focused and specific. Read ALL snippets before answering, and ALWAYS include source links for referenced information!
 """
 
 
@@ -245,6 +264,10 @@ class EnhancedRAGSystem:
         if ENABLE_QUERY_CACHE:
             print(f"Initializing query cache (TTL: {CACHE_TTL_SECONDS}s, Max: {CACHE_MAX_SIZE} entries)...")
             self.query_cache = QueryCache(ttl_seconds=CACHE_TTL_SECONDS, max_size=CACHE_MAX_SIZE)
+        
+        # Initialize answer logger for Q&A tracking
+        print("Initializing answer logger...")
+        self.answer_logger = AnswerLogger()
         
         print("Initializing Gemini Agent Model...")
         # --- MODIFIED: Passing classic tools to init ---
@@ -608,9 +631,12 @@ class EnhancedRAGSystem:
             
             full_path = f"{metadata.get('file_path', '')}{file_name}"
             
-            # Enhanced snippet with context markers
+            # Enhanced snippet with context markers and file information
             chunk_idx = metadata.get('chunk_index', 0)
             total_chunks = metadata.get('total_chunks', 1)
+            
+            # Format file information with Google Drive link
+            file_info = self._format_file_info(metadata)
             
             # CONTEXTUAL COMPRESSION: Extract only relevant sentences
             snippet = context_text
@@ -630,7 +656,8 @@ class EnhancedRAGSystem:
                 "source_path": full_path,
                 "snippet": snippet,
                 "relevance": f"{score:.2f}",
-                "chunk_index": chunk_idx
+                "chunk_index": chunk_idx,
+                "file_info": file_info  # Enhanced with Google Drive link and metadata
             })
             
             unique_files.add(file_name)
@@ -725,6 +752,9 @@ class EnhancedRAGSystem:
                 except ValueError:
                     continue
                 
+                # Format file information with Google Drive link
+                file_info = self._format_file_info(metadata)
+                
                 full_path = f"{metadata.get('file_path', '')}{metadata.get('file_name', 'unknown')}"
                 chunk_idx = metadata.get('chunk_index', 0)
                 total_chunks = metadata.get('total_chunks', 1)
@@ -740,7 +770,8 @@ class EnhancedRAGSystem:
                     "source_path": full_path,
                     "folder": metadata.get('folder_name', ''),
                     "snippet": snippet,
-                    "relevance": f"{item['score']:.2f}"
+                    "relevance": f"{item['score']:.2f}",
+                    "file_info": file_info  # Enhanced with Google Drive link and metadata
                 })
             
             print(f"  ✅ Returning {len(output_snippets)} relevant results from folder")
@@ -755,12 +786,16 @@ class EnhancedRAGSystem:
             for metadata in matching_metadatas:
                 file_name = metadata.get('file_name', 'unknown')
                 if file_name not in files_in_folder:
+                    # Format file information with Google Drive link
+                    file_info = self._format_file_info(metadata)
+                    
                     files_in_folder[file_name] = {
                         "file_name": file_name,
                         "file_path": f"{metadata.get('file_path', '')}{file_name}",
                         "folder": metadata.get('folder_name', ''),
                         "mime_type": metadata.get('mime_type', ''),
-                        "chunks": metadata.get('total_chunks', 1)
+                        "chunks": metadata.get('total_chunks', 1),
+                        "file_info": file_info  # Enhanced with Google Drive link and metadata
                     }
             
             file_list = list(files_in_folder.values())
@@ -828,11 +863,27 @@ class EnhancedRAGSystem:
         print(f"👤 USER: {question}")
         print("=" * 80)
         
+        # Start timing for response tracking
+        start_time = time.time()
+        
         # Check cache first (for cost optimization)
         if self.query_cache and not chat_history:  # Only cache standalone queries
             cached_result = self.query_cache.get(question)
             if cached_result:
                 print("  💾 Cache hit! Returning cached response (saves API call)")
+                
+                # Log cached response
+                try:
+                    response_time = time.time() - start_time
+                    metadata = {
+                        'query_type': 'cached',
+                        'cached': True,
+                        'response_time': response_time
+                    }
+                    self.answer_logger.log_qa_pair(question, cached_result['answer'], metadata)
+                except Exception as log_error:
+                    print(f"⚠️  Warning: Failed to log cached Q&A: {log_error}")
+                
                 return cached_result
         
         # --- Safety mechanisms ---
@@ -975,6 +1026,18 @@ class EnhancedRAGSystem:
                 'query_type': 'agent'
             }
             
+            # Log the Q&A pair for tracking
+            try:
+                metadata = {
+                    'query_type': 'agent',
+                    'iterations': iteration_count,
+                    'cached': False,  # This is a fresh response
+                    'response_time': time.time() - start_time if 'start_time' in locals() else None
+                }
+                self.answer_logger.log_qa_pair(question, final_answer, metadata)
+            except Exception as log_error:
+                print(f"⚠️  Warning: Failed to log Q&A pair: {log_error}")
+            
             # Cache result if enabled and no chat history (standalone query)
             if self.query_cache and not chat_history:
                 self.query_cache.set(question, result)
@@ -993,11 +1056,97 @@ class EnhancedRAGSystem:
             except:
                 history = []
             
+            error_message = f"An error occurred during processing: {e}\n\nPlease try rephrasing your question or ask something simpler."
+            
+            # Log the error for tracking
+            try:
+                response_time = time.time() - start_time if 'start_time' in locals() else None
+                metadata = {
+                    'query_type': 'agent_error',
+                    'error': str(e),
+                    'response_time': response_time
+                }
+                self.answer_logger.log_qa_pair(question, error_message, metadata)
+            except Exception as log_error:
+                print(f"⚠️  Warning: Failed to log error Q&A: {log_error}")
+            
             return {
-                'answer': f"An error occurred during processing: {e}\n\nPlease try rephrasing your question or ask something simpler.",
+                'answer': error_message,
                 'chat_history': history,
                 'files': [], 'contexts': [], 'query_type': 'agent_error'
             }
+
+    def _generate_google_drive_link(self, file_id: str, mime_type: str = None) -> str:
+        """
+        Generate appropriate Google Drive link based on file type
+        
+        Args:
+            file_id: Google Drive file ID
+            mime_type: MIME type of the file for determining link type
+            
+        Returns:
+            Formatted Google Drive link
+        """
+        if not file_id:
+            return ""
+        
+        # Google Workspace files (open in editor)
+        if mime_type:
+            if 'google-apps.document' in mime_type:
+                return f"https://docs.google.com/document/d/{file_id}/edit"
+            elif 'google-apps.spreadsheet' in mime_type:
+                return f"https://docs.google.com/spreadsheets/d/{file_id}/edit"
+            elif 'google-apps.presentation' in mime_type:
+                return f"https://docs.google.com/presentation/d/{file_id}/edit"
+        
+        # Default: Google Drive viewer
+        return f"https://drive.google.com/file/d/{file_id}/view"
+    
+    def _format_file_info(self, metadata: dict) -> dict:
+        """
+        Format file information with Google Drive link and metadata
+        
+        Args:
+            metadata: File metadata from vector store
+            
+        Returns:
+            Formatted file info dictionary
+        """
+        file_id = metadata.get('file_id', '')
+        file_name = metadata.get('file_name', 'unknown')
+        mime_type = metadata.get('mime_type', '')
+        file_path = metadata.get('file_path', '')
+        
+        # Generate appropriate link
+        google_drive_link = self._generate_google_drive_link(file_id, mime_type)
+        
+        # Determine file type for display
+        file_type = "Document"
+        if mime_type:
+            if 'google-apps.document' in mime_type:
+                file_type = "Google Doc"
+            elif 'google-apps.spreadsheet' in mime_type:
+                file_type = "Google Sheets"
+            elif 'google-apps.presentation' in mime_type:
+                file_type = "Google Slides"
+            elif 'pdf' in mime_type:
+                file_type = "PDF"
+            elif 'image' in mime_type:
+                file_type = "Image"
+            elif 'word' in mime_type or 'docx' in mime_type:
+                file_type = "Word Doc"
+            elif 'excel' in mime_type or 'xlsx' in mime_type:
+                file_type = "Excel"
+            elif 'powerpoint' in mime_type or 'pptx' in mime_type:
+                file_type = "PowerPoint"
+        
+        return {
+            'file_name': file_name,
+            'file_type': file_type,
+            'file_path': file_path,
+            'google_drive_link': google_drive_link,
+            'file_id': file_id
+        }
 
     def open_file(self, file_id):
         """Helper to open a file (unchanged)."""

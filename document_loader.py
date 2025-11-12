@@ -2,6 +2,7 @@
 
 import io
 import logging
+from typing import Optional
 from googleapiclient.http import MediaIoBaseDownload
 from PyPDF2 import PdfReader
 from docx import Document as DocxDocument
@@ -24,6 +25,12 @@ import re
 
 # OCR Integration
 from ocr_service import OCRServiceFactory, is_image_file, get_image_format_from_mime
+
+# Text Clarification Integration  
+from text_clarification import get_clarification_service
+
+# Text Quality Filter Integration
+from text_quality_filter import get_quality_filter
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -192,8 +199,57 @@ def extract_text_from_csv(file_content):
         return file_content.read().decode('utf-8', errors='ignore')
 
 
+def process_extracted_text(text: str, filename: str = "", source_type: str = "") -> Optional[str]:
+    """
+    Process extracted text through quality filtering and clarification
+    Returns None if text quality is too low, otherwise returns processed text
+    """
+    if not text or len(text.strip()) < 10:
+        return None
+    
+    # Get quality filter and clarification service
+    quality_filter = get_quality_filter()
+    clarification_service = get_clarification_service()
+    
+    # First, assess text quality
+    quality_assessment = quality_filter.assess_text_quality(text, filename, source_type)
+    
+    if not quality_assessment['should_include']:
+        logger.info(f"Text from {filename} excluded: {quality_assessment['reason']}")
+        return None
+    
+    logger.info(f"Text from {filename} passed quality check (score: {quality_assessment['quality_score']:.2f})")
+    
+    # If quality is acceptable, try to clarify if needed
+    processed_text = text
+    if (clarification_service and clarification_service.model and 
+        clarification_service.should_clarify_text(text, source_type)):
+        
+        try:
+            clarified_text = clarification_service.clarify_text(
+                text=text,
+                filename=filename,
+                source_type=source_type,
+                context="Extracted document text"
+            )
+            
+            # Re-assess quality of clarified text
+            clarified_assessment = quality_filter.assess_text_quality(clarified_text, filename, f"Clarified {source_type}")
+            
+            if clarified_assessment['should_include'] and clarified_assessment['quality_score'] > quality_assessment['quality_score']:
+                processed_text = clarified_text
+                logger.info(f"Text from {filename} clarified and improved (quality: {quality_assessment['quality_score']:.2f} → {clarified_assessment['quality_score']:.2f})")
+            else:
+                logger.info(f"Clarification did not improve quality for {filename}, using original")
+                
+        except Exception as e:
+            logger.warning(f"Failed to clarify text from {filename}: {e}")
+    
+    return processed_text
+
+
 def extract_text_from_image(file_content, ocr_service, filename=""):
-    """Extract text from image using OCR"""
+    """Extract text from image using OCR with quality filtering and AI clarification"""
     try:
         if not ocr_service:
             logger.warning("OCR service not available for image processing")
@@ -209,21 +265,38 @@ def extract_text_from_image(file_content, ocr_service, filename=""):
         ocr_result = ocr_service.extract_text(image_data, languages=OCR_LANGUAGES)
         
         if ocr_result.text.strip():
-            # Format extracted text with metadata
-            text_parts = [f"[IMAGE FILE: {filename}]"]
-            text_parts.append(f"OCR Confidence: {ocr_result.confidence:.2f}")
+            # Format basic metadata
+            metadata_parts = [f"[IMAGE FILE: {filename}]"]
+            metadata_parts.append(f"OCR Confidence: {ocr_result.confidence:.2f}")
             if ocr_result.language:
-                text_parts.append(f"Detected Language: {ocr_result.language}")
-            text_parts.append("\n--- Extracted Text ---")
-            text_parts.append(ocr_result.text)
+                metadata_parts.append(f"Detected Language: {ocr_result.language}")
             
-            return "\n".join(text_parts)
+            # Process through quality filter and clarification
+            processed_text = process_extracted_text(
+                text=ocr_result.text,
+                filename=filename,
+                source_type="OCR Image"
+            )
+            
+            if processed_text is None:
+                logger.info(f"OCR text from {filename} filtered out due to low quality")
+                return None  # Signal that this content should be skipped
+            
+            # Combine metadata with processed text
+            metadata_header = "\n".join(metadata_parts)
+            if processed_text != ocr_result.text:
+                # Text was clarified
+                return f"{metadata_header}\n\n--- AI-Enhanced Text ---\n{processed_text}"
+            else:
+                # Text was not clarified but passed quality check
+                return f"{metadata_header}\n\n--- Extracted Text ---\n{processed_text}"
         else:
-            return f"[IMAGE FILE: {filename}] - No text detected or confidence too low"
+            logger.info(f"No text detected in image {filename} or confidence too low")
+            return None  # Signal that this content should be skipped
             
     except Exception as e:
         logger.error(f"Error extracting text from image {filename}: {e}")
-        return f"[IMAGE FILE: {filename}] - OCR processing failed: {str(e)}"
+        return None  # Signal that this content should be skipped
 
 
 def extract_text(file_content, mime_type, filename="", ocr_service=None):
@@ -235,12 +308,69 @@ def extract_text(file_content, mime_type, filename="", ocr_service=None):
         
         # Existing document processing logic
         if mime_type == 'application/pdf':
+            # First try to extract text normally from PDF
             pdf_reader = PdfReader(file_content)
             text = ""
             for page in pdf_reader.pages:
                 page_text = page.extract_text()
                 if page_text:
                     text += page_text + "\n"
+            
+            # If no text was extracted (scanned PDF), try OCR
+            if not text.strip() and ocr_service:
+                logger.info(f"PDF '{filename}' appears to be scanned/image-based, attempting OCR...")
+                try:
+                    # Convert PDF pages to images and OCR each page
+                    import fitz  # PyMuPDF for PDF to image conversion
+                    file_content.seek(0)
+                    pdf_document = fitz.open(stream=file_content.read(), filetype="pdf")
+                    
+                    ocr_text_parts = []
+                    for page_num in range(len(pdf_document)):
+                        # Convert page to image
+                        page = pdf_document.load_page(page_num)
+                        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom for better OCR
+                        image_data = pix.tobytes("png")
+                        
+                        # OCR the page image
+                        ocr_result = ocr_service.extract_text(image_data, languages=OCR_LANGUAGES)
+                        if ocr_result.text.strip():
+                            ocr_text_parts.append(f"[Page {page_num + 1}]\n{ocr_result.text}")
+                    
+                    pdf_document.close()
+                    
+                    if ocr_text_parts:
+                        # Combine OCR text from all pages
+                        combined_ocr_text = "\n\n".join(ocr_text_parts)
+                        
+                        # Process through quality filter and clarification
+                        processed_text = process_extracted_text(
+                            text=combined_ocr_text,
+                            filename=filename,
+                            source_type="Scanned PDF OCR"
+                        )
+                        
+                        if processed_text is None:
+                            logger.info(f"OCR text from PDF {filename} filtered out due to low quality")
+                            text = f"[SCANNED PDF: {filename}] - OCR text quality too low for indexing"
+                        else:
+                            if processed_text != combined_ocr_text:
+                                text = f"[SCANNED PDF: {filename}] - Processed with OCR and AI Enhancement\n\n{processed_text}"
+                                logger.info(f"Successfully enhanced PDF OCR text for {filename}")
+                            else:
+                                text = f"[SCANNED PDF: {filename}] - Processed with OCR\n\n{processed_text}"
+                        
+                        logger.info(f"OCR processed {len(ocr_text_parts)} pages of '{filename}'")
+                    else:
+                        text = f"[SCANNED PDF: {filename}] - No text could be extracted via OCR"
+                        
+                except ImportError:
+                    logger.warning("PyMuPDF not installed - cannot OCR scanned PDFs. Install with: pip install PyMuPDF")
+                    text = f"[SCANNED PDF: {filename}] - No text found and PyMuPDF not available for OCR"
+                except Exception as e:
+                    logger.error(f"Error during PDF OCR processing: {e}")
+                    text = f"[SCANNED PDF: {filename}] - OCR processing failed: {str(e)}"
+            
             return text
         
         elif mime_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':

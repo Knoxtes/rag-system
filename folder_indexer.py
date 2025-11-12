@@ -6,16 +6,18 @@ from document_loader import GoogleDriveLoader, extract_text, chunk_text
 from embeddings import LocalEmbedder
 from vector_store import VectorStore
 from config import CHUNK_SIZE, CHUNK_OVERLAP, INDEXED_FOLDERS_FILE
+from incremental_indexing import IncrementalIndexingManager
 import json
 import os
 import time
 
 
 class FolderIndexer:
-    """Index specific ROOT-LEVEL folders only into separate collections"""
+    """Index specific ROOT-LEVEL folders only into separate collections with incremental indexing"""
     
     def __init__(self):
         self.indexed_folders_file = INDEXED_FOLDERS_FILE
+        self.incremental_manager = IncrementalIndexingManager()
         self.load_indexed_folders()
     
     def load_indexed_folders(self):
@@ -445,7 +447,15 @@ class FolderIndexer:
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'text/csv',
-            'text/plain'
+            'text/plain',
+            # Image formats for OCR processing
+            'image/jpeg',
+            'image/jpg', 
+            'image/png',
+            'image/gif',
+            'image/bmp',
+            'image/tiff',
+            'image/webp'
         ]
         
         filtered = [f for f in all_files if f.get('mimeType') in supported]
@@ -454,6 +464,267 @@ class FolderIndexer:
         print(f"✓ Indexable files: {len(filtered)}")
         
         return filtered
+
+    def index_folders_incremental(self, folder_selections, universal_folder, drive_service):
+        """
+        Enhanced indexing with incremental processing - only new/modified files
+        """
+        if not folder_selections:
+            print("\nNo folders selected to index.")
+            return
+
+        print("\n" + "=" * 80)
+        print(f"🚀 INCREMENTAL INDEXING FOR {len(folder_selections)} FOLDER(S)")
+        print("Only new and modified files will be processed!")
+        print("=" * 80)
+
+        loader = GoogleDriveLoader(drive_service)
+        embedder = LocalEmbedder()
+        
+        overall_start_time = time.time()
+        total_stats = {
+            'new': 0, 'modified': 0, 'unchanged': 0, 'deleted': 0, 'failed': 0
+        }
+        
+        # Get Universal Files First
+        universal_files = []
+        if universal_folder:
+            print("=" * 80)
+            print("1. Fetching 'Universal Truths' files...")
+            universal_files = self.get_files_in_folders(
+                drive_service, 
+                [universal_folder], 
+                path_prefix="[UNIVERSAL]/"
+            )
+            print(f"✓ Found {len(universal_files)} universal files to inject.")
+            print("=" * 80)
+        
+        # Process each folder with incremental indexing
+        for folder_selection in folder_selections:
+            folder_id = folder_selection['id']
+            folder_name = folder_selection['name']
+            location = folder_selection['location']
+            collection_name = f"folder_{folder_id}"
+            
+            print("\n\n" + "=" * 80)
+            print(f"Processing: [{location}] {folder_name}")
+            print(f"Collection: {collection_name}")
+            print("=" * 80)
+
+            try:
+                vector_store = VectorStore(collection_name=collection_name)
+            except Exception as e:
+                print(f"✗ FATAL: Could not initialize vector store: {e}")
+                continue
+
+            # Get all files in folder
+            print(f"  ...Fetching files for '{folder_name}'...")
+            specific_files = self.get_files_in_folders(drive_service, [folder_selection], path_prefix="")
+            all_files = universal_files + specific_files
+            
+            if not all_files:
+                print("\n⚠️  No files found!")
+                continue
+            
+            # Analyze files for incremental processing
+            categorized = self.incremental_manager.filter_files_for_processing(
+                all_files, collection_name
+            )
+            
+            # Show incremental analysis
+            print(self.incremental_manager.get_incremental_summary(categorized))
+            
+            # Clean up deleted files
+            current_file_ids = {f['id'] for f in all_files}
+            deleted_count = self.incremental_manager.cleanup_deleted_files(
+                vector_store, collection_name, current_file_ids
+            )
+            total_stats['deleted'] += deleted_count
+            
+            # Process only new and modified files
+            files_to_process = categorized['new'] + categorized['modified']
+            total_stats['unchanged'] += len(categorized['unchanged'])
+            
+            if not files_to_process:
+                print("\n🎉 Collection is up to date! No files need processing.")
+                # Still update the indexed timestamp
+                self.indexed_folders[folder_id] = {
+                    'name': folder_name,
+                    'location': location,
+                    'collection_name': collection_name,
+                    'indexed_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'files_processed': len(categorized['unchanged']),
+                    'incremental_indexing': True
+                }
+                self.save_indexed_folders()
+                continue
+            
+            # Ask for confirmation
+            print(f"\n📊 Will process {len(files_to_process)} files:")
+            print(f"  🆕 New: {len(categorized['new'])}")
+            print(f"  🔄 Modified: {len(categorized['modified'])}")
+            print(f"  ✅ Skipped: {len(categorized['unchanged'])}")
+            
+            response = input("\nProceed with incremental indexing? (yes/no): ")
+            if response.lower() != 'yes':
+                print("Cancelled.")
+                continue
+            
+            # Process files
+            print("\n🚀 Starting incremental indexing...\n")
+            
+            successful = 0
+            failed = 0
+            start_time = time.time()
+            
+            all_chunks = []
+            all_metadatas = []
+            all_ids = []
+            
+            for idx, file in enumerate(files_to_process, 1):
+                file_id = file['id']
+                
+                # Determine if this is new or modified
+                status_indicator = "🆕" if file_id not in self.incremental_manager.file_registry else "🔄"
+                
+                print(f"\n[{idx}/{len(files_to_process)}] {status_indicator} {file.get('relative_path', '')}{file['name'][:50]}")
+                
+                # Remove old chunks if file was modified
+                if file_id in self.incremental_manager.file_registry:
+                    try:
+                        vector_store.collection.delete(where={"file_id": file_id})
+                        print("    (Removed old chunks)")
+                    except Exception as e:
+                        print(f"    Warning: Could not remove old chunks: {e}")
+                
+                try:
+                    # Process file (same logic as before)
+                    mime_type = file['mimeType']
+                    if mime_type == 'application/vnd.google-apps.document':
+                        text = loader.export_google_doc(file['id'])
+                    elif mime_type == 'application/vnd.google-apps.presentation':
+                        text = loader.export_google_slides(file['id'])
+                    elif mime_type == 'application/vnd.google-apps.spreadsheet':
+                        text = loader.export_google_sheets(file['id'])
+                    else:
+                        content = loader.download_file(file['id'])
+                        if content is None:
+                            failed += 1
+                            continue
+                        text = extract_text(content, mime_type, file.get('name', ''), loader.ocr_service)
+                    
+                    # Check if text was filtered out due to poor quality
+                    if text is None:
+                        print("    ❌ Text filtered out (poor quality)")
+                        failed += 1
+                        continue
+                    
+                    if not text or len(text.strip()) < 50:
+                        print("    ⚠️  Empty content")
+                        continue
+                    
+                    chunks = chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
+                    if not chunks:
+                        continue
+                    
+                    print(f"    ✓ {len(text):,} chars → {len(chunks)} chunks")
+                    
+                    # Create metadata with enhanced tracking
+                    metadatas = [
+                        {
+                            'file_id': file['id'],
+                            'file_name': file['name'],
+                            'file_path': file.get('relative_path', ''),
+                            'folder_name': file.get('folder_name', ''),
+                            'parent_folder_id': file.get('parent_folder_id', ''),
+                            'mime_type': mime_type,
+                            'chunk_index': i,
+                            'total_chunks': len(chunks),
+                            'modified_time': file.get('modifiedTime'),
+                            'indexed_time': time.strftime('%Y-%m-%d %H:%M:%S'),
+                            'processing_status': 'new' if file_id not in self.incremental_manager.file_registry else 'modified'
+                        }
+                        for i in range(len(chunks))
+                    ]
+                    
+                    ids = [f"{file['id']}_chunk_{i}" for i in range(len(chunks))]
+                    
+                    all_chunks.extend(chunks)
+                    all_metadatas.extend(metadatas)
+                    all_ids.extend(ids)
+                    
+                    # Mark as processed in tracking system
+                    file_info = dict(file)
+                    file_info['chunks_created'] = len(chunks)
+                    file_info['collection_name'] = collection_name
+                    self.incremental_manager.mark_file_processed(file_id, file_info)
+                    
+                    successful += 1
+                    if file_id in self.incremental_manager.file_registry:
+                        total_stats['modified'] += 1
+                    else:
+                        total_stats['new'] += 1
+                    
+                except Exception as e:
+                    print(f"    ✗ Error: {e}")
+                    self.incremental_manager.mark_file_failed(file_id, str(e))
+                    failed += 1
+                    total_stats['failed'] += 1
+            
+            # Batch process all chunks
+            if all_chunks:
+                print(f"\n🚀 Processing {len(all_chunks)} chunks for vector storage...")
+                try:
+                    all_embeddings = embedder.embed_documents(all_chunks)
+                    vector_store.add_documents(all_chunks, all_embeddings, all_metadatas, all_ids)
+                    print("✓ Batch processing complete!")
+                except Exception as e:
+                    print(f"✗ Error during batch processing: {e}")
+            
+            # Update folder tracking
+            self.indexed_folders[folder_id] = {
+                'name': folder_name,
+                'location': location,
+                'collection_name': collection_name,
+                'indexed_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'files_processed': successful + len(categorized['unchanged']),  # Total files in collection
+                'new_files_processed': len(categorized['new']),
+                'modified_files_processed': len(categorized['modified']),
+                'incremental_indexing': True
+            }
+            self.save_indexed_folders()
+            self.incremental_manager.save_file_registry()
+            
+            # Summary for this folder
+            total_time = time.time() - start_time
+            print("\n" + "=" * 80)
+            print(f"🎉 INCREMENTAL INDEXING COMPLETE: {folder_name}")
+            print("=" * 80)
+            print(f"✅ Processed: {successful}")
+            print(f"✓ Skipped (unchanged): {len(categorized['unchanged'])}")
+            print(f"🗑️  Cleaned up: {deleted_count} deleted files")
+            print(f"❌ Failed: {failed}")
+            print(f"⏱️  Time: {total_time/60:.1f} minutes")
+            print(f"📊 Collection size: {vector_store.get_stats()['total_documents']} chunks")
+            print("=" * 80)
+
+        # Final Summary
+        overall_time = time.time() - overall_start_time
+        print("\n\n" + "=" * 80)
+        print("🎉 INCREMENTAL INDEXING COMPLETE!")
+        print("=" * 80)
+        print(f"🆕 New files: {total_stats['new']}")
+        print(f"🔄 Modified files: {total_stats['modified']}")  
+        print(f"✅ Unchanged files: {total_stats['unchanged']} (skipped)")
+        print(f"🗑️  Deleted files: {total_stats['deleted']} (cleaned)")
+        print(f"❌ Failed files: {total_stats['failed']}")
+        print(f"⏱️  Total time: {overall_time/60:.1f} minutes")
+        print("=" * 80)
+        
+        total_files = sum(total_stats.values())
+        if total_files > 0:
+            efficiency = total_stats['unchanged'] / total_files * 100
+            print(f"⚡ Efficiency: {efficiency:.1f}% of files skipped (incremental indexing)")
 
     def index_folders(self, folder_selections, universal_folder, drive_service):
         """
@@ -624,6 +895,12 @@ class FolderIndexer:
                             continue
                         text = extract_text(content, mime_type, file.get('name', ''), loader.ocr_service)
                     
+                    # Check if text was filtered out due to poor quality
+                    if text is None:
+                        print("  ❌ Filtered out (poor quality)")
+                        failed += 1
+                        continue
+                    
                     if not text or len(text.strip()) < 50:
                         print("  ⚠️  Empty")
                         empty += 1
@@ -715,7 +992,7 @@ class FolderIndexer:
 
 
 def main():
-    """Main function"""
+    """Main function with incremental indexing option"""
     print("\n" + "=" * 80)
     print("ROOT-LEVEL FOLDER INDEXING")
     print("=" * 80)
@@ -739,8 +1016,39 @@ def main():
     if universal:
         print(f"\n✓ Will inject '{universal['name']}' into all of them.")
     
-    print("\n3️⃣  Indexing...")
-    indexer.index_folders(selected, universal, drive_service)
+    # Check if any folders have been indexed before
+    previously_indexed = [f for f in selected if f['id'] in indexer.indexed_folders]
+    
+    if previously_indexed:
+        print(f"\n📊 {len(previously_indexed)} folder(s) have been indexed before:")
+        for f in previously_indexed:
+            folder_info = indexer.indexed_folders[f['id']]
+            print(f"  - {f['name']} (last indexed: {folder_info['indexed_at']})")
+        
+        print("\n" + "=" * 80)
+        print("INDEXING MODE SELECTION")
+        print("=" * 80)
+        print("1. 🚀 Incremental Indexing (RECOMMENDED)")
+        print("   - Only processes new and modified files")
+        print("   - Much faster for re-indexing")
+        print("   - Automatically cleans up deleted files")
+        print("")
+        print("2. 🔄 Full Re-indexing")
+        print("   - Processes all files regardless of changes")
+        print("   - Slower but ensures complete rebuild")
+        print("   - Use if you suspect indexing issues")
+        
+        mode_choice = input("\nSelect indexing mode (1 or 2): ").strip()
+        
+        if mode_choice == "1" or mode_choice == "":
+            print("\n✅ Using Incremental Indexing")
+            indexer.index_folders_incremental(selected, universal, drive_service)
+        else:
+            print("\n✅ Using Full Re-indexing")
+            indexer.index_folders(selected, universal, drive_service)
+    else:
+        print("\n3️⃣  First-time indexing (will use full indexing)...")
+        indexer.index_folders(selected, universal, drive_service)
 
 
 if __name__ == "__main__":
