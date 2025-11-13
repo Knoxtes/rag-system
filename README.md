@@ -1,217 +1,215 @@
-# 🤖 Enterprise RAG Chatbot System
+# 🤖 RAG Chat System
 
-Production-ready RAG (Retrieval-Augmented Generation) chatbot for Google Drive document Q&A with advanced multi-document synthesis capabilities.
+A modern React-based chat interface powered by a RAG (Retrieval-Augmented Generation) system with Google Drive integration.
 
 ## ✨ Features
 
-- **🔍 Hybrid Search**: Combines BM25 keyword search + dense semantic embeddings
-- **🧠 Multi-Document Synthesis**: Intelligently aggregates information across multiple documents
-- **💾 Query Caching**: Reduces API costs by caching frequent queries
-- **📊 Folder-Aware Search**: Search within specific folders and organizational structures
-- **🎯 Smart Query Routing**: Automatically detects and optimizes different query types
-- **🔐 Secure**: API keys and credentials excluded from version control
-- **⚡ Cost-Optimized**: ~$0.33/user/month for 20 queries/day
-
-## 🏗️ Architecture
-
-```
-User Query
-    ↓
-Query Cache Check (saves 20-30% API costs)
-    ↓
-Synthesis Detection (confidence-based threshold)
-    ↓
-Multi-Query Generation (2-4 variations for synthesis)
-    ↓
-Hybrid Search (BM25 + Dense Embeddings)
-    ↓
-Cross-Encoder Reranking
-    ↓
-Contextual Compression
-    ↓
-Gemini 2.5 Flash API
-    ↓
-Rich Markdown Response
-```
+- **Modern React UI**: Dark theme with smooth animations
+- **RAG Integration**: AI-powered responses using your documents
+- **Google Drive Browser**: Lazy-loading folder navigation  
+- **Real-time Chat**: Instant responses with streaming support
+- **Multi-Collection Support**: Switch between different document collections
+- **Production Ready**: Optimized for deployment on Plesk and other hosting platforms
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.8+
-- Google Cloud Project with Drive API enabled
-- Google Gemini API key
+- **Python 3.8+**
+- **Node.js 16+** 
+- **npm**
 
-### Installation
-
-1. **Clone the repository**:
-```bash
-git clone <your-repo-url>
-cd rag-system
-```
-
-2. **Create virtual environment**:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. **Install dependencies**:
-```bash
-pip install -r requirements.txt
-```
-
-4. **Set up credentials**:
-```bash
-# Copy environment template
-cp .env.example .env
-
-# Edit .env and add your keys:
-# - GOOGLE_API_KEY (from https://aistudio.google.com/app/apikey)
-# - PROJECT_ID (your Google Cloud project)
-```
-
-5. **Set up Google Drive credentials**:
-   - Download `credentials.json` from Google Cloud Console
-   - Place in project root
-   - First run will prompt OAuth authentication
-
-### Running
+### One-Command Start
 
 ```bash
-python main.py
+npm start
 ```
 
-Then select:
-- **Option 1**: Index a Google Drive folder
-- **Option 2**: Chat with indexed documents
+This will simultaneously start:
+- **Flask API** on http://localhost:5000 (backend)
+- **React App** on http://localhost:3000 (frontend)
 
-## 💰 Cost Analysis
+### Manual Installation
 
-### For 300 Users @ 20 Requests/Day
+If you need to install dependencies separately:
 
-| Component | Monthly Cost |
-|-----------|-------------|
-| Gemini 2.5 Flash API | ~$100 |
-| **Cost per user** | **$0.33** |
-| **Cost per request** | **$0.017** |
+```bash
+# Install all dependencies
+npm run install:all
 
-### Optimizations Included
+# Or install individually
+npm run install:backend  # Python dependencies
+npm run install:frontend # Node.js dependencies
+```
 
-✅ **Query Caching** - 20-30% API cost reduction  
-✅ **Reduced Context Windows** - 33% token savings  
-✅ **Selective Synthesis Mode** - Only when needed  
-✅ **Local Embeddings** - No embedding API costs
+## 📁 Project Structure
 
-## 📊 Performance
+```
+rag-system/
+├── chat_api.py                  # Flask API server
+├── rag_system.py               # Core RAG functionality  
+├── auth.py                     # Google authentication
+├── package.json                # Root npm config (unified start)
+├── passenger_wsgi.py           # WSGI entry point for Plesk
+├── requirements-production.txt # Python dependencies
+├── chat-app/                   # React frontend
+│   ├── src/App.tsx            # Main chat interface
+│   ├── package.json           # React dependencies
+│   └── build/                 # Production build (after npm run build)
+└── chroma_db/                 # Vector database
+```
 
-- **Response Time**: 2-5 seconds (regular queries)
-- **Response Time**: 4-8 seconds (synthesis queries)
-- **Cache Hit Rate**: 20-30% (typical workload)
-- **Multi-Doc Success Rate**: 85%+ (vs 40% before optimization)
+## 🛠️ Available Scripts
+
+### Development
+- `npm start` - Start both backend and frontend simultaneously
+- `npm run dev` - Same as start (alias)
+- `npm run start:backend` - Start only Flask API
+- `npm run start:frontend` - Start only React app
+
+### Production
+- `npm run build` - Build React app for production
+- `npm run production` - Start Flask API in production mode
+
+### Installation  
+- `npm run install:all` - Install all dependencies
+- `npm run install:backend` - Install Python dependencies
+- `npm run install:frontend` - Install Node.js dependencies
+
+## 🌐 Deployment to Plesk
+
+### Automatic Deployment
+
+Run the deployment script:
+
+```bash
+# Windows
+deploy.bat
+
+# Linux/Mac  
+bash deploy.sh
+```
+
+### Manual Plesk Setup
+
+1. **Upload Files**: Upload entire project to your domain directory
+
+2. **Python App Configuration**:
+   - Entry point: `passenger_wsgi.py`
+   - Python version: 3.8+ 
+
+3. **Static Files**:
+   - Static files directory: `chat-app/build/`
+   - Static files URL: `/`
+
+4. **Environment Variables** (in Plesk):
+   ```
+   FLASK_ENV=production
+   PYTHONPATH=/path/to/your/app
+   ```
+
+5. **Build Frontend**:
+   ```bash
+   cd chat-app && npm run build
+   ```
+
+6. **Install Dependencies**:
+   ```bash
+   pip install -r requirements-production.txt
+   ```
+
+7. **Restart Application** in Plesk control panel
 
 ## 🔧 Configuration
 
-Key settings in `config.py`:
+### Google Drive Setup
 
-```python
-# Cost Optimization
-ENABLE_QUERY_CACHE = True
-CACHE_TTL_SECONDS = 300
-MAX_CONTEXT_CHARACTERS = 8000
-SYNTHESIS_CONTEXT_WINDOW = 15000
+1. Create credentials in Google Cloud Console
+2. Download `credentials.json`
+3. Place in root directory
+4. Run authentication flow on first start
 
-# Search Quality
-TOP_K_RESULTS = 20
-USE_HYBRID_SEARCH = True
-BM25_WEIGHT = 0.3
-DENSE_WEIGHT = 0.7
+### Environment Variables
 
-# Synthesis
-SYNTHESIS_QUERY_THRESHOLD = 0.7
-MIN_SOURCES_FOR_SYNTHESIS = 3
+Create `.env` file (optional):
+```env
+FLASK_ENV=development
+FLASK_DEBUG=true
+GOOGLE_DRIVE_FOLDER_ID=your_shared_drive_id
 ```
 
-## 📝 Example Queries
+## 🎯 API Endpoints
 
-### Regular Queries
-- "What are the Q1 sales figures?"
-- "Explain the January projections"
-- "Show me the Elmira market summary"
+- `GET /health` - Health check
+- `POST /chat` - Send chat messages
+- `GET /collections` - List available collections
+- `POST /switch-collection` - Switch document collections
+- `GET /folders` - Browse Google Drive folders (lazy loading)
+- `GET /folders/search` - Search folders and files
 
-### Synthesis Queries (Multi-Document)
-- "Summarize Q1, Q2, and Q3 reports"
-- "Compare Elmira and Mansfield market performance"
-- "List all packages available in 2025"
+## 🐛 Troubleshooting
 
-## 🔒 Security
-
-### Protected Files (Never Committed)
-- `credentials.json` - Google OAuth credentials
-- `token.pickle` - Authentication tokens
-- `.env` - API keys and secrets
-- `chroma_db/` - Vector database (regenerate from source)
-
-### Safe to Commit
-- All `.py` source files
-- `.env.example` - Template only
-- Documentation
-- Configuration (no secrets)
-
-## 🛠️ Development
-
-### Project Structure
-```
-rag-system/
-├── main.py                  # Entry point
-├── rag_system.py           # Core RAG agent
-├── config.py               # Configuration
-├── embeddings.py           # Embedding & reranking models
-├── vector_store.py         # ChromaDB interface
-├── document_loader.py      # Document processing
-├── folder_indexer.py       # Drive indexing
-├── auth.py                 # Google authentication
-├── test_synthesis.py       # Test suite
-└── docs/
-    ├── SYNTHESIS_IMPROVEMENTS.md
-    └── OPTIMIZATION_GUIDE.md
-```
-
-### Testing
-
+### Port Conflicts
+If port 5000 or 3000 is in use:
 ```bash
-# Run synthesis tests
-python test_synthesis.py
-
-# Test specific query
-python -c "from rag_system import *; rag.query('your test query')"
+npm run start:backend -- --port 5001
+npm run start:frontend  # React will auto-detect available port
 ```
 
-## 📈 Scaling
+### Python Dependencies
+If imports fail:
+```bash
+pip install -r requirements-production.txt
+```
 
-| Users | Requests/Day | Monthly API Cost |
-|-------|--------------|------------------|
-| 100 | 2,000 | $33 |
-| 300 | 6,000 | $100 |
-| 1,000 | 20,000 | $334 |
-| 5,000 | 100,000 | $1,670 |
+### React Build Issues
+Clear cache and rebuild:
+```bash
+cd chat-app
+rm -rf node_modules package-lock.json
+npm install
+npm run build
+```
 
-**Linear scaling**: Cost per user remains constant at ~$0.33/month
+## 📋 Dependencies
 
-## 🤝 Contributing
+### Backend (Python)
+- Flask - Web framework
+- ChromaDB - Vector database  
+- Google API Client - Drive integration
+- Sentence Transformers - Embeddings
+- And 20+ more (see requirements-production.txt)
 
-This is a private repository. Contact the repository owner for access.
+### Frontend (React/TypeScript)
+- React 19 - UI framework
+- TypeScript - Type safety
+- Tailwind CSS - Styling
+- Framer Motion - Animations
+- Axios - API client
+- React Markdown - Message rendering
 
-## 📄 License
+## 🎨 Features
 
-Proprietary - All rights reserved
+### Chat Interface
+- **Dark Theme**: Professional dark UI
+- **Smooth Animations**: Framer Motion powered
+- **Markdown Support**: Rich text formatting
+- **Responsive Design**: Works on all devices
 
-## 🆘 Support
+### Document Integration  
+- **RAG System**: Context-aware responses
+- **Multi-Collections**: Switch between document sets
+- **Vector Search**: Semantic document retrieval
+- **OCR Support**: Text extraction from images
 
-For issues or questions, contact the development team.
+### Google Drive
+- **Lazy Loading**: Fast folder browsing
+- **Search Function**: Find files quickly
+- **Shared Drive Support**: Team collaboration
+- **Authentication**: Secure OAuth2 flow
 
 ---
 
-**Built with**: Python 3.11, Google Gemini 2.5 Flash, ChromaDB, BGE Embeddings  
-**Optimized for**: Production use, cost efficiency, multi-document synthesis  
-**Last Updated**: January 2025
+**Status**: Production Ready ✅  
+**Last Updated**: November 2025  
+**Version**: 1.0.0

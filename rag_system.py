@@ -282,7 +282,7 @@ class EnhancedRAGSystem:
         }
         
         stats = self.vector_store.get_stats()
-        print(f"✓ Agent Ready! {stats['total_documents']} documents indexed.\n")
+        print(f"[+] Agent Ready! {stats['total_documents']} documents indexed.\n")
 
     # --- MODIFIED: Function now accepts classic 'tools' object ---
     def _initialize_model(self, system_instruction, tools):
@@ -326,11 +326,11 @@ class EnhancedRAGSystem:
                 safety_settings=safety_settings,
                 generation_config=generation_config  # Add generation config
             )
-            print(f"✓ Model initialization successful! Using: {model_name}")
+            print(f"[+] Model initialization successful! Using: {model_name}")
             return model
             
         except Exception as e:
-            print(f"  ❌ {model_name} failed to initialize: {e}")
+            print(f"  [!] {model_name} failed to initialize: {e}")
             print("\n  >>> HINT: The model failed to initialize. This can be due to an invalid API key,")
             print("  >>> the model not being on your available list, or (most likely) an old, cached")
             print("  >>> version of this file being run by Python.")
@@ -1046,7 +1046,7 @@ class EnhancedRAGSystem:
             return result
         
         except Exception as e:
-            print(f"❌ Error during agent loop: {e}")
+            print(f"[!] Error during agent loop: {e}")
             print(f"\n🔍 Error details:")
             traceback.print_exc()
             

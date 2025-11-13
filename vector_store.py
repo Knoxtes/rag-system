@@ -29,7 +29,7 @@ class VectorStore:
         )
         
         count = self.collection.count()
-        print(f"✓ Collection '{self.collection_name}' ready. Documents: {count}")
+        print(f"[+] Collection '{self.collection_name}' ready. Documents: {count}")
     
     def add_documents(self, documents, embeddings, metadatas, ids):
         """Add documents to the specific collection - auto-persists"""
@@ -55,7 +55,7 @@ class VectorStore:
             count = self.collection.count()
             
             if count == 0:
-                print(f"⚠️  Collection '{self.collection_name}' is empty.")
+                print(f"[!] Collection '{self.collection_name}' is empty.")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
             
             actual_n_results = min(n_results, count)
