@@ -168,9 +168,10 @@ class UnifiedRAGSystem:
         
         print(f"✅ Unified system ready with {len(self.rag_systems)} collections!")
         
-    def search_with_routing(self, query: str, max_results_per_folder: int = 10) -> List[Dict]:
+    def search_with_routing(self, query: str, max_results_per_folder: int = 10) -> tuple[List[Dict], List[str]]:
         """
         Search across collections with intelligent routing
+        Returns: (results, searched_collections)
         """
         print(f"🔍 Analyzing query intent: \"{query}\"")
         
@@ -184,10 +185,12 @@ class UnifiedRAGSystem:
                 print(f"  • {folder_name}: {score:.2f}")
         
         all_results = []
+        searched_collections = []
         
         # Search in order of relevance
         for collection_name, relevance_score in folder_relevance:
             if collection_name in self.rag_systems:
+                searched_collections.append(self.get_folder_display_name(collection_name))
                 try:
                     print(f"  🔍 Searching {self.get_folder_display_name(collection_name)}...")
                     
@@ -199,6 +202,17 @@ class UnifiedRAGSystem:
                     if isinstance(search_results, str):
                         try:
                             results_data = json.loads(search_results)
+                            
+                            # Check if response is an error/status dict
+                            if isinstance(results_data, dict):
+                                if 'error' in results_data:
+                                    print(f"    ⚠️ No documents in {collection_name}: {results_data['error']}")
+                                elif 'status' in results_data:
+                                    print(f"    ⚠️ No results in {collection_name}: {results_data['status']}")
+                                else:
+                                    print(f"    ⚠️ Unexpected dict response from {collection_name}")
+                                continue
+                            
                             if isinstance(results_data, list):
                                 # Add folder context and relevance weighting to each result
                                 for result in results_data[:max_results_per_folder]:
@@ -216,8 +230,8 @@ class UnifiedRAGSystem:
                                 
                                 all_results.extend(results_data[:max_results_per_folder])
                                 print(f"    ✓ Found {len(results_data)} results")
-                        except json.JSONDecodeError:
-                            print(f"    ⚠️ Invalid JSON response from {collection_name}")
+                        except json.JSONDecodeError as e:
+                            print(f"    ⚠️ Invalid JSON response from {collection_name}: {e}")
                 except Exception as e:
                     print(f"    ✗ Error searching {collection_name}: {e}")
         
@@ -230,14 +244,25 @@ class UnifiedRAGSystem:
         
         print(f"📋 Total results: {len(all_results)} from {len(set(r.get('folder_source', '') for r in all_results))} folders")
         
-        return all_results
+        return all_results, searched_collections
     
-    def format_response_with_sources(self, query: str, results: List[Dict], max_results: int = 15) -> str:
+    def format_response_with_sources(self, query: str, results: List[Dict], searched_collections: List[str] = None, max_results: int = 15) -> str:
         """
         Format search results into a comprehensive response with source attribution
         """
         if not results:
-            return "❌ No relevant documents found across all indexed folders."
+            msg = "❌ No relevant documents found across all indexed folders."
+            if searched_collections:
+                msg += f"\n\nSearched in {len(searched_collections)} collection(s):\n"
+                for col in searched_collections[:5]:  # Show first 5
+                    msg += f"  • {col}\n"
+                if len(searched_collections) > 5:
+                    msg += f"  ... and {len(searched_collections) - 5} more\n"
+            msg += "\n💡 Try:\n"
+            msg += "  • Using different keywords or phrases\n"
+            msg += "  • Being more specific about what you're looking for\n"
+            msg += "  • Checking if documents have been indexed in these collections"
+            return msg
         
         # Take top results
         top_results = results[:max_results]
@@ -292,10 +317,10 @@ class UnifiedRAGSystem:
         """
         try:
             # Search with intelligent routing
-            results = self.search_with_routing(query)
+            results, searched_collections = self.search_with_routing(query)
             
             # Format comprehensive response
-            response = self.format_response_with_sources(query, results)
+            response = self.format_response_with_sources(query, results, searched_collections)
             
             return response
             
