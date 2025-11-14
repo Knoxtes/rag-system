@@ -3,6 +3,29 @@
 import chromadb
 from config import CHROMA_PERSIST_DIR, COLLECTION_NAME
 import os
+import sys
+
+# Fix Windows console encoding for Unicode characters
+if os.name == 'nt':  # Windows
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except (AttributeError, OSError):
+        pass
+
+def safe_print(*args, **kwargs):
+    """Safe print function that handles Unicode encoding errors on Windows"""
+    try:
+        print(*args, **kwargs)
+    except UnicodeEncodeError:
+        safe_args = []
+        for arg in args:
+            if isinstance(arg, str):
+                safe_arg = arg.replace('📊', '[STATS]')
+                safe_args.append(safe_arg)
+            else:
+                safe_args.append(str(arg))
+        print(*safe_args, **kwargs)
 
 
 class VectorStore:
@@ -136,12 +159,12 @@ if __name__ == "__main__":
     # Test default collection
     vs_default = VectorStore()
     stats_default = vs_default.get_stats()
-    print(f"\n📊 Default Stats: {stats_default['total_documents']} documents in collection '{stats_default['collection_name']}'")
+    safe_print(f"\n📊 Default Stats: {stats_default['total_documents']} documents in collection '{stats_default['collection_name']}'")
     
     # Test custom collection
     vs_custom = VectorStore(collection_name="my_test_collection")
     stats_custom = vs_custom.get_stats()
-    print(f"\n📊 Custom Stats: {stats_custom['total_documents']} documents in collection '{stats_custom['collection_name']}'")
+    safe_print(f"\n📊 Custom Stats: {stats_custom['total_documents']} documents in collection '{stats_custom['collection_name']}'")
     
     print("\nListing all collections:")
     print(vs_default.list_all_collections())

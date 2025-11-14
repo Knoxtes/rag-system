@@ -6,9 +6,12 @@ A modern React-based chat interface powered by a RAG (Retrieval-Augmented Genera
 
 - **Modern React UI**: Dark theme with smooth animations
 - **RAG Integration**: AI-powered responses using your documents
-- **Google Drive Browser**: Lazy-loading folder navigation  
+- **Multi-Collection Support**: Switch between different document collections or search all collections simultaneously  
+- **All Collections Mode**: NEW unified search across all indexed collections with smart result synthesis
+- **Google Drive Browser**: High-speed lazy-loading with intelligent caching
 - **Real-time Chat**: Instant responses with streaming support
 - **Multi-Collection Support**: Switch between different document collections
+- **Performance Optimized**: Multi-layer caching, compression, and concurrent requests
 - **Production Ready**: Optimized for deployment on Plesk and other hosting platforms
 
 ## 🚀 Quick Start
@@ -146,6 +149,10 @@ GOOGLE_DRIVE_FOLDER_ID=your_shared_drive_id
 - `POST /switch-collection` - Switch document collections
 - `GET /folders` - Browse Google Drive folders (lazy loading)
 - `GET /folders/search` - Search folders and files
+- `GET /cache/status` - View cache performance statistics
+- `POST /cache/clear` - Clear all cached data
+- `POST /cache/preload` - Manually trigger cache preloading
+- `POST /folders/batch` - Load multiple folders simultaneously for better performance
 
 ## 🐛 Troubleshooting
 
@@ -197,16 +204,26 @@ npm run build
 - **Responsive Design**: Works on all devices
 
 ### Document Integration  
-- **RAG System**: Context-aware responses
-- **Multi-Collections**: Switch between document sets
-- **Vector Search**: Semantic document retrieval
-- **OCR Support**: Text extraction from images
+- **Advanced RAG System**: Context-aware responses with agent-based reasoning
+- **Multi-Collection Support**: Switch between individual document collections or search all simultaneously
+- **All Collections Mode**: Unified search across all indexed collections with intelligent result synthesis
+- **Cross-Collection Ranking**: Smart re-ranking ensures best results regardless of source collection
+- **Source Attribution**: Always shows which collection provided each piece of information
+- **Vector Search**: Semantic document retrieval with hybrid BM25 + dense search
+- **OCR Support**: Text extraction from images and documents
 
 ### Google Drive
-- **Lazy Loading**: Fast folder browsing
-- **Search Function**: Find files quickly
-- **Shared Drive Support**: Team collaboration
-- **Authentication**: Secure OAuth2 flow
+- **Ultra-Fast Caching**: Advanced multi-layer cache system with 6-hour expiry and memory promotion
+- **Smart Prefetching**: Automatically preloads top 8 most-accessed folders with deeper structure  
+- **Batch Loading**: Load multiple folders simultaneously to reduce API calls
+- **Intelligent Preloading**: Background concurrent folder structure caching with performance timing
+- **Progressive Rendering**: Stream results as they load with instant expansion for prefetched content
+- **Visual Performance Indicators**: ⚡ lightning bolts show prefetched folders, loading spinners for active requests
+- **Memory Optimization**: Frequently accessed items cached in memory with LRU eviction
+- **SSL Retry Logic**: Robust error handling with exponential backoff (1s, 2s, 4s delays)
+- **Search Function**: Find files quickly with client-side result caching and 300ms debouncing
+- **Shared Drive Support**: Enterprise-grade performance for team collaboration
+- **Authentication**: Secure OAuth2 flow with persistent token management
 
 ---
 

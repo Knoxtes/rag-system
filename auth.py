@@ -1,5 +1,5 @@
 # auth.py - Google Drive authentication
-# --- NO CHANGES ---
+# Updated to use simple installed app flow with urn:ietf redirect
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -11,10 +11,10 @@ import sys
 from config import SCOPES, CREDENTIALS_FILE, TOKEN_FILE
 
 
-def authenticate_google_drive():
+def authenticate_google_drive(interactive=True):
     """
     Authenticate with Google Drive API.
-    First run will open browser for authorization.
+    If interactive=False, only use existing credentials and don't prompt for new ones.
     """
     creds = None
     
@@ -26,24 +26,60 @@ def authenticate_google_drive():
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             print("Refreshing expired credentials...")
-            creds.refresh(Request())
-        else:
+            try:
+                creds.refresh(Request())
+                print("✅ Credentials refreshed successfully!")
+            except Exception as e:
+                print(f"❌ Failed to refresh credentials: {e}")
+                if not interactive:
+                    return None
+                creds = None
+        
+        if not creds and interactive:
             print("Getting new credentials...")
-            print("A browser window will open for authorization.")
+            print("Opening browser for authorization...")
             if not os.path.exists(CREDENTIALS_FILE):
                 print(f"FATAL ERROR: {CREDENTIALS_FILE} not found.")
                 print("Please download your OAuth client credentials from Google Cloud Console.")
-                sys.exit(1)
+                return None
+            
+            # Use installed app flow with manual redirect URI
             flow = InstalledAppFlow.from_client_secrets_file(
                 CREDENTIALS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
+            
+            # Get the authorization URL without starting a local server
+            flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+            
+            auth_url, state = flow.authorization_url(
+                access_type='offline',
+                include_granted_scopes='true'
+            )
+            
+            print(f"\nPlease visit this URL to authorize Google Drive access:")
+            print(f"{auth_url}")
+            print("\nAfter authorization, copy the authorization code and paste it here.")
+            
+            # Get authorization code from user
+            auth_code = input("Enter the authorization code: ").strip()
+            
+            # Exchange code for credentials
+            flow.fetch_token(code=auth_code)
+            creds = flow.credentials
+            
+            print("Saving credentials...")
+            with open(TOKEN_FILE, 'wb') as token:
+                pickle.dump(creds, token)
         
-        print("Saving credentials...")
-        with open(TOKEN_FILE, 'wb') as token:
-            pickle.dump(creds, token)
+        elif not creds and not interactive:
+            print("❌ No valid Google Drive credentials found.")
+            print("    Run 'python auth.py' to set up Google Drive authentication.")
+            return None
     
-    print("Authentication successful!")
-    return build('drive', 'v3', credentials=creds)
+    if creds:
+        print("Authentication successful!")
+        return build('drive', 'v3', credentials=creds)
+    else:
+        return None
 
 
 def test_authentication():

@@ -9,6 +9,31 @@ from config import CHUNK_SIZE, CHUNK_OVERLAP, INDEXED_FOLDERS_FILE
 from incremental_indexing import IncrementalIndexingManager
 import json
 import os
+import sys
+
+# Fix Windows console encoding for Unicode characters
+if os.name == 'nt':  # Windows
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except (AttributeError, OSError):
+        pass
+
+def safe_print(*args, **kwargs):
+    """Safe print function that handles Unicode encoding errors on Windows"""
+    try:
+        print(*args, **kwargs)
+    except UnicodeEncodeError:
+        safe_args = []
+        for arg in args:
+            if isinstance(arg, str):
+                safe_arg = (arg.replace('🔍', '[SEARCH]')
+                             .replace('📊', '[STATS]')
+                             .replace('⚡', '[FAST]'))
+                safe_args.append(safe_arg)
+            else:
+                safe_args.append(str(arg))
+        print(*safe_args, **kwargs)
 import time
 
 
@@ -246,7 +271,7 @@ class FolderIndexer:
             return [], None
         
         # --- NEW: Filter Step ---
-        print(f"\n🔍 Found {len(all_folders)} total root folders.")
+        safe_print(f"\n🔍 Found {len(all_folders)} total root folders.")
         print("To narrow down the list, enter a search term (e.g., 'sales', 'universal').")
         filter_term = input("Filter by name (or press Enter to show all): ").strip().lower()
 
@@ -560,7 +585,7 @@ class FolderIndexer:
                 continue
             
             # Ask for confirmation
-            print(f"\n📊 Will process {len(files_to_process)} files:")
+            safe_print(f"\n📊 Will process {len(files_to_process)} files:")
             print(f"  🆕 New: {len(categorized['new'])}")
             print(f"  🔄 Modified: {len(categorized['modified'])}")
             print(f"  ✅ Skipped: {len(categorized['unchanged'])}")
@@ -705,7 +730,7 @@ class FolderIndexer:
             print(f"🗑️  Cleaned up: {deleted_count} deleted files")
             print(f"❌ Failed: {failed}")
             print(f"⏱️  Time: {total_time/60:.1f} minutes")
-            print(f"📊 Collection size: {vector_store.get_stats()['total_documents']} chunks")
+            safe_print(f"📊 Collection size: {vector_store.get_stats()['total_documents']} chunks")
             print("=" * 80)
 
         # Final Summary
@@ -724,7 +749,7 @@ class FolderIndexer:
         total_files = sum(total_stats.values())
         if total_files > 0:
             efficiency = total_stats['unchanged'] / total_files * 100
-            print(f"⚡ Efficiency: {efficiency:.1f}% of files skipped (incremental indexing)")
+            safe_print(f"⚡ Efficiency: {efficiency:.1f}% of files skipped (incremental indexing)")
 
     def index_folders(self, folder_selections, universal_folder, drive_service):
         """
@@ -980,7 +1005,7 @@ class FolderIndexer:
             print(f"⚠️  Empty: {empty}")
             print(f"❌ Failed: {failed}")
             print(f"⏱️  Time: {total_time/60:.1f} minutes")
-            print(f"📊 Total in collection: {vector_store.get_stats()['total_documents']}")
+            safe_print(f"📊 Total in collection: {vector_store.get_stats()['total_documents']}")
             print("=" * 80)
 
         # Final Summary
@@ -1020,7 +1045,7 @@ def main():
     previously_indexed = [f for f in selected if f['id'] in indexer.indexed_folders]
     
     if previously_indexed:
-        print(f"\n📊 {len(previously_indexed)} folder(s) have been indexed before:")
+        safe_print(f"\n📊 {len(previously_indexed)} folder(s) have been indexed before:")
         for f in previously_indexed:
             folder_info = indexer.indexed_folders[f['id']]
             print(f"  - {f['name']} (last indexed: {folder_info['indexed_at']})")

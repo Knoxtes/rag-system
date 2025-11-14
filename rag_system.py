@@ -30,6 +30,43 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from functools import lru_cache
 import hashlib
+import sys
+
+# Fix Windows console encoding for Unicode characters
+if os.name == 'nt':  # Windows
+    try:
+        # Try to set UTF-8 encoding for stdout
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except (AttributeError, OSError):
+        pass
+
+def safe_print(*args, **kwargs):
+    """Safe print function that handles Unicode encoding errors on Windows"""
+    try:
+        print(*args, **kwargs)
+    except UnicodeEncodeError:
+        # Fallback: replace problematic Unicode characters
+        safe_args = []
+        for arg in args:
+            if isinstance(arg, str):
+                # Replace common emoji with ASCII equivalents
+                safe_arg = (arg.replace('👤', '[USER]')
+                             .replace('🤖', '[AI]')
+                             .replace('🔍', '[SEARCH]')
+                             .replace('📊', '[STATS]')
+                             .replace('⚡', '[FAST]')
+                             .replace('💡', '[INFO]')
+                             .replace('🎯', '[TARGET]')
+                             .replace('📚', '[DOCS]')
+                             .replace('🧠', '[AI]')
+                             .replace('👁', '[VIEW]')
+                             .replace('🔧', '[TOOL]')
+                             .replace('⏰', '[TIME]'))
+                safe_args.append(safe_arg)
+            else:
+                safe_args.append(str(arg))
+        print(*safe_args, **kwargs)
 
 # Initialize rich console for beautiful output
 console = Console()
@@ -215,6 +252,213 @@ When asked to summarize, compare, or aggregate information across multiple docum
 
 **Remember:** The search is smart - it auto-expands queries AND generates multiple variations for synthesis tasks. Keep queries focused and specific. Read ALL snippets before answering, and ALWAYS include source links for referenced information!
 """
+
+
+class MultiCollectionRAGSystem:
+    """
+    Multi-Collection RAG System that can search across all available collections
+    """
+    
+    def __init__(self, drive_service, available_collections, api_key=GOOGLE_API_KEY):
+        """
+        Initialize the multi-collection RAG system.
+        """
+        print(f"Initializing Multi-Collection RAG Agent for {len(available_collections)} collections...")
+        
+        self.drive_service = drive_service
+        self.collection_name = "ALL_COLLECTIONS"
+        self.available_collections = available_collections
+        self.collection_systems = {}
+        
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY not set!")
+        
+        genai.configure(api_key=api_key)
+        
+        # Initialize individual RAG systems for each collection
+        for collection_name, collection_info in available_collections.items():
+            print(f"  → Loading collection: {collection_info['name']}")
+            try:
+                self.collection_systems[collection_name] = EnhancedRAGSystem(
+                    drive_service, collection_name, api_key
+                )
+            except Exception as e:
+                print(f"  ⚠️  Failed to load collection {collection_name}: {e}")
+        
+        print(f"[+] Multi-Collection Agent Ready! {len(self.collection_systems)} collections active.")
+    
+    def process_question(self, question: str):
+        """
+        Process a question across all collections and combine results
+        """
+        print(f"\n🔍 Multi-Collection Search: '{question[:50]}...'")
+        
+        all_results = []
+        collection_results = {}
+        
+        # Search each collection
+        for collection_name, rag_system in self.collection_systems.items():
+            try:
+                print(f"  → Searching {self.available_collections[collection_name]['name']}...")
+                
+                # Use the existing search_documents function
+                results = rag_system.search_documents(question, top_k=5)  # Reduced per collection
+                
+                if results:
+                    # Tag results with collection info
+                    for result in results:
+                        result['collection_name'] = collection_name
+                        result['collection_display'] = self.available_collections[collection_name]['name']
+                        result['collection_location'] = self.available_collections[collection_name]['location']
+                    
+                    all_results.extend(results)
+                    collection_results[collection_name] = len(results)
+                    print(f"    ✓ Found {len(results)} results")
+                else:
+                    collection_results[collection_name] = 0
+                    print(f"    - No results")
+                    
+            except Exception as e:
+                print(f"    ⚠️  Error searching {collection_name}: {e}")
+                collection_results[collection_name] = 0
+        
+        if not all_results:
+            print("  No results found across any collection")
+            return []
+        
+        # Re-rank all results together using the first collection's reranker
+        if len(self.collection_systems) > 0:
+            first_system = next(iter(self.collection_systems.values()))
+            
+            # Prepare content for reranking
+            contents = []
+            for result in all_results:
+                content = f"{result.get('title', '')} {result.get('content', '')}"
+                contents.append(content)
+            
+            try:
+                # Re-rank across all collections
+                reranked_scores = first_system.reranker.rerank(question, contents)
+                
+                # Apply new scores
+                for i, result in enumerate(all_results):
+                    if i < len(reranked_scores):
+                        result['score'] = reranked_scores[i]
+                
+                # Sort by new scores
+                all_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+                
+            except Exception as e:
+                print(f"  ⚠️  Reranking failed, using original scores: {e}")
+        
+        # Take top results and add collection summary
+        final_results = all_results[:TOP_K_RESULTS]
+        
+        # Add summary info
+        summary_info = {
+            'total_results': len(all_results),
+            'collections_searched': len(self.collection_systems),
+            'collection_breakdown': collection_results,
+            'top_collections': sorted(collection_results.items(), key=lambda x: x[1], reverse=True)[:3]
+        }
+        
+        print(f"  ✓ Combined {len(all_results)} results from {len(self.collection_systems)} collections")
+        print(f"  → Returning top {len(final_results)} results")
+        
+        return final_results, summary_info
+    
+    def process_chat(self, question: str):
+        """
+        Process a chat question using multi-collection search and Gemini
+        """
+        start_time = time.time()
+        
+        try:
+            # Search across all collections
+            search_results, summary_info = self.process_question(question)
+            
+            if not search_results:
+                return {
+                    'answer': "I couldn't find any relevant information across your document collections. Please try rephrasing your question or check if the content you're looking for has been indexed.",
+                    'sources': [],
+                    'search_time': time.time() - start_time,
+                    'multi_collection_summary': summary_info
+                }
+            
+            # Use the first collection's system for Gemini processing
+            first_system = next(iter(self.collection_systems.values()))
+            
+            # Build context from multi-collection results
+            context_parts = []
+            sources = []
+            
+            for i, result in enumerate(search_results):
+                snippet = result.get('content', '')
+                title = result.get('title', 'Untitled')
+                collection_name = result.get('collection_display', 'Unknown Collection')
+                
+                context_parts.append(f"""
+[Source {i+1} from {collection_name}]
+Title: {title}
+Content: {snippet}
+""")
+                
+                sources.append({
+                    'title': title,
+                    'content': snippet[:200] + "..." if len(snippet) > 200 else snippet,
+                    'score': result.get('score', 0),
+                    'collection': collection_name,
+                    'collection_location': result.get('collection_location', ''),
+                    'url': result.get('url', ''),
+                    'metadata': result.get('metadata', {})
+                })
+            
+            context = "\n".join(context_parts)
+            
+            # Create enhanced prompt for multi-collection
+            prompt = f"""
+Based on the information from multiple document collections below, please provide a comprehensive answer to the user's question.
+
+**User Question:** {question}
+
+**Available Information from Collections:**
+{context}
+
+**Instructions:**
+- Synthesize information from all relevant sources across collections
+- Clearly indicate which collection each piece of information comes from
+- Provide a comprehensive answer that leverages the breadth of available information
+- Include source references with collection names
+- If information conflicts between collections, acknowledge and explain the differences
+
+**Multi-Collection Search Summary:**
+- Searched {summary_info['collections_searched']} collections
+- Found {summary_info['total_results']} total results
+- Top contributing collections: {', '.join([f"{info[0]} ({info[1]} results)" for info in summary_info['top_collections']])}
+
+Please provide your answer:
+"""
+            
+            # Generate response using first system's model
+            model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025')
+            response = model.generate_content(prompt)
+            
+            return {
+                'answer': response.text,
+                'sources': sources,
+                'search_time': time.time() - start_time,
+                'multi_collection_summary': summary_info
+            }
+            
+        except Exception as e:
+            print(f"Error in multi-collection chat: {e}")
+            traceback.print_exc()
+            return {
+                'answer': f"I encountered an error while searching across collections: {str(e)}",
+                'sources': [],
+                'search_time': time.time() - start_time,
+                'error': str(e)
+            }
 
 
 class EnhancedRAGSystem:
@@ -406,7 +650,7 @@ class EnhancedRAGSystem:
         
         if matched_indicators:
             status = "✓ Synthesis" if is_synthesis else "✗ Regular"
-            print(f"  🔍 Query analysis: {status} (confidence: {confidence:.2f}, indicators: {', '.join(matched_indicators[:3])})")
+            safe_print(f"  🔍 Query analysis: {status} (confidence: {confidence:.2f}, indicators: {', '.join(matched_indicators[:3])})")
         
         return is_synthesis
     
@@ -499,7 +743,7 @@ class EnhancedRAGSystem:
         Args:
             query: The specific, detailed query to search for.
         """
-        print(f"  🤖 Agent Action: rag_search(query=\"{query}\")")
+        safe_print(f"  🤖 Agent Action: rag_search(query=\"{query}\")")
         
         # Check if this is a synthesis query
         is_synthesis = self._is_synthesis_query(query)
@@ -542,7 +786,7 @@ class EnhancedRAGSystem:
         if not all_contexts:
             return json.dumps({"error": "No documents found in the database."})
         
-        print(f"  📊 Multi-query search: {len(all_contexts)} unique documents retrieved")
+        safe_print(f"  📊 Multi-query search: {len(all_contexts)} unique documents retrieved")
         
         # 5. HYBRID SEARCH: Combine BM25 (keyword) + Dense (semantic)
         contexts = all_contexts
@@ -588,7 +832,7 @@ class EnhancedRAGSystem:
         # 6. Rerank with original query (not expanded) for precision
         reranked_results = self.reranker.rerank(query, contexts)
         
-        print(f"  📊 Final: {len(reranked_results)} documents reranked")
+        safe_print(f"  📊 Final: {len(reranked_results)} documents reranked")
         if reranked_results:
             top_score = reranked_results[0]['score']
             print(f"  📈 Top relevance score: {top_score:.3f}")
@@ -689,7 +933,7 @@ class EnhancedRAGSystem:
             folder_pattern: Folder name or path pattern (e.g., "2025 Projections", "January", "Reports/Q1")
             query: Optional search query within that folder. If empty, returns all docs in folder.
         """
-        print(f"  🤖 Agent Action: search_folder(folder=\"{folder_pattern}\", query=\"{query}\")")
+        safe_print(f"  🤖 Agent Action: search_folder(folder=\"{folder_pattern}\", query=\"{query}\")")
         
         # Get all documents from the collection with their metadata
         try:
@@ -728,7 +972,7 @@ class EnhancedRAGSystem:
         if query and query.strip():
             # Expand query
             expanded_query = self._expand_query(query)
-            print(f"  🔍 Searching within folder for: \"{expanded_query}\"")
+            safe_print(f"  🔍 Searching within folder for: \"{expanded_query}\"")
             
             # Embed query
             query_embedding = self.embedder.embed_query(expanded_query)
@@ -779,7 +1023,7 @@ class EnhancedRAGSystem:
         
         else:
             # No query - return overview of all files in folder
-            print(f"  📊 Returning overview of all files in folder")
+            safe_print(f"  📊 Returning overview of all files in folder")
             
             # Group by file
             files_in_folder = {}
@@ -815,7 +1059,7 @@ class EnhancedRAGSystem:
         Args:
             search_term: Keywords to search for in file names or content.
         """
-        print(f"  🤖 Agent Action: live_drive_search(search_term=\"{search_term}\")")
+        safe_print(f"  🤖 Agent Action: live_drive_search(search_term=\"{search_term}\")")
         
         if self.drive_service is None:
             return json.dumps({"error": "Live search disabled."})
@@ -859,9 +1103,9 @@ class EnhancedRAGSystem:
         Processes a query using the agentic loop with safety limits.
         'chat_history' is now managed *internally* by the agent.
         """
-        print("=" * 80)
-        print(f"👤 USER: {question}")
-        print("=" * 80)
+        safe_print("=" * 80)
+        safe_print(f"👤 USER: {question}")
+        safe_print("=" * 80)
         
         # Start timing for response tracking
         start_time = time.time()
@@ -938,7 +1182,7 @@ class EnhancedRAGSystem:
                     )
                     break
                 
-                print(f"  🤖 Agent Thought [{iteration_count}/{MAX_ITERATIONS}]: Need to use tool `{tool_name}`")
+                safe_print(f"  🤖 Agent Thought [{iteration_count}/{MAX_ITERATIONS}]: Need to use tool `{tool_name}`")
                 
                 if tool_name not in self.tool_implementations:
                     print(f"  ...Unknown tool: {tool_name}")
@@ -1047,7 +1291,7 @@ class EnhancedRAGSystem:
         
         except Exception as e:
             print(f"[!] Error during agent loop: {e}")
-            print(f"\n🔍 Error details:")
+            safe_print(f"\n🔍 Error details:")
             traceback.print_exc()
             
             # Try to get chat history if available
