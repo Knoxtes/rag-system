@@ -85,7 +85,7 @@ def test_unified_search():
         
         try:
             # Get search results
-            results = unified_system.search_with_routing(query, max_results_per_folder=3)
+            results, searched_collections = unified_system.search_with_routing(query, max_results_per_folder=3)
             
             if results:
                 print(f"\n📋 Found {len(results)} total results")
