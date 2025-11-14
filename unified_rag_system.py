@@ -224,6 +224,15 @@ class UnifiedRAGSystem:
                 
                 # Use the existing rag_search tool
                 rag_system = self.rag_systems[collection_name]
+                
+                # DEBUG: Check how many documents are in this collection
+                try:
+                    stats = rag_system.vector_store.get_stats()
+                    doc_count = stats.get('total_documents', 0)
+                    print(f"    📊 Collection has {doc_count} documents")
+                except Exception as stats_error:
+                    print(f"    ⚠️ Could not get stats: {stats_error}")
+                
                 search_results = rag_system._tool_rag_search(query)
                 
                 # Parse JSON results
@@ -235,6 +244,7 @@ class UnifiedRAGSystem:
                         if isinstance(results_data, dict):
                             if 'error' in results_data:
                                 print(f"    ⚠️ Error from {collection_name}: {results_data['error']}")
+                                print(f"    💡 This usually means the vector store is empty or the search failed")
                             elif 'status' in results_data:
                                 print(f"    ℹ️ {results_data['status']}")
                             # Skip this collection, no results
