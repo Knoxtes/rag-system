@@ -2,6 +2,8 @@
 
 Production-ready RAG (Retrieval-Augmented Generation) chatbot for Google Drive document Q&A with advanced multi-document synthesis capabilities.
 
+> 🚀 **New User?** See [QUICKSTART.md](QUICKSTART.md) for quick reference commands and setup tips!
+
 ## ✨ Features
 
 - **🔍 Hybrid Search**: Combines BM25 keyword search + dense semantic embeddings
@@ -36,13 +38,32 @@ Rich Markdown Response
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Two Ways to Get Started
 
+#### Option 1: Guided Setup (Recommended for First Time Users)
+```bash
+# Clone and navigate to repository
+git clone <your-repo-url>
+cd rag-system
+
+# Run the setup wizard - it will guide you through everything!
+python setup_wizard.py
+```
+
+The wizard will help you:
+- Create `.env` file with your API key
+- Set up Google Drive credentials
+- Install dependencies
+- Validate your configuration
+
+#### Option 2: Manual Setup
+
+**Prerequisites:**
 - Python 3.8+
 - Google Cloud Project with Drive API enabled
 - Google Gemini API key
 
-### Installation
+**Steps:**
 
 1. **Clone the repository**:
 ```bash
