@@ -2,9 +2,33 @@
 import sys
 import os
 import json
-from config import INDEXED_FOLDERS_FILE
+from config import INDEXED_FOLDERS_FILE, GOOGLE_API_KEY
 
-# --- REMOVED: Debug prints for google.generativeai ---
+def check_initial_setup():
+    """Check if basic setup requirements are met and warn user if not"""
+    warnings = []
+    
+    # Check for .env file
+    if not os.path.exists('.env'):
+        warnings.append("⚠️  .env file not found (copy from .env.example)")
+    
+    # Check for GOOGLE_API_KEY
+    if not GOOGLE_API_KEY:
+        warnings.append("⚠️  GOOGLE_API_KEY not set in .env file")
+    
+    # Check for credentials.json
+    if not os.path.exists('credentials.json'):
+        warnings.append("⚠️  credentials.json not found")
+    
+    if warnings:
+        print("\n" + "=" * 80)
+        print("⚠️  SETUP INCOMPLETE - SOME FEATURES MAY NOT WORK")
+        print("=" * 80)
+        for warning in warnings:
+            print(warning)
+        print("\nRun 'python validate_setup.py' for detailed setup instructions.")
+        print("=" * 80)
+        input("\nPress Enter to continue anyway or Ctrl+C to exit...")
 
 def print_menu():
     print("\n" + "=" * 80)
@@ -18,8 +42,8 @@ def print_menu():
     print("6. Clear & Reset ALL Indexes")
     print("7. Exit")
     print("\n---")
-    # --- ✅ FIX: Corrected filename ---
-    print("To run the Web App, stop this and run: streamlit run app.py")
+    print("💡 Tip: Run 'python validate_setup.py' to check your configuration")
+    print("🌐 Web UI: streamlit run app.py (index folders first!)")
     print("=" * 80)
 
 
@@ -197,6 +221,9 @@ def check_status():
 
 
 def main():
+    # Check initial setup before showing menu
+    check_initial_setup()
+    
     while True:
         print_menu()
         choice = input("Select (1-7): ").strip()

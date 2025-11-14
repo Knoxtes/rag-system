@@ -1,6 +1,7 @@
 # config.py - Configuration settings
 
 import os
+import sys
 
 # Google Cloud Settings - CHANGE THIS!
 PROJECT_ID = "rag-chatbot-475316"  # ⚠️ Replace with your actual project ID
@@ -40,8 +41,33 @@ DIVERSITY_THRESHOLD = 0.85  # Similarity threshold for deduplication (0-1)
 MAX_CHUNKS_PER_FILE = 4  # INCREASED: Allow more chunks from highly relevant files
 
 # RAG System Settings
-# ⚠️ Set this in your environment!
+# Load GOOGLE_API_KEY from environment variable
+try:
+    from dotenv import load_dotenv
+    # Try to load .env file if python-dotenv is installed
+    if os.path.exists('.env'):
+        load_dotenv()
+except ImportError:
+    # python-dotenv not installed, rely on system environment variables
+    pass
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+# Validate GOOGLE_API_KEY
+if not GOOGLE_API_KEY or GOOGLE_API_KEY == "your_gemini_api_key_here":
+    print("\n" + "="*80, file=sys.stderr)
+    print("WARNING: GOOGLE_API_KEY is not set or is using placeholder value!", file=sys.stderr)
+    print("="*80, file=sys.stderr)
+    print("\nThe application will not work without a valid Google Gemini API key.", file=sys.stderr)
+    print("\nTo fix this:", file=sys.stderr)
+    print("1. Get your API key from: https://aistudio.google.com/app/apikey", file=sys.stderr)
+    print("2. Create a .env file (copy from .env.example)", file=sys.stderr)
+    print("3. Add this line to .env: GOOGLE_API_KEY=your_actual_key_here", file=sys.stderr)
+    print("4. Or set it as an environment variable: export GOOGLE_API_KEY=your_key", file=sys.stderr)
+    print("\n" + "="*80 + "\n", file=sys.stderr)
+    # Don't exit here, let the application handle it gracefully
+    GOOGLE_API_KEY = None
+
 MAX_CONTEXT_CHARACTERS = 8000  # OPTIMIZED: Reduced from 12000 to save API costs (33% reduction)
 
 # Query Caching Settings (NEW - for cost optimization)

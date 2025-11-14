@@ -73,18 +73,49 @@ cp .env.example .env
 
 5. **Set up Google Drive credentials**:
    - Download `credentials.json` from Google Cloud Console
-   - Place in project root
+   - Enable Google Drive API for your project
+   - Place credentials.json in project root
    - First run will prompt OAuth authentication
+
+6. **Validate setup** (recommended):
+```bash
+python validate_setup.py
+```
+This checks all credentials and provides fix instructions if anything is missing.
 
 ### Running
 
+**CLI Interface:**
 ```bash
 python main.py
 ```
 
 Then select:
-- **Option 1**: Index a Google Drive folder
-- **Option 2**: Chat with indexed documents
+- **Option 1**: Test Authentication
+- **Option 2**: Index Google Drive folders
+- **Option 3**: Unified Q&A System (recommended)
+- **Option 4**: Individual Folder Q&A
+
+**Web Interface (Streamlit):**
+```bash
+streamlit run app.py
+```
+Note: You must index folders using the CLI first (option 2) before using the web interface.
+
+## 🔧 Troubleshooting
+
+Having issues? See our comprehensive [Troubleshooting Guide](TROUBLESHOOTING.md) for solutions to common problems:
+
+- Missing API keys or credentials
+- Authentication failures
+- "No folders indexed" errors
+- API errors when querying
+- Package installation issues
+
+Quick diagnostics:
+```bash
+python validate_setup.py
+```
 
 ## 💰 Cost Analysis
 

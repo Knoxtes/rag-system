@@ -226,6 +226,15 @@ class EnhancedRAGSystem:
     def __init__(self, drive_service, collection_name, api_key=GOOGLE_API_KEY):
         """
         Initialize the RAG system for a specific collection.
+        
+        Args:
+            drive_service: Authenticated Google Drive service
+            collection_name: Name of the ChromaDB collection
+            api_key: Google Gemini API key (defaults to GOOGLE_API_KEY from config)
+            
+        Raises:
+            ValueError: If API key is not set or invalid
+            Exception: If initialization fails
         """
         print(f"Initializing RAG Agent for collection: '{collection_name}'")
         
@@ -238,10 +247,27 @@ class EnhancedRAGSystem:
             print(f"Warning: Collection name '{collection_name}' does not follow 'folder_ID' format. Live search may not be scoped.")
             self.folder_id = None
         
+        # Validate API key with clear error message
         if not api_key:
-            raise ValueError("GOOGLE_API_KEY not set!")
+            error_msg = """
+GOOGLE_API_KEY is not set!
+
+To fix this:
+1. Get your API key from: https://aistudio.google.com/app/apikey
+2. Create a .env file (copy from .env.example)
+3. Add: GOOGLE_API_KEY=your_actual_key_here
+4. Restart the application
+
+Or set it as environment variable:
+  export GOOGLE_API_KEY=your_key (Linux/Mac)
+  set GOOGLE_API_KEY=your_key (Windows)
+"""
+            raise ValueError(error_msg)
         
-        genai.configure(api_key=api_key)
+        try:
+            genai.configure(api_key=api_key)
+        except Exception as e:
+            raise ValueError(f"Failed to configure Gemini API. Check your API key. Error: {e}")
         
         print("Loading embeddings...")
         self.embedder = LocalEmbedder()
