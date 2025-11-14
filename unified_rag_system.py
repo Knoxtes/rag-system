@@ -99,6 +99,10 @@ class UnifiedRAGSystem:
         Analyze query to determine which folders are most relevant
         Returns list of (collection_name, relevance_score) tuples
         """
+        if not query or not query.strip():
+            # Return all folders with equal weight for empty query
+            return [(name, 1.0) for name in self.folder_keywords.keys()]
+        
         query_lower = query.lower()
         folder_scores = {}
         
@@ -107,12 +111,15 @@ class UnifiedRAGSystem:
             score = 0.0
             
             for keyword in keywords:
+                if not keyword:  # Skip empty keywords
+                    continue
+                    
                 if keyword in query_lower:
                     # Exact match gets higher score
                     if keyword == query_lower.strip():
                         score += 2.0
-                    # Word boundary match
-                    elif re.search(r'\\b' + re.escape(keyword) + r'\\b', query_lower):
+                    # Word boundary match (fixed regex pattern)
+                    elif re.search(r'\b' + re.escape(keyword) + r'\b', query_lower):
                         score += 1.0
                     # Partial match
                     else:
@@ -130,8 +137,9 @@ class UnifiedRAGSystem:
             normalized_scores = [(name, score/max_score) for name, score in sorted_scores]
             return normalized_scores
         
-        # If no specific matches, return all folders with equal weight
-        all_folders = [(name, 0.3) for name in self.folder_keywords.keys()]
+        # If no specific matches, return all folders with moderate weight
+        # This ensures we still search when no keywords match
+        all_folders = [(name, 0.5) for name in self.folder_keywords.keys()]
         return all_folders
     
     def get_folder_display_name(self, collection_name: str) -> str:
@@ -174,8 +182,23 @@ class UnifiedRAGSystem:
         """
         print(f"🔍 Analyzing query intent: \"{query}\"")
         
+        # Check if we have any indexed folders
+        if not self.indexed_folders:
+            print("⚠️ No folders have been indexed yet")
+            return []
+        
+        # Check if we have any initialized RAG systems
+        if not self.rag_systems:
+            print("⚠️ No RAG systems are initialized")
+            return []
+        
         # Analyze query to determine folder relevance
         folder_relevance = self.analyze_query_intent(query)
+        
+        if not folder_relevance:
+            print("⚠️ Could not determine folder relevance, searching all folders with equal weight")
+            # Search all available folders with equal weight
+            folder_relevance = [(name, 1.0) for name in self.rag_systems.keys()]
         
         if folder_relevance:
             print("📊 Folder relevance analysis:")
@@ -184,42 +207,62 @@ class UnifiedRAGSystem:
                 print(f"  • {folder_name}: {score:.2f}")
         
         all_results = []
+        searched_folders = []
+        failed_folders = []
         
         # Search in order of relevance
         for collection_name, relevance_score in folder_relevance:
-            if collection_name in self.rag_systems:
-                try:
-                    print(f"  🔍 Searching {self.get_folder_display_name(collection_name)}...")
-                    
-                    # Use the existing rag_search tool
-                    rag_system = self.rag_systems[collection_name]
-                    search_results = rag_system._tool_rag_search(query)
-                    
-                    # Parse JSON results
-                    if isinstance(search_results, str):
-                        try:
-                            results_data = json.loads(search_results)
-                            if isinstance(results_data, list):
-                                # Add folder context and relevance weighting to each result
-                                for result in results_data[:max_results_per_folder]:
-                                    result['folder_source'] = self.get_folder_display_name(collection_name)
-                                    result['folder_relevance'] = relevance_score
-                                    result['collection_name'] = collection_name
-                                    # Boost relevance score based on folder matching
-                                    if 'relevance' in result:
-                                        try:
-                                            original_relevance = float(result['relevance'])
-                                            boosted_relevance = original_relevance * (1 + relevance_score * 0.5)
-                                            result['boosted_relevance'] = f"{boosted_relevance:.2f}"
-                                        except ValueError:
-                                            result['boosted_relevance'] = result['relevance']
-                                
-                                all_results.extend(results_data[:max_results_per_folder])
-                                print(f"    ✓ Found {len(results_data)} results")
-                        except json.JSONDecodeError:
-                            print(f"    ⚠️ Invalid JSON response from {collection_name}")
-                except Exception as e:
-                    print(f"    ✗ Error searching {collection_name}: {e}")
+            if collection_name not in self.rag_systems:
+                print(f"  ⚠️ Skipping {collection_name} - not initialized")
+                failed_folders.append(self.get_folder_display_name(collection_name))
+                continue
+                
+            try:
+                folder_display = self.get_folder_display_name(collection_name)
+                print(f"  🔍 Searching {folder_display}...")
+                searched_folders.append(folder_display)
+                
+                # Use the existing rag_search tool
+                rag_system = self.rag_systems[collection_name]
+                search_results = rag_system._tool_rag_search(query)
+                
+                # Parse JSON results
+                if isinstance(search_results, str):
+                    try:
+                        results_data = json.loads(search_results)
+                        
+                        # Check if result is an error or status object
+                        if isinstance(results_data, dict):
+                            if 'error' in results_data:
+                                print(f"    ⚠️ Error from {collection_name}: {results_data['error']}")
+                            elif 'status' in results_data:
+                                print(f"    ℹ️ {results_data['status']}")
+                            # Skip this collection, no results
+                            continue
+                        
+                        # Handle list of results
+                        if isinstance(results_data, list):
+                            # Add folder context and relevance weighting to each result
+                            for result in results_data[:max_results_per_folder]:
+                                result['folder_source'] = self.get_folder_display_name(collection_name)
+                                result['folder_relevance'] = relevance_score
+                                result['collection_name'] = collection_name
+                                # Boost relevance score based on folder matching
+                                if 'relevance' in result:
+                                    try:
+                                        original_relevance = float(result['relevance'])
+                                        boosted_relevance = original_relevance * (1 + relevance_score * 0.5)
+                                        result['boosted_relevance'] = f"{boosted_relevance:.2f}"
+                                    except ValueError:
+                                        result['boosted_relevance'] = result['relevance']
+                            
+                            all_results.extend(results_data[:max_results_per_folder])
+                            print(f"    ✓ Found {len(results_data)} results")
+                    except json.JSONDecodeError as e:
+                        print(f"    ⚠️ Invalid JSON response from {collection_name}: {e}")
+            except Exception as e:
+                print(f"    ✗ Error searching {collection_name}: {e}")
+                failed_folders.append(self.get_folder_display_name(collection_name))
         
         # Sort all results by boosted relevance
         try:
@@ -228,7 +271,12 @@ class UnifiedRAGSystem:
             # Fallback to original relevance if boosted fails
             pass
         
-        print(f"📋 Total results: {len(all_results)} from {len(set(r.get('folder_source', '') for r in all_results))} folders")
+        unique_folders = len(set(r.get('folder_source', '') for r in all_results))
+        print(f"\n📋 Search Summary:")
+        print(f"  • Searched: {len(searched_folders)} folder(s)")
+        print(f"  • Results: {len(all_results)} total from {unique_folders} folder(s)")
+        if failed_folders:
+            print(f"  • Failed: {', '.join(failed_folders)}")
         
         return all_results
     
@@ -237,7 +285,19 @@ class UnifiedRAGSystem:
         Format search results into a comprehensive response with source attribution
         """
         if not results:
-            return "❌ No relevant documents found across all indexed folders."
+            # Provide helpful suggestions when no results are found
+            suggestions = []
+            suggestions.append("• Try rephrasing your question with different keywords")
+            suggestions.append("• Check if the content you're looking for has been indexed")
+            suggestions.append("• Try a more general query first, then narrow down")
+            suggestions.append("• Verify that the relevant folders have been indexed")
+            
+            available_folders = list(self.indexed_folders.values())
+            if available_folders:
+                folder_names = [f"'{info['name']}'" for info in available_folders[:5]]
+                suggestions.append(f"• Available indexed folders: {', '.join(folder_names)}")
+            
+            return f"❌ I couldn't find any relevant information across your document collections.\n\n**Suggestions:**\n" + "\n".join(suggestions)
         
         # Take top results
         top_results = results[:max_results]
@@ -291,6 +351,17 @@ class UnifiedRAGSystem:
         Main unified query interface
         """
         try:
+            # Validate query
+            if not query or not query.strip():
+                return "❌ Please provide a valid query."
+            
+            # Check if system is ready
+            if not self.indexed_folders:
+                return "❌ No folders have been indexed yet. Please run the folder indexer first."
+            
+            if not self.rag_systems:
+                return "❌ No RAG systems are initialized. Please ensure folders are properly indexed."
+            
             # Search with intelligent routing
             results = self.search_with_routing(query)
             
@@ -300,7 +371,10 @@ class UnifiedRAGSystem:
             return response
             
         except Exception as e:
-            return f"❌ Error processing query: {str(e)}"
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"❌ Error in unified_query: {error_details}")
+            return f"❌ An error occurred while processing your query: {str(e)}\n\nPlease try again or rephrase your question."
 
 
 def interactive_unified_mode():
