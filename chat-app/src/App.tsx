@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, FileText, ExternalLink, Database, Loader2, Folder, FolderOpen, Search, ChevronRight, ChevronDown } from 'lucide-react';
+import { Send, Bot, User, FileText, ExternalLink, Database, Loader2, Folder, FolderOpen, Search, ChevronRight, ChevronDown, Sun, Moon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import axios from 'axios';
@@ -182,6 +182,27 @@ const FolderTreeItem: React.FC<{
 };
 
 const ChatApp: React.FC = () => {
+  // Theme state with localStorage persistence
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('rag_theme');
+    return (saved as 'light' | 'dark') || 'dark';
+  });
+
+  // Apply theme to document root
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('rag_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -692,15 +713,29 @@ const ChatApp: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-dark-950 flex">
+    <div className="min-h-screen bg-light-50 dark:bg-dark-950 flex transition-colors duration-200">
       {/* Sidebar */}
-      <div className="w-80 bg-dark-900 border-r border-dark-800 p-6">
+      <div className="w-80 bg-light-100 dark:bg-dark-900 border-r border-light-300 dark:border-dark-800 p-6">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-white mb-2">RAG Assistant</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">RAG Assistant</h1>
             </div>
-            <UserMenu />
+            <div className="flex items-center gap-2">
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-lg bg-light-200 dark:bg-dark-800 hover:bg-light-300 dark:hover:bg-dark-700 transition-colors"
+                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-5 h-5 text-yellow-400" />
+                ) : (
+                  <Moon className="w-5 h-5 text-gray-700" />
+                )}
+              </button>
+              <UserMenu />
+            </div>
           </div>
           <div className="flex items-center space-x-2">
             <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
