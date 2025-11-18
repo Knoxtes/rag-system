@@ -2,6 +2,22 @@
 
 Production-ready RAG (Retrieval-Augmented Generation) chatbot for Google Drive document Q&A with advanced multi-document synthesis capabilities.
 
+## ⚡ What's New in This Release
+
+### Production Readiness Improvements
+- ✅ **Security Hardening**: Updated vulnerable dependencies (transformers 4.46.1 → 4.48.0)
+- ✅ **Startup Validation**: Automated pre-flight checks before system starts
+- ✅ **Production Logging**: Structured logging with rotation and levels
+- ✅ **Health Checks**: `/health`, `/health/ready`, `/health/live` endpoints for monitoring
+- ✅ **Clean Dependencies**: Removed 260+ unnecessary packages (338 → 74 core dependencies)
+- ✅ **Security Documentation**: Comprehensive security best practices guide
+- ✅ **Deployment Checklist**: Step-by-step production deployment guide
+
+### Configuration Improvements
+- ✅ **Environment-Based Config**: No hardcoded credentials or project IDs
+- ✅ **Fixed Requirements**: Converted from UTF-16 to UTF-8 encoding
+- ✅ **Better Error Messages**: Clearer validation and troubleshooting info
+
 ## ✨ Features
 
 - **🔍 Hybrid Search**: Combines BM25 keyword search + dense semantic embeddings
@@ -76,15 +92,29 @@ cp .env.example .env
    - Place in project root
    - First run will prompt OAuth authentication
 
+6. **Validate configuration**:
+```bash
+# Run startup validation
+python startup_validation.py
+```
+
 ### Running
 
+**Console Interface:**
 ```bash
 python main.py
 ```
 
-Then select:
-- **Option 1**: Index a Google Drive folder
-- **Option 2**: Chat with indexed documents
+**Web Interface (Streamlit):**
+```bash
+streamlit run app.py
+```
+
+**Health Check Server (for monitoring):**
+```bash
+python health_check.py
+# Access at http://localhost:8080/health
+```
 
 ## 💰 Cost Analysis
 
@@ -151,6 +181,7 @@ MIN_SOURCES_FOR_SYNTHESIS = 3
 - `token.pickle` - Authentication tokens
 - `.env` - API keys and secrets
 - `chroma_db/` - Vector database (regenerate from source)
+- `logs/` - Application logs
 
 ### Safe to Commit
 - All `.py` source files
@@ -158,29 +189,74 @@ MIN_SOURCES_FOR_SYNTHESIS = 3
 - Documentation
 - Configuration (no secrets)
 
+### Security Features
+- ✅ Environment-based configuration (no hardcoded secrets)
+- ✅ Updated dependencies with security patches
+- ✅ Input validation and sanitization
+- ✅ OAuth 2.0 with minimal scopes
+- ✅ Automated security validation on startup
+- ✅ Comprehensive security documentation (see `SECURITY.md`)
+
+### Production Security Checklist
+See `PRODUCTION_CHECKLIST.md` for complete deployment security checklist.
+
 ## 🛠️ Development
 
 ### Project Structure
 ```
 rag-system/
-├── main.py                  # Entry point
-├── rag_system.py           # Core RAG agent
-├── config.py               # Configuration
-├── embeddings.py           # Embedding & reranking models
-├── vector_store.py         # ChromaDB interface
-├── document_loader.py      # Document processing
-├── folder_indexer.py       # Drive indexing
-├── auth.py                 # Google authentication
-├── test_synthesis.py       # Test suite
+├── main.py                     # Entry point
+├── app.py                      # Streamlit web interface
+├── health_check.py            # Health check endpoints (NEW)
+├── startup_validation.py      # Pre-flight validation (NEW)
+├── logging_config.py          # Production logging (NEW)
+├── rag_system.py              # Core RAG agent
+├── config.py                  # Configuration
+├── embeddings.py              # Embedding & reranking models
+├── vector_store.py            # ChromaDB interface
+├── document_loader.py         # Document processing
+├── folder_indexer.py          # Drive indexing
+├── auth.py                    # Google authentication
+├── requirements.txt           # Dependencies (cleaned & secured)
+├── .env.example               # Environment template
+├── PRODUCTION_CHECKLIST.md    # Deployment guide (NEW)
+├── SECURITY.md                # Security practices (NEW)
 └── docs/
     ├── SYNTHESIS_IMPROVEMENTS.md
     └── OPTIMIZATION_GUIDE.md
 ```
 
+### Monitoring and Health Checks
+
+**Health Check Endpoints:**
+```bash
+# Start health check server
+python health_check.py
+
+# Check endpoints
+curl http://localhost:8080/health          # Basic health
+curl http://localhost:8080/health/ready    # Readiness check
+curl http://localhost:8080/health/live     # Liveness check
+curl http://localhost:8080/health/metrics  # System metrics
+```
+
+### Logging
+
+Logs are written to `logs/rag_system_YYYYMMDD.log` with automatic rotation.
+
+**Configure log level:**
+```bash
+export LOG_LEVEL=DEBUG  # or INFO, WARNING, ERROR
+python main.py
+```
+
 ### Testing
 
 ```bash
-# Run synthesis tests
+# Run validation checks
+python startup_validation.py
+
+# Run synthesis tests (if available)
 python test_synthesis.py
 
 # Test specific query

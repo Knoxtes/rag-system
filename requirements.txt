@@ -16,7 +16,7 @@ protobuf==5.29.5
 # Vector Database & Embeddings
 chromadb==1.2.1
 sentence-transformers==5.1.2
-transformers==4.46.1
+transformers==4.48.0  # Security fix: CVE for deserialization vulnerability
 torch==2.9.0
 tokenizers==0.20.3
 safetensors==0.6.2
@@ -66,6 +66,7 @@ pydantic==2.12.3
 pydantic-settings==2.11.0
 rich==14.1.0
 tenacity==9.1.2
+psutil  # For health check metrics
 
 # Testing (optional, for development)
 pytest==8.4.2
