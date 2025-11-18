@@ -4,7 +4,7 @@ import { Send, Bot, User, FileText, ExternalLink, Database, Loader2, Folder, Fol
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import axios from 'axios';
-import { AuthProvider, useAuth, LoginPage, UserMenu } from './Auth';
+import { AuthProvider, useAuth, LoginPage } from './Auth';
 import AuthPickup from './AuthPickup';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -122,19 +122,19 @@ const FolderTreeItem: React.FC<{
   return (
     <div style={{ paddingLeft: `${paddingLeft}px` }}>
       <div 
-        className={`flex items-center py-1 px-2 hover:bg-gray-700 rounded cursor-pointer transition-colors duration-200 ${
-          item.isSearchResult ? 'bg-gray-800/50' : ''
+        className={`flex items-center py-1 px-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer transition-colors duration-200 ${
+          item.isSearchResult ? 'bg-gray-200 dark:bg-gray-800/50' : ''
         } ${
-          isSelected ? 'bg-blue-900/40 border border-blue-500/50' : ''
+          isSelected ? 'bg-brand-green/20 dark:bg-blue-900/40 border border-brand-green dark:border-blue-500/50' : ''
         }`}
         onClick={handleToggle}
         title={item.name}
       >
         {item.type === 'folder' && !item.isSearchResult && (
-          <span className="mr-2 text-gray-400">
+          <span className="mr-2 text-brand-dark dark:text-gray-400">
             {item.isPreloading ? (
               <div className="w-4 h-4 animate-spin">
-                <div className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full"></div>
+                <div className="w-3 h-3 border border-brand-green dark:border-blue-400 border-t-transparent rounded-full"></div>
               </div>
             ) : item.isExpanded ? (
               <ChevronDown className="w-4 h-4" />
@@ -148,14 +148,14 @@ const FolderTreeItem: React.FC<{
         
         <div className="flex-1 min-w-0">
           <span className={`text-sm truncate block ${
-            item.isPrefetched ? 'text-green-200' : 'text-gray-200'
+            item.isPrefetched ? 'text-brand-green dark:text-green-200' : 'text-brand-dark dark:text-gray-200'
           }`}>
             {item.name}
           </span>
         </div>
         
         {item.isPrefetched && (
-          <span className="text-xs text-green-400 ml-2 flex-shrink-0" title="Prefetched for faster access">⚡</span>
+          <span className="text-xs text-brand-green dark:text-green-400 ml-2 flex-shrink-0" title="Prefetched for faster access">⚡</span>
         )}
         
         {item.isSearchResult && (
@@ -260,11 +260,14 @@ const ChatApp: React.FC = () => {
       
       setCollections(collectionsWithAll);
       
-      // Set first actual collection as default (not ALL_COLLECTIONS)
-      const actualCollections = Object.keys(collectionsWithAll).filter(k => k !== 'ALL_COLLECTIONS');
-      const firstCollection = actualCollections[0];
-      if (firstCollection) {
-        setSelectedCollection(firstCollection);
+      // Set ALL_COLLECTIONS as default if available, otherwise first collection
+      if (collectionsWithAll['ALL_COLLECTIONS']) {
+        setSelectedCollection('ALL_COLLECTIONS');
+      } else {
+        const firstCollection = Object.keys(collectionsWithAll)[0];
+        if (firstCollection) {
+          setSelectedCollection(firstCollection);
+        }
       }
 
       // Load root folders (gracefully handle Google Drive API issues)
@@ -275,10 +278,12 @@ const ChatApp: React.FC = () => {
         // Continue without folders - RAG system still works
       }
 
-      // Add welcome message
+
+      // For welcome message, count actual collections (excluding ALL_COLLECTIONS)
+      const actualCollections = Object.keys(collectionsWithAll).filter(k => k !== 'ALL_COLLECTIONS');
       const welcomeMessage: Message = {
         id: Date.now().toString(),
-        text: `Welcome to the RAG Chat Assistant! 🤖\n\nI'm ready to help you find information from your indexed documents. Ask me anything about your business processes, documents, or data.\n\n**Available Collections:** ${actualCollections.length}`,
+        text: `Welcome to 7 Mountians Media Ask Assistant! 🤖\n\nI'm ready to help you find information from your indexed documents. Ask me anything about your business processes, documents, or data.`,
         sender: 'assistant',
         timestamp: new Date()
       };
@@ -567,29 +572,67 @@ const ChatApp: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/chat`, {
-        message: inputText,
-        collection: selectedCollection,
-        file_id: selectedFile?.id || null
+      // Use fetch for streaming
+      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('rag_auth_token') ? { 'Authorization': `Bearer ${localStorage.getItem('rag_auth_token')}` } : {})
+        },
+        body: JSON.stringify({
+          message: inputText,
+          collection: selectedCollection,
+          file_id: selectedFile?.id || null
+        })
       });
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 2).toString(),
-        text: response.data.answer,
-        sender: 'assistant',
-        timestamp: new Date(),
-        documents: response.data.documents || []
-      };
+      if (!response.ok || !response.body) {
+        throw new Error('Streaming response failed');
+      }
 
-      // Remove loading message and add real response
-      setMessages(prev => prev.slice(0, -1).concat([assistantMessage]));
+      // Prepare to stream the response
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+      let assistantText = '';
+      let documents: Document[] = [];
+
+      // Update the loading message as chunks arrive
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          // If the backend sends JSON lines, parse for documents
+          // Otherwise, just append text
+          assistantText += chunk;
+          setMessages(prev => {
+            // Update the last (loading) message with new text
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              text: assistantText
+            };
+            return updated;
+          });
+        }
+      }
+
+      // Finalize the assistant message
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          text: assistantText,
+          isLoading: false,
+          documents: documents
+        };
+        return updated;
+      });
 
     } catch (error: any) {
       console.error('Failed to send message:', error);
-      
       let errorText = 'Sorry, I encountered an error processing your request. Please make sure the API server is running.';
-      
-      // Handle specific error cases
       if (error.response?.status === 503) {
         errorText = 'The AI system is still initializing. Please wait a moment and try again.';
       } else if (error.response?.data?.code === 'SYSTEM_INITIALIZING') {
@@ -597,14 +640,12 @@ const ChatApp: React.FC = () => {
       } else if (error.response?.status === 401) {
         errorText = 'Authentication expired. Please refresh the page and sign in again.';
       }
-      
       const errorMessage: Message = {
         id: (Date.now() + 3).toString(),
         text: errorText,
         sender: 'assistant',
         timestamp: new Date()
       };
-
       setMessages(prev => prev.slice(0, -1).concat([errorMessage]));
     } finally {
       setIsLoading(false);
@@ -666,29 +707,29 @@ const ChatApp: React.FC = () => {
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-dark-800 border border-dark-600 rounded-lg p-3 mt-2 hover:border-blue-500 transition-colors group"
+      className="bg-light-100 dark:bg-dark-800 border border-brand-mint dark:border-dark-600 rounded-lg p-3 mt-2 hover:border-brand-green dark:hover:border-blue-500 transition-colors group"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-500/10 rounded-lg">
-            <FileText className="w-4 h-4 text-blue-400" />
+          <div className="p-2 bg-brand-mint/30 dark:bg-blue-500/10 rounded-lg">
+            <FileText className="w-4 h-4 text-brand-green dark:text-blue-400" />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-200 truncate max-w-xs">
+            <p className="text-sm font-medium text-brand-dark dark:text-gray-200 truncate max-w-xs">
               {document.filename || 'Untitled'}
             </p>
-            <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="flex items-center gap-2 text-xs text-brand-dark/60 dark:text-gray-400">
               <span>{document.type || 'Document'}</span>
               {(document as any).collection && (
                 <>
                   <span>•</span>
-                  <span className="text-blue-400">{(document as any).collection}</span>
+                  <span className="text-brand-green dark:text-blue-400">{(document as any).collection}</span>
                 </>
               )}
               {(document as any).score !== undefined && (
                 <>
                   <span>•</span>
-                  <span className="text-green-400">
+                  <span className="text-green-600 dark:text-green-400">
                     {((document as any).score > 0 
                       ? `+${((document as any).score).toFixed(2)}` 
                       : ((document as any).score).toFixed(2))} relevance
@@ -703,7 +744,7 @@ const ChatApp: React.FC = () => {
             href={document.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-gray-400 hover:text-blue-400"
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-brand-dark/60 dark:text-gray-400 hover:text-brand-green dark:hover:text-blue-400"
           >
             <ExternalLink className="w-4 h-4" />
           </a>
@@ -713,33 +754,22 @@ const ChatApp: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-light-50 dark:bg-dark-950 flex transition-colors duration-200">
+    <div className="h-screen bg-brand-white dark:bg-dark-950 flex transition-colors duration-200 overflow-hidden">
       {/* Sidebar */}
-      <div className="w-80 bg-light-100 dark:bg-dark-900 border-r border-light-300 dark:border-dark-800 p-6">
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">RAG Assistant</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* Theme Toggle */}
-              <button
-                onClick={toggleTheme}
-                className="p-2 rounded-lg bg-light-200 dark:bg-dark-800 hover:bg-light-300 dark:hover:bg-dark-700 transition-colors"
-                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              >
-                {theme === 'dark' ? (
-                  <Sun className="w-5 h-5 text-yellow-400" />
-                ) : (
-                  <Moon className="w-5 h-5 text-gray-700" />
-                )}
-              </button>
-              <UserMenu />
-            </div>
+      <div className="w-80 bg-brand-green dark:bg-dark-900 border-r border-brand-green dark:border-dark-800 p-6 flex flex-col overflow-hidden">
+        <div className="mb-8 flex-shrink-0">
+          <div className="flex flex-col items-center mb-4">
+            <img 
+              src="/7MM White.webp"
+              alt="7MM Logo" 
+              style={{height: '10vw', minHeight: '80px', maxHeight: '130px'}}
+              className="w-auto mb-3"
+            />
+            <h1 className="text-2xl font-bold text-brand-white dark:text-white">7MM Ask</h1>
           </div>
           <div className="flex items-center space-x-2">
             <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-sm text-gray-400">
+            <span className="text-sm text-brand-white dark:text-gray-400">
               {isConnected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
@@ -747,11 +777,11 @@ const ChatApp: React.FC = () => {
 
         {/* Collections */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+          <h3 className="text-lg font-semibold text-brand-white dark:text-white mb-4 flex items-center">
             <Database className="w-5 h-5 mr-2" />
             Collections
           </h3>
-          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
             {Object.entries(collections).map(([id, collection]) => {
               const isSelected = selectedCollection === id;
               const isLoading = isCollectionSwitching && isSelected;
@@ -762,40 +792,37 @@ const ChatApp: React.FC = () => {
                   key={id}
                   onClick={() => switchCollection(id)}
                   disabled={isDisabled}
-                  className={`w-full text-left p-3 rounded-lg transition-all duration-200 relative ${
+                  className={`text-left p-2 rounded-lg transition-all duration-200 relative ${
                     isSelected
-                      ? 'bg-blue-500/20 border border-blue-500/30 text-blue-300'
+                      ? 'bg-white dark:bg-blue-500/20 border-l-4 border-l-brand-green dark:border-l-blue-500 border border-gray-200 dark:border-blue-500/30 text-brand-dark dark:text-blue-300 scale-105'
                       : isDisabled
-                        ? 'bg-dark-800 text-gray-500 cursor-not-allowed opacity-50'
-                        : 'bg-dark-800 hover:bg-dark-700 text-gray-300 hover:scale-[1.02]'
+                        ? 'bg-gray-300 dark:bg-dark-800 text-gray-500 dark:text-gray-500 cursor-not-allowed opacity-50'
+                        : 'bg-white dark:bg-dark-800 hover:bg-gray-100 dark:hover:bg-dark-700 text-brand-dark dark:text-gray-300 hover:scale-[1.02] border border-gray-200 dark:border-transparent'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate flex items-center">
-                        {collection.name}
+                  <div className="flex flex-col">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="font-medium text-xs truncate flex items-center flex-1 min-w-0">
+                        <span className="truncate">{collection.name}</span>
+                        {isSelected && (
+                          <span className="ml-1 w-1.5 h-1.5 bg-brand-green rounded-full animate-pulse flex-shrink-0"></span>
+                        )}
                         {collection.is_combined && (
-                          <span className="ml-2 px-1.5 py-0.5 bg-purple-600 text-white text-xs rounded" title="Multi-collection mode">
+                          <span className="ml-1 px-1 py-0.5 bg-purple-600 text-white text-[10px] rounded flex-shrink-0" title="Multi-collection mode">
                             ALL
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {collection.files_processed} files • {collection.location}
-                      </div>
+                      {/* Loading animation */}
+                      {isLoading && (
+                        <div className="flex-shrink-0 ml-1">
+                          <div className="animate-spin w-3 h-3 border-2 border-brand-green dark:border-blue-400 border-t-transparent rounded-full"></div>
+                        </div>
+                      )}
                     </div>
-                    
-                    {/* Loading animation */}
-                    {isLoading && (
-                      <div className="flex-shrink-0 ml-2">
-                        <div className="animate-spin w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full"></div>
-                      </div>
-                    )}
-                    
-                    {/* Selection indicator */}
-                    {isSelected && !isLoading && (
-                      <div className="flex-shrink-0 ml-2 w-2 h-2 bg-blue-400 rounded-full"></div>
-                    )}
+                    <div className="text-[10px] text-gray-600 dark:text-gray-500 truncate">
+                      {collection.files_processed} files
+                    </div>
                   </div>
                 </button>
               );
@@ -804,9 +831,9 @@ const ChatApp: React.FC = () => {
         </div>
 
         {/* Stats */}
-        <div className="bg-dark-800 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-3">Session Stats</h4>
-          <div className="space-y-2 text-xs text-gray-400">
+        <div className="bg-white dark:bg-dark-800 rounded-lg p-4 mb-4 border border-white/20 dark:border-transparent">
+          <h4 className="text-sm font-medium text-brand-dark dark:text-gray-300 mb-3">Session Stats</h4>
+          <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
             <div className="flex justify-between">
               <span>Messages:</span>
               <span>{messages.filter(m => m.sender === 'user').length}</span>
@@ -819,12 +846,30 @@ const ChatApp: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Theme Toggle */}
+        <div className="bg-white dark:bg-dark-800 rounded-lg p-4 border border-white/20 dark:border-transparent mb-0">
+          <h4 className="text-sm font-medium text-brand-dark dark:text-gray-300 mb-3">Theme</h4>
+          <button
+            onClick={toggleTheme}
+            className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors"
+          >
+            <span className="text-sm text-brand-dark dark:text-gray-300">
+              {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
+            </span>
+            {theme === 'dark' ? (
+              <Sun className="w-5 h-5 text-yellow-400" />
+            ) : (
+              <Moon className="w-5 h-5 text-brand-dark" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Chat Messages - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
           <AnimatePresence>
             {messages.map((message) => (
               <motion.div
@@ -839,8 +884,8 @@ const ChatApp: React.FC = () => {
                   {/* Avatar */}
                   <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                     message.sender === 'user' 
-                      ? 'bg-blue-500' 
-                      : 'bg-green-500'
+                      ? 'bg-brand-green dark:bg-blue-500' 
+                      : 'bg-brand-mint dark:bg-green-500'
                   }`}>
                     {message.sender === 'user' ? (
                       <User className="w-5 h-5 text-white" />
@@ -852,8 +897,8 @@ const ChatApp: React.FC = () => {
                   {/* Message Content */}
                   <div className={`rounded-2xl p-4 ${
                     message.sender === 'user'
-                      ? 'bg-blue-500 text-white ml-3'
-                      : 'bg-dark-800 text-gray-100 mr-3'
+                      ? 'bg-brand-green dark:bg-blue-500 text-white ml-3'
+                      : 'bg-light-100 dark:bg-dark-800 text-brand-dark dark:text-gray-100 mr-3 border border-brand-mint/30 dark:border-transparent'
                   }`}>
                     {message.isLoading ? (
                       <div className="flex items-center space-x-3">
@@ -863,29 +908,33 @@ const ChatApp: React.FC = () => {
                       </div>
                     ) : (
                       <>
-                        <div className="prose prose-sm prose-invert max-w-none">
+                        <div className={`prose prose-sm max-w-none ${
+                          message.sender === 'user' 
+                            ? 'prose-invert' 
+                            : 'dark:prose-invert prose-headings:text-brand-dark dark:prose-headings:text-white prose-p:text-brand-dark dark:prose-p:text-gray-100'
+                        }`}>
                           <ReactMarkdown 
                             remarkPlugins={[remarkGfm]}
                             components={{
                               // Custom link styling
                               a: ({ node, children, ...props }) => (
-                                <a {...props} className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">
+                                <a {...props} className="text-brand-green dark:text-blue-400 hover:text-brand-green/80 dark:hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">
                                   {children}
                                 </a>
                               ),
                               // Custom code styling
                               code: ({ node, ...props }) => (
-                                <code {...props} className="bg-dark-700 text-green-400 px-1 py-0.5 rounded text-sm" />
+                                <code {...props} className="bg-light-200 dark:bg-dark-700 text-brand-green dark:text-green-400 px-1 py-0.5 rounded text-sm" />
                               ),
                               // Custom table styling
                               table: ({ node, ...props }) => (
-                                <table {...props} className="border-collapse border border-dark-600" />
+                                <table {...props} className="border-collapse border border-brand-mint dark:border-dark-600" />
                               ),
                               th: ({ node, ...props }) => (
-                                <th {...props} className="border border-dark-600 px-3 py-2 bg-dark-700 font-semibold" />
+                                <th {...props} className="border border-brand-mint dark:border-dark-600 px-3 py-2 bg-light-200 dark:bg-dark-700 font-semibold" />
                               ),
                               td: ({ node, ...props }) => (
-                                <td {...props} className="border border-dark-600 px-3 py-2" />
+                                <td {...props} className="border border-brand-mint dark:border-dark-600 px-3 py-2" />
                               ),
                             }}
                           >
@@ -896,7 +945,7 @@ const ChatApp: React.FC = () => {
                         {/* Document Previews */}
                         {message.documents && message.documents.length > 0 && (
                           <div className="mt-4 space-y-2">
-                            <p className="text-xs text-gray-400 font-medium">Referenced Documents:</p>
+                            <p className="text-xs text-brand-dark/60 dark:text-gray-400 font-medium">Referenced Documents:</p>
                             {message.documents.map((doc, index) => (
                               <DocumentPreview key={index} document={doc} />
                             ))}
@@ -912,18 +961,18 @@ const ChatApp: React.FC = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
-        <div className="border-t border-dark-800 p-6">
+        {/* Input Area - Fixed at bottom */}
+        <div className="flex-shrink-0 bg-brand-green dark:bg-dark-950 border-t border-brand-green dark:border-dark-800 p-6">
           {/* Selected File Indicator */}
           {selectedFile && (
-            <div className="mb-3 p-3 bg-blue-900/30 border border-blue-500/50 rounded-lg flex items-center justify-between">
+            <div className="mb-3 p-3 bg-white dark:bg-blue-900/30 border border-white/30 dark:border-blue-500/50 rounded-lg flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <FileText className="w-4 h-4 text-blue-400" />
-                <span className="text-sm text-blue-200">Asking about: <span className="font-semibold">{selectedFile.name}</span></span>
+                <FileText className="w-4 h-4 text-brand-green dark:text-blue-400" />
+                <span className="text-sm text-brand-dark dark:text-blue-200">Asking about: <span className="font-semibold">{selectedFile.name}</span></span>
               </div>
               <button
                 onClick={() => setSelectedFile(null)}
-                className="text-blue-400 hover:text-blue-300 transition-colors"
+                className="text-brand-green dark:text-blue-400 hover:text-brand-green/80 dark:hover:text-blue-300 transition-colors"
                 title="Clear file selection"
               >
                 <span className="text-lg">×</span>
@@ -940,13 +989,13 @@ const ChatApp: React.FC = () => {
                 onKeyPress={handleKeyPress}
                 placeholder="Ask anything about your documents..."
                 disabled={isLoading || !isConnected}
-                className="w-full bg-dark-800 border border-dark-600 rounded-xl px-4 py-3 pr-12 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full bg-white dark:bg-dark-800 border border-white/30 dark:border-dark-600 rounded-xl px-4 py-3 pr-12 text-brand-dark dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white dark:focus:ring-blue-500 focus:border-transparent resize-none"
               />
             </div>
             <button
               onClick={sendMessage}
               disabled={isLoading || !inputText.trim() || !isConnected}
-              className="p-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              className="p-3 bg-white dark:bg-blue-500 text-brand-green dark:text-white rounded-xl hover:bg-white/90 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
             >
               <Send className="w-5 h-5" />
             </button>
@@ -962,9 +1011,9 @@ const ChatApp: React.FC = () => {
       </div>
 
       {/* Folder Browser Panel */}
-      <div className="w-80 bg-dark-900 border-l border-dark-800 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white flex items-center">
+      <div className="w-80 bg-brand-green dark:bg-dark-900 border-l border-brand-green dark:border-dark-800 p-6 flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between mb-4 flex-shrink-0">
+          <h3 className="text-lg font-semibold text-brand-white dark:text-white flex items-center">
             <Folder className="w-5 h-5 mr-2" />
             Drive Files
             {cacheInfo.total_entries > 0 && (
@@ -973,7 +1022,7 @@ const ChatApp: React.FC = () => {
                   {cacheInfo.total_entries} cached
                 </span>
                 {cacheInfo.cached_responses > 0 && (
-                  <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded" title="Cache hits this session">
+                  <span className="px-2 py-1 bg-brand-green dark:bg-blue-600 text-white text-xs rounded" title="Cache hits this session">
                     {cacheInfo.cached_responses} hits
                   </span>
                 )}
@@ -982,27 +1031,27 @@ const ChatApp: React.FC = () => {
           </h3>
           <button
             onClick={() => setShowFolders(!showFolders)}
-            className="p-2 text-gray-400 hover:text-white transition-colors"
+            className="p-2 text-brand-white dark:text-gray-400 hover:text-white dark:hover:text-white transition-colors"
           >
             {showFolders ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
         </div>
         
         {showFolders && (
-          <div className="bg-dark-800 rounded-lg h-full max-h-screen overflow-hidden flex flex-col">
-            <div className="p-3 border-b border-dark-600">
+          <div className="flex-1 bg-white dark:bg-dark-800 rounded-lg overflow-hidden flex flex-col border border-white/20 dark:border-transparent min-h-0">
+            <div className="p-3 border-b border-gray-200 dark:border-dark-600">
               <div className="flex gap-2">
                 <input
                   type="text"
                   placeholder="Search files in 7MM Resources..."
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
-                  className="flex-1 bg-dark-700 text-white placeholder-gray-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 bg-gray-100 dark:bg-dark-700 text-brand-dark dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green dark:focus:ring-blue-500"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => handleSearchChange('')}
-                    className="px-3 py-2 bg-dark-600 text-gray-400 hover:text-white rounded text-sm transition-colors"
+                    className="px-3 py-2 bg-gray-100 dark:bg-dark-600 text-brand-dark dark:text-gray-400 hover:text-brand-green dark:hover:text-white rounded text-sm transition-colors"
                     title="Clear search"
                   >
                     ×
@@ -1010,15 +1059,15 @@ const ChatApp: React.FC = () => {
                 )}
               </div>
               {searchQuery && (
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-gray-600 dark:text-gray-500 mt-1">
                   {folders.length} result{folders.length !== 1 ? 's' : ''} found
                 </div>
               )}
             </div>
             <div className="flex-1 overflow-y-auto">
               {folders.length > 0 && !searchQuery && (
-                <div className="p-2 border-b border-dark-700">
-                  <div className="text-xs text-gray-400 flex items-center">
+                <div className="p-2 border-b border-gray-200 dark:border-dark-700">
+                  <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center">
                     <Database className="w-3 h-3 mr-1" />
                     7MM Resources ({folders.length} folders)
                   </div>
@@ -1036,7 +1085,7 @@ const ChatApp: React.FC = () => {
                   />
                 ))}
                 {folders.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-gray-600 dark:text-gray-500">
                     <Folder className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     {searchQuery ? (
                       <p className="text-sm">No files found for "{searchQuery}"</p>
@@ -1064,8 +1113,8 @@ const ChatApp: React.FC = () => {
         )}
         
         {!showFolders && (
-          <div className="text-center py-8 text-gray-500">
-            <Folder className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <div className="flex-1 text-center py-8 text-brand-white dark:text-gray-500">
+            <Folder className="w-8 h-8 mx-auto mb-2 opacity-50 text-brand-white dark:text-gray-500" />
             <p className="text-sm">Click above to browse drive files</p>
           </div>
         )}

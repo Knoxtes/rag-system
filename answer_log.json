@@ -339,5 +339,82 @@
       "cached": false,
       "response_time": 5.299332141876221
     }
+  },
+  {
+    "timestamp": "2025-11-18T14:24:41.845108",
+    "question": "What does the 7MM Sport Schedule Look like right now",
+    "answer": "I was unable to find a specific document detailing the \"7MM Sport Schedule\" in the indexed database.\n\nSince the initial, specific searches for \"7MM Sport Schedule\" and related terms returned no results, I cannot provide the current schedule details.",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 3,
+      "cached": false,
+      "response_time": 3.7521090507507324
+    }
+  },
+  {
+    "timestamp": "2025-11-18T14:25:10.812884",
+    "question": "Summarize the 7MM Sports Schedule",
+    "answer": "I was unable to find any documents or information regarding a \"7MM Sports Schedule\" in the indexed database. The search returned no results for both the specific query and a broader query for \"Sports Schedule.\"\n\nIf you can provide more context, such as the full name of the project or the folder where this schedule might be located, I may be able to perform a more targeted search.",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 2,
+      "cached": false,
+      "response_time": 3.3344364166259766
+    }
+  },
+  {
+    "timestamp": "2025-11-18T14:26:14.308305",
+    "question": "Summarize the Materials Release Agreement",
+    "answer": "The Materials Release Agreement, formally titled the \"Client-Provided Materials Release and Indemnification Agreement,\" is a contract designed to protect the Company (Seven Mountains Media, LLC) when using content supplied by the Client for a creative project.\n\nThe agreement establishes the legal framework for the use of \"Client Materials\" and places the responsibility for the legality of those materials squarely on the Client.\n\n### Key Components of the Agreement\n\nThe agreement is structured around three main sections: Recitals, License Grant, and Indemnification.\n\n#### 1. Recitals (Purpose)\n*   **Project Scope:** The Company is engaged by the Client to provide creative services (e.g., website design, video production, graphic design).\n*   **Client Materials:** The Client provides content such as images, photographs, logos, graphics, video clips, audio files, and text for inclusion in the final deliverables.\n*   **Assurance:** The Company requires assurance that it has the legal right to use the Client Materials as directed without infringing on any third-party rights.\n\n#### 2. Client Representations and Warranties\nThe Client makes several key promises regarding the materials they provide, including:\n*   **Ownership/Rights:** The Client warrants that they own the materials or have secured all necessary licenses, permissions, and releases (including from any individuals appearing in the content).\n*   **No Infringement:** The materials do not infringe upon any copyright, trademark, privacy, publicity, or other intellectual property rights of any third party.\n*   **Accuracy and Legality:** The content is accurate, complete, and does not contain any material that is defamatory, libelous, obscene, or otherwise illegal.\n\n#### 3. License Grant\n*   **Terms:** The Client grants the Company a **non-exclusive, worldwide, royalty-free license** to use, reproduce, modify, display, and distribute the Client Materials.\n*   **Purpose:** This license is granted **solely for the purpose of performing the services and completing the deliverables** defined in the Project.\n*   **Duration:** The license remains in effect for the duration of the Project and for a reasonable period thereafter for archival and portfolio purposes.\n\n#### 4. Indemnification (Company Protection)\nThis is the primary protective clause for the Company. The Client agrees to **indemnify, defend, and hold harmless** the Company, its officers, directors, employees, and agents from any and all claims, demands, losses, damages, liabilities, costs, and expenses (including reasonable attorneys' fees) arising from:\n*   A breach of any of the Client’s representations and warranties (Section 1).\n*   Any claim by a third party that the Client Materials, or the Company's use of them as directed by the Client, infringes upon or violates the intellectual property rights of that third party.\n*   The Client's obligation to indemnify the Company survives the termination or completion of the Project and the Agreement.\n\n***\nSource: [Materials Release Agreement](https://docs.google.com/document/d/1kPlXzj9tsNoPsB2EgC6nR411Z_QI5LcJ388QQlONOLo/edit)",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 1,
+      "cached": false,
+      "response_time": 9.442752838134766
+    }
+  },
+  {
+    "timestamp": "2025-11-18T14:26:47.660660",
+    "question": "Summarize the Department Overview – Production",
+    "answer": "I apologize, but I was unable to find a document specifically titled \"Department Overview – Production\" or any general information detailing the responsibilities and structure of the Production Department in the indexed database.\n\nThe search returned no results for the specific title or a broader query about the Production Department's overview.\n\nIf you have a different name for the document or can provide more context, I would be happy to try searching again using the live Google Drive search tool.",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 2,
+      "cached": false,
+      "response_time": 2.592076063156128
+    }
+  },
+  {
+    "timestamp": "2025-11-18T14:41:17.240024",
+    "question": "Summarize the 7MM Sports Schedule",
+    "answer": "The 7MM Sports Schedule is comprehensive, covering a wide range of collegiate and professional sports across multiple markets and radio stations. The schedule includes both a master list of properties with broadcast details and a specific, date-driven schedule of games.\n\nThe key properties and their general broadcast details are summarized below:\n\n### Major Sports Properties and Broadcast Details\n\n| Sport (Team) | Markets Covered | Run Dates | Total Broadcast Length | Total Spot Availability |\n| :--- | :--- | :--- | :--- | :--- |\n| **Penn State Football** | State College, Lewistown, DuBois, Altoona, Johnstown, NWPA, Lebanon, Mansfield | August - January | 5 Hours 30 Minutes | 68 Spots / 34 Mins |\n| **Penn State Men's Basketball** | State College, DuBois, Altoona, Johnstown, Lebanon | November - April | 3 Hours | 44 Spots / 22 Mins |\n| **Penn State Women's Basketball** | State College, Altoona, Johnstown | November - April | 3 Hours | 44 Spots / 22 Mins |\n| **Pittsburgh Steelers (NFL)** | State College, DuBois, Altoona, Johnstown, NWPA | August - February | 6 Hours | 86 Spots / 43 Mins |\n| **Buffalo Bills (NFL)** | Olean | August - February | 6 Hours | 62 Spots / 31 Mins |\n| **Tennessee Titans (NFL)** | Bowling Green | August - February | 6 Hours | 52 Spots / 26 Mins |\n| **West Virginia Football** | Parkersburg | August - January | 8 Hours | 96 Spots / 48 Mins |\n| **Louisville Football** | Frankfort | August - January | 5 Hours 30 Mins | N/A |\n| **Western Kentucky Football** | Bowling Green | August - January | 5 Hours | N/A |\n| **Hershey Bears (AHL Hockey)** | Lebanon | October - April | 3 Hours 30 Mins | 27 Spots / 13.5 Mins |\n| **Elmira Aviators (Hockey)** | Elmira | September - April | 2 Hours 30 Mins | 22 Spots / 11 Mins |\n\n### Other Penn State Sports\n\nThe schedule also includes coverage for various other Penn State sports, primarily focused on the **State College** market:\n\n*   **Men's Ice Hockey:** October - April (2.5 Hours, 26 Spots)\n*   **Wrestling:** November - March (Time Varies, 14 Spots)\n*   **Baseball:** March - June (3 Hours 15 Mins, 20 Spots)\n*   **Softball:** March - June (3 Hours, 36 Spots)\n*   **Penn State Coaches Show:** August - April (54 Minutes, 8 Spots)\n\n### Other Collegiate Sports\n\nAdditional college properties include:\n\n*   **West Virginia Men's and Women's Basketball**\n*   **Louisville Men's Basketball**\n*   **Western Kentucky Men's and Women's Basketball**\n*   **East Stroudsburg Football**\n*   **Bloomsburg Football**\n\n### Specific Schedule Examples (February/March)\n\nThe detailed schedule shows specific game broadcasts, including pre-game times and stations:\n\n*   **PSU Men's Basketball:** Games in February and March against teams like USC, Washington, Rutgers, and the Big Ten Tournament, broadcast on **Bigfoot Country Legends, Passport Radio PA, My Pop Radio, and Wilbur Radio**.\n*   **PSU Wrestling:** Matches against Ohio State and Princeton, as well as the Big Ten and NCAA Championships in March, broadcast on **WOWY Radio**.\n*   **Hershey Bears Hockey:** Games in February and March against teams like Laval, Lehigh Valley, and Belleville, broadcast on **Froggy Valley**.\n*   **West Virginia Men's Basketball:** Games against Texas Tech, Utah, and the Big 12 Championship in March, broadcast on **Bear Rocks Radio and It's Willie Radio**.\n\n---\n**Source Documents:**\n*   **7 Mountains Sports Properties** (Master List with Spot Availability): [https://docs.google.com/spreadsheets/d/14fsJWJMyHtekD2emZ_6YahshRV-73VFfKZA2d_fQqNo/edit](https://docs.google.com/spreadsheets/d/14fsJWJMyHtekD2emZ_6YahshRV-73VFfKZA2d_fQqNo/edit)\n*   **7MM Sports Schedule** (Date-Specific Game Schedule): [https://docs.google.com/spreadsheets/d/1TDpu11YJ8SDaLvvTS1AUdcARaVXgILmXgmkL56O3LqI/edit](https://docs.google.com/spreadsheets/d/1TDpu11YJ8SDaLvvTS1AUdcARaVXgILmXgmkL56O3LqI/edit)",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 1,
+      "cached": false,
+      "response_time": 8.658799886703491
+    }
+  },
+  {
+    "timestamp": "2025-11-18T14:43:23.463589",
+    "question": "Summarize the 7MM Sports Schedule",
+    "answer": "The 7 Mountains Media (7MM) Sports Schedule is extensive, covering a wide range of collegiate and professional sports across multiple markets and radio stations. The schedule is organized around two main documents: a master list of properties and a detailed schedule with specific dates and times.\n\n### Summary of Sports Properties\n\nThe 7MM sports portfolio includes major teams and universities, with broadcast lengths ranging from 2 hours and 30 minutes to 8 hours.\n\n| Sport (Team) | Run Dates | Key Markets | Total Broadcast Length | Total Spot Availability |\n| :--- | :--- | :--- | :--- | :--- |\n| **Penn State Football** | August - January | State College, Lewistown, DuBois, Altoona, Johnstown, NWPA, Lebanon, Mansfield | 5 Hours 30 Mins | 68 Spots / 34 Mins |\n| **Pittsburgh Steelers** | August - February | State College, DuBois, Altoona, Johnstown, NWPA | 6 Hours | 86 Spots / 43 Mins |\n| **West Virginia Football** | August - January | Parkersburg | 8 Hours | 96 Spots / 48 Mins |\n| **Buffalo Bills** | August - February | Olean | 6 Hours | 62 Spots / 31 Mins |\n| **Tennessee Titans** | August - February | Bowling Green | 6 Hours | 52 Spots / 26 Mins |\n| **Penn State Basketball (M/W)** | November - April | State College, DuBois, Altoona, Johnstown, Lebanon (Men's) | 3 Hours | 44 Spots / 22 Mins (Each) |\n| **Louisville Basketball (M)** | November - April | Frankfort | 4 Hours 30 Mins | N/A |\n| **Western Kentucky Basketball (M/W)** | November - April | Bowling Green | 3 Hours | N/A |\n| **West Virginia Basketball (M/W)** | November - April | Parkersburg | 3 Hours 30 Mins (Men's) / 2 Hours 30 Mins (Women's) | 44 Spots / 22 Mins (Men's) |\n| **Hockey (Hershey Bears)** | October - April | Lebanon | 3 Hours 30 Mins | 27 Spots / 13.5 Mins |\n| **Hockey (Elmira Aviators)** | September - April | Elmira | 2 Hours 30 Mins | 22 Spots / 11 Mins |\n| **Penn State Ice Hockey** | October - April | State College | 2 Hours 30 Mins | 26 Spots / 13 Mins |\n| **Penn State Wrestling** | November - March | State College | Time Varies | 14 Spots / 7 Mins |\n| **Other Collegiate Sports** | Varies | State College, Selinsgrove/Bloomsburg, Stroudsburg | Varies | Includes PSU Baseball, PSU Softball, ESU Football, and Bloomsburg Football. |\n\n### Sample Schedule (Focusing on February/March)\n\nThe detailed schedule provides specific game dates, times, and the stations carrying the broadcasts.\n\n| Date | Time | Event | Pregame Start | Stations |\n| :--- | :--- | :--- | :--- | :--- |\n| **Feb. 18** | 6:00 PM | PSU Men's Basketball vs Rutgers | 30 Mins Prior | Bigfoot Country Legends, Passport Radio PA, My Pop Radio, Wilbur Radio |\n| **Feb. 20** | 7:00 PM | PSU Wrestling vs Princeton | 20 Mins Prior | WOWY Radio |\n| **Feb. 21** | 7:00 PM | Hershey Bears vs Lehigh Valley | 30 Mins Prior | Froggy Valley |\n| **Feb. 25** | 6:00 PM | PSU Women's Basketball vs USC | 30 Mins Prior | It's Pop Radio, My Pop Radio |\n| **Feb. 28** | 12:00 PM | PSU Men's Basketball vs Iowa | 30 Mins Prior | Bigfoot Country Legends, Passport Radio PA, My Pop Radio, Wilbur Radio |\n| **Mar. 3** | 9:00 PM | Louisville Men's Basketball vs Syracuse | 90 Mins Prior | My Passport Radio |\n| **Mar. 4** | 7:30 PM | PSU Men's Basketball vs Ohio St. | 30 Mins Prior | Bigfoot Country Legends, Passport Radio PA, My Pop Radio, Wilbur Radio |\n\nThe schedule also includes regular broadcasts of the **Penn State Coaches Show** (August - April) on stations like Bigfoot Country Legends, My Pop Radio, Rocky 104.9, and WOGA Radio.\n\n***\n**Sources:**\n*   [7 Mountains Sports Properties](https://docs.google.com/spreadsheets/d/14fsJWJMyHtekD2emZ_6YahshRV-73VFfKZA2d_fQqNo/edit)\n*   [7MM Sports Schedule](https://docs.google.com/spreadsheets/d/1TDpu11YJ8SDaLvvTS1AUdcARaVXgILmXgmkL56O3LqI/edit)",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 1,
+      "cached": false,
+      "response_time": 9.090985774993896
+    }
+  },
+  {
+    "timestamp": "2025-11-18T16:16:40.983651",
+    "question": "What holidays do we have off this year.",
+    "answer": "The company observes **15 paid holidays** during the year.\n\nThe 2025 Holiday Calendar lists the following days off:\n\n| Holiday | Date in 2025 |\n| :--- | :--- |\n| **New Year’s Day** | Wednesday, January 1st |\n| **Martin Luther King Day** | Monday, January 20th |\n| **Presidents Day** | Monday, February 17th |\n| **Good Friday** | Friday, April 18th |\n| **Memorial Day** | Monday, May 26th |\n| **Juneteenth** | Thursday, June 19th |\n| **4th of July** | Friday, July 4th |\n| **Labor Day** | Monday, September 1st |\n| **Columbus Day** | Monday, October 13th |\n| **Veteran’s Day** | Tuesday, November 11th |\n| **Thanksgiving Day** | Thursday, November 27th |\n| **Black Friday** | Friday, November 28th |\n| **Christmas Eve** | Wednesday, December 24th |\n| **Christmas Day** | Thursday, December 25th |\n| **New Year’s Eve** | Wednesday, December 31st |\n\n*Note: The calendar also lists New Year's Day 2026 (Thursday, January 1st, 2026).*\n\n**Policy Notes:**\n*   If a holiday falls on a Saturday, the company will observe the holiday on Friday.\n*   If a holiday falls on a Sunday, the company will observe the holiday on Monday.\n*   Programming personnel scheduled to work on a holiday will be compensated by receiving one \"comp day\" or day off for each holiday worked.\n\nSource: [2025 Holiday Calendar](https://docs.google.com/document/d/163pj5jhkzPw6VfxfNHwdV5r0yoeTycvXZJZE6UhinUU/edit) and [Handbook 2024](https://docs.google.com/document/d/1I2Hl9_ru3XggpewrKwsC0rIL1mVPBNGP_14Hcb78tPc/edit)",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 1,
+      "cached": false,
+      "response_time": 8.960000276565552
+    }
   }
 ]

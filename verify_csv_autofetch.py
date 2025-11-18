@@ -16,13 +16,13 @@ def print_header(text):
     print("="*80 + "\n")
 
 def print_success(text):
-    print(f"✅ {text}")
+    # print(f"✅ {text}")
 
 def print_warning(text):
-    print(f"⚠️  {text}")
+    # print(f"⚠️  {text}")
 
 def print_error(text):
-    print(f"❌ {text}")
+    # print(f"❌ {text}")
 
 def main():
     print_header("CSV Auto-Fetch Verification Tool")
@@ -31,7 +31,7 @@ def main():
     db_path = Path("./chroma_db")
     if not db_path.exists():
         print_error("chroma_db directory not found!")
-        print("   Please run: python folder_indexer.py")
+            # print("   Please run: python folder_indexer.py")
         return False
     
     client = chromadb.PersistentClient(path="./chroma_db")
@@ -41,11 +41,11 @@ def main():
         collection = client.get_collection(collection_name)
     except Exception as e:
         print_error(f"Cannot access collection '{collection_name}'")
-        print(f"   Error: {e}")
+            # print(f"   Error: {e}")
         return False
     
     total_docs = collection.count()
-    print(f"📊 Total documents in collection: {total_docs:,}")
+        # print(f"📊 Total documents in collection: {total_docs:,}")
     
     if total_docs == 0:
         print_error("Collection is empty! Please re-index the database.")
@@ -60,15 +60,15 @@ def main():
     
     if not has_is_csv:
         print_error("No documents have 'is_csv' metadata flag!")
-        print("   This means the database was indexed with OLD code.")
-        print("   You MUST re-index with the updated folder_indexer.py")
+            # print("   This means the database was indexed with OLD code.")
+            # print("   You MUST re-index with the updated folder_indexer.py")
         return False
     
     print_success("is_csv metadata flag found in database")
     
     # Count CSV vs non-CSV documents
     csv_count = sum(1 for m in sample_docs['metadatas'] if m.get('is_csv', False))
-    print(f"   Sample: {csv_count}/{len(sample_docs['metadatas'])} documents are CSV chunks")
+        # print(f"   Sample: {csv_count}/{len(sample_docs['metadatas'])} documents are CSV chunks")
     
     # Test 2: Find all CSV files
     print_header("Test 2: Finding CSV Files")
@@ -92,7 +92,7 @@ def main():
     
     if not csv_files:
         print_error("No CSV files found with is_csv=True flag!")
-        print("   Database may not have been re-indexed properly.")
+            # print("   Database may not have been re-indexed properly.")
         return False
     
     print_success(f"Found {len(csv_files)} CSV files")
@@ -114,9 +114,9 @@ def main():
             altoona_found = True
             altoona_complete = is_complete
             
-            print(f"\n📄 {info['name']}")
-            print(f"   Expected chunks: {chunks_expected}")
-            print(f"   Found chunks: {chunks_found}")
+                # print(f"\n📄 {info['name']}")
+                # print(f"   Expected chunks: {chunks_expected}")
+                # print(f"   Found chunks: {chunks_found}")
             
             if is_complete:
                 print_success("All chunks present")
@@ -154,16 +154,16 @@ def main():
                 break
         
         if altoona_file_id:
-            print(f"Testing retrieval of Altoona CSV chunks...")
-            print(f"File ID: {altoona_file_id}")
+                # print(f"Testing retrieval of Altoona CSV chunks...")
+                # print(f"File ID: {altoona_file_id}")
             
             try:
                 result = collection.get(where={"file_id": altoona_file_id})
                 retrieved_count = len(result['ids'])
                 expected_count = csv_files[altoona_file_id]['expected_total']
                 
-                print(f"   Query returned: {retrieved_count} chunks")
-                print(f"   Expected: {expected_count} chunks")
+                    # print(f"   Query returned: {retrieved_count} chunks")
+                    # print(f"   Expected: {expected_count} chunks")
                 
                 if retrieved_count == expected_count:
                     print_success("ChromaDB query retrieves all chunks correctly!")
@@ -210,8 +210,8 @@ def main():
                 
                 # Show preview
                 preview = first_chunk[:200]
-                print(f"\n   First chunk preview:")
-                print(f"   {preview}...")
+                    # print(f"\n   First chunk preview:")
+                    # print(f"   {preview}...")
         except Exception as e:
             print_error(f"Content verification failed: {e}")
     

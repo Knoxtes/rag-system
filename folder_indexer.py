@@ -765,6 +765,269 @@ class FolderIndexer:
             efficiency = total_stats['unchanged'] / total_files * 100
             safe_print(f"⚡ Efficiency: {efficiency:.1f}% of files skipped (incremental indexing)")
 
+    def index_folders_unattended(self, folder_selections, universal_folder, drive_service):
+        """
+        Index selected folders WITHOUT any confirmation prompts.
+        Same as index_folders but runs fully automated for unattended execution.
+        """
+        
+        if not folder_selections:
+            print("\nNo folders selected to index.")
+            return
+
+        print("\n" + "=" * 80)
+        print(f"🤖 UNATTENDED INDEXING FOR {len(folder_selections)} FOLDER(S)")
+        print("Running fully automated - no confirmations required")
+        print("Each folder will be indexed into a separate database collection.")
+        print("=" * 80)
+
+        loader = GoogleDriveLoader(drive_service)
+        embedder = LocalEmbedder()
+        
+        overall_start_time = time.time()
+        
+        # --- Get Universal Files FIRST ---
+        universal_files = []
+        if universal_folder:
+            print("=" * 80)
+            print("1. Fetching 'Universal Truths' files...")
+            universal_files = self.get_files_in_folders(
+                drive_service, 
+                [universal_folder], 
+                path_prefix="[UNIVERSAL]/"
+            )
+            print(f"✓ Found {len(universal_files)} universal files to inject.")
+            print("=" * 80)
+        
+        # --- Process each folder automatically ---
+        for folder_selection in folder_selections:
+            folder_id = folder_selection['id']
+            folder_name = folder_selection['name']
+            location = folder_selection['location']
+            
+            collection_name = f"folder_{folder_id}"
+            
+            print("\n\n" + "=" * 80)
+            print(f"Processing: [{location}] {folder_name}")
+            print(f"Collection: {collection_name}")
+            print("=" * 80)
+
+            try:
+                vector_store = VectorStore(collection_name=collection_name)
+            except Exception as e:
+                print(f"✗ FATAL: Could not initialize vector store for {collection_name}: {e}")
+                print("Skipping this folder.")
+                continue
+
+            # --- Clear old universal files before re-injecting ---
+            try:
+                print("  ...Clearing old [UNIVERSAL] files from this collection...")
+                all_docs = vector_store.collection.get()
+                if all_docs and all_docs.get('metadatas'):
+                    universal_ids = [
+                        doc_id for doc_id, metadata in zip(all_docs['ids'], all_docs['metadatas'])
+                        if metadata.get('file_path', '').startswith('[UNIVERSAL]')
+                    ]
+                    if universal_ids:
+                        vector_store.collection.delete(ids=universal_ids)
+                        print(f"  ✓ Cleared {len(universal_ids)} old universal file chunks.")
+                    else:
+                        print("  ✓ No old universal files to clear.")
+                else:
+                    print("  ✓ Collection is empty, nothing to clear.")
+            except Exception as e:
+                print(f"  Warning: Could not clear old universal files: {e}")
+
+            # --- Get specific files and combine with universal files ---
+            print(f"  ...Fetching specific files for '{folder_name}'...")
+            specific_files = self.get_files_in_folders(drive_service, [folder_selection], path_prefix="")
+            
+            files = universal_files + specific_files
+            
+            if not files:
+                print("\n⚠️  No indexable files found for this folder (or universal)!")
+                self.indexed_folders[folder_id] = {
+                    'name': folder_name, 'location': location,
+                    'collection_name': collection_name,
+                    'indexed_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'files_processed': 0
+                }
+                self.save_indexed_folders()
+                continue
+            
+            # Show breakdown (no confirmation prompt)
+            print("\n" + "=" * 80)
+            print("FILES TO INDEX IN THIS COLLECTION")
+            print("=" * 80)
+            print(f"Total: {len(files)} files ({len(specific_files)} specific + {len(universal_files)} universal)")
+            
+            total_size = sum(int(f.get('size', 0)) for f in files)
+            print(f"Size: {total_size / (1024**3):.2f} GB")
+            
+            print("\n🚀 Starting unattended indexing...")
+            print("=" * 80)
+            
+            successful = 0
+            failed = 0
+            empty = 0
+            skipped = 0
+            start_time = time.time()
+            
+            all_chunks = []
+            all_metadatas = []
+            all_ids = []
+            
+            for idx, file in enumerate(files, 1):
+                if idx % 25 == 0:
+                    elapsed = time.time() - start_time
+                    if elapsed > 0:
+                        rate = idx / elapsed
+                        remaining = (len(files) - idx) / rate
+                        print(f"\n⏱️  Progress: {idx}/{len(files)} ({idx/len(files)*100:.1f}%) - ETA: {remaining/60:.0f} mins")
+                
+                print(f"\n[{idx}/{len(files)}] {file.get('relative_path', '')}{file['name'][:60]}")
+                
+                try:
+                    # Delta Indexing Check
+                    try:
+                        existing_doc = vector_store.collection.get(
+                            where={"file_id": file['id']},
+                            limit=1,
+                            include=["metadatas"]
+                        )
+                        if existing_doc['metadatas']:
+                            indexed_time = existing_doc['metadatas'][0].get('modified_time')
+                            if indexed_time and indexed_time == file.get('modifiedTime'):
+                                print(f"  ✓ Skipping (up-to-date in this collection)")
+                                skipped += 1
+                                continue 
+                        if existing_doc['ids']:
+                            print("  File modified. Clearing old chunks from this collection...")
+                            vector_store.collection.delete(where={"file_id": file['id']})
+                    except Exception as e:
+                        print(f"  Warning: Could not check existing doc: {e}")
+
+                    # File Loading
+                    mime_type = file['mimeType']
+                    if mime_type == 'application/vnd.google-apps.document':
+                        text = loader.export_google_doc(file['id'])
+                    elif mime_type == 'application/vnd.google-apps.presentation':
+                        text = loader.export_google_slides(file['id'])
+                    elif mime_type == 'application/vnd.google-apps.spreadsheet':
+                        text = loader.export_google_sheets(file['id'])
+                    else:
+                        content = loader.download_file(file['id'])
+                        if content is None:
+                            failed += 1
+                            continue
+                        text = extract_text(content, mime_type, file.get('name', ''), loader.ocr_service)
+                    
+                    if text is None:
+                        print("  ❌ Filtered out (poor quality)")
+                        failed += 1
+                        continue
+                    
+                    if not text or len(text.strip()) < 50:
+                        print("  ⚠️  Empty")
+                        empty += 1
+                        continue
+                    
+                    print(f"  ✓ {len(text):,} chars")
+                    
+                    # Check if CSV
+                    is_csv = mime_type == 'text/csv' or file['name'].lower().endswith('.csv')
+                    
+                    if is_csv:
+                        print(f"    📊 CSV DETECTED: {file['name']} - storing as SINGLE COMPLETE unit")
+                        folder_path = file.get('relative_path', '')
+                        folder_context = f"\n[FILE LOCATION: {folder_path}]\n[FILE NAME: {file['name']}]\n\n"
+                        text_with_context = folder_context + text
+                        chunks = [text_with_context]
+                    else:
+                        chunks = chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
+                    
+                    if not chunks:
+                        empty += 1
+                        continue
+                    
+                    # Metadatas
+                    metadatas = [
+                        {
+                            'file_id': file['id'],
+                            'file_name': file['name'],
+                            'file_path': file.get('relative_path', ''),
+                            'folder_name': file.get('folder_name', ''),
+                            'parent_folder_id': file.get('parent_folder_id', ''),
+                            'mime_type': mime_type,
+                            'chunk_index': i,
+                            'total_chunks': len(chunks),
+                            'is_csv': is_csv,
+                            'modified_time': file.get('modifiedTime') 
+                        }
+                        for i in range(len(chunks))
+                    ]
+                    
+                    ids = [f"{file['id']}_chunk_{i}" for i in range(len(chunks))]
+                    
+                    all_chunks.extend(chunks)
+                    all_metadatas.extend(metadatas)
+                    all_ids.extend(ids)
+                    
+                    successful += 1
+                    print(f"  ✅ {len(chunks)} chunks (queued)")
+                    
+                except KeyboardInterrupt:
+                    print(f"\n\n⚠️  Interrupted!")
+                    break
+                except Exception as e:
+                    print(f"  ✗ Error: {e}")
+                    failed += 1
+            
+            # --- Process Batches ---
+            if all_chunks:
+                print("\n" + "=" * 80)
+                print(f"🚀 Processing {successful} files for collection '{collection_name}'...")
+                print(f"  Generating embeddings for {len(all_chunks)} total chunks...")
+                try:
+                    all_embeddings = embedder.embed_documents(all_chunks)
+                    print(f"  Adding {len(all_chunks)} chunks to vector store...")
+                    vector_store.add_documents(all_chunks, all_embeddings, all_metadatas, all_ids)
+                    print("✓ Batch add complete!")
+                except Exception as e:
+                    print(f"\n✗ Error during batch processing: {e}")
+                    print("  Some documents may not have been indexed.")
+
+            
+            # Mark as indexed
+            self.indexed_folders[folder_id] = {
+                'name': folder_name,
+                'location': location,
+                'collection_name': collection_name,
+                'indexed_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'files_processed': successful
+            }
+            self.save_indexed_folders()
+            
+            # Summary for this folder
+            total_time = time.time() - start_time
+            print("\n" + "=" * 80)
+            print(f"🎉 FOLDER COMPLETE: {folder_name}")
+            print("=" * 80)
+            print(f"✅ Success (new/updated): {successful}")
+            print(f"✓ Skipped (up-to-date): {skipped}")
+            print(f"⚠️  Empty: {empty}")
+            print(f"❌ Failed: {failed}")
+            print(f"⏱️  Time: {total_time/60:.1f} minutes")
+            safe_print(f"📊 Total in collection: {vector_store.get_stats()['total_documents']}")
+            print("=" * 80)
+
+        # Final Summary
+        overall_time = time.time() - overall_start_time
+        print("\n\n" + "=" * 80)
+        print("🎉 UNATTENDED INDEXING COMPLETE!")
+        print(f"⏱️  Total time: {overall_time/60:.1f} minutes")
+        print("=" * 80)
+
     def index_folders(self, folder_selections, universal_folder, drive_service):
         """
         Index selected folders.
@@ -1090,12 +1353,20 @@ def main():
         print("   - Processes all files regardless of changes")
         print("   - Slower but ensures complete rebuild")
         print("   - Use if you suspect indexing issues")
+        print("")
+        print("3. 🤖 Unattended Full Re-indexing")
+        print("   - Same as Full Re-indexing but no confirmations")
+        print("   - Processes all folders automatically")
+        print("   - For automated/scheduled runs")
         
-        mode_choice = input("\nSelect indexing mode (1 or 2): ").strip()
+        mode_choice = input("\nSelect indexing mode (1, 2, or 3): ").strip()
         
         if mode_choice == "1" or mode_choice == "":
             print("\n✅ Using Incremental Indexing")
             indexer.index_folders_incremental(selected, universal, drive_service)
+        elif mode_choice == "3":
+            print("\n✅ Using Unattended Full Re-indexing")
+            indexer.index_folders_unattended(selected, universal, drive_service)
         else:
             print("\n✅ Using Full Re-indexing")
             indexer.index_folders(selected, universal, drive_service)

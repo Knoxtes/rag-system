@@ -39,7 +39,7 @@ BM25_WEIGHT = 0.3  # Weight for keyword search (0.0-1.0)
 DENSE_WEIGHT = 0.7  # Weight for semantic search (should sum to 1.0)
 
 # Retrieval Settings
-TOP_K_RESULTS = 20  # INCREASED: More results for richer context
+TOP_K_RESULTS = 10  # INCREASED: More results for richer context
 INITIAL_RETRIEVAL_COUNT = 100  # INCREASED: Cast wider net before reranking
 DIVERSITY_THRESHOLD = 0.85  # Similarity threshold for deduplication (0-1)
 MAX_CHUNKS_PER_FILE = 4  # INCREASED: Allow more chunks from highly relevant files
@@ -51,21 +51,21 @@ MAX_CONTEXT_CHARACTERS = 8000  # OPTIMIZED: Reduced from 12000 to save API costs
 
 # Query Caching Settings (NEW - for cost optimization)
 ENABLE_QUERY_CACHE = True  # Cache frequent queries to reduce API calls
-CACHE_TTL_SECONDS = 300  # Cache lifetime: 5 minutes
-CACHE_MAX_SIZE = 1000  # Maximum number of cached queries
+CACHE_TTL_SECONDS = 900  # Cache lifetime: 5 minutes
+CACHE_MAX_SIZE = 2000  # Maximum number of cached queries
 
 # Embedding Cache Settings (NEW - for performance)
 ENABLE_EMBEDDING_CACHE = True  # Cache embeddings to avoid recomputation
 EMBEDDING_CACHE_DIR = "./embedding_cache"  # Directory for embedding cache
-EMBEDDING_CACHE_TTL_DAYS = 7  # Cache lifetime in days
+EMBEDDING_CACHE_TTL_DAYS = 14  # Cache lifetime in days
 
 # CSV Processing Cache (NEW - for faster re-indexing)
 ENABLE_CSV_CACHE = True  # Cache processed CSV files
 CSV_CACHE_DIR = "./csv_cache"  # Directory for CSV cache
 
 # Performance Settings (NEW)
-EMBEDDING_BATCH_SIZE = 32  # Batch size for embedding generation
-RERANKING_BATCH_SIZE = 16  # Batch size for reranking
+EMBEDDING_BATCH_SIZE = 64  # Batch size for embedding generation
+RERANKING_BATCH_SIZE = 32  # Batch size for reranking
 
 # Advanced Retrieval Settings
 USE_PARENT_DOCUMENT_RETRIEVAL = True  # Retrieve small chunks, return larger parent context

@@ -10,7 +10,7 @@
       sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    @apply bg-light-50 dark:bg-dark-950 text-gray-900 dark:text-white;
+    @apply bg-brand-white dark:bg-dark-950 text-brand-dark dark:text-white;
     transition: background-color 0.2s, color 0.2s;
   }
 
@@ -38,16 +38,16 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: #f3f4f6;
+    background: #f5f5f5;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #d1d5db;
+    background: #9ed8b0;
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af;
+    background: #145629;
   }
 }
 

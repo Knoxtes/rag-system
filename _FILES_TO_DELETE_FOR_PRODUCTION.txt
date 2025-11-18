@@ -1,0 +1,47 @@
+# Files/Directories to consider deleting for production optimization
+
+# Backup, test, and redundant scripts
+admin_routes_backup.py
+auth_routes_backup.py
+check_all_collections.py
+check_altoona_chunks.py
+check_collections.py
+check_csv_chunks.py
+check_csv_flags.py
+check_new_index.py
+clean_reindex.py
+compare_versions.py
+csv_fix_menu.py
+diagnose_collections.py
+find_all_versions.py
+find_altoona.py
+fix-frontend.js
+fix_csv_indexing.py
+fix_file_counts.py
+health_monitor.py
+incremental_indexing.py
+optional_google_integration.py
+quick_fix_oauth.md
+reauth_shared_drives.py
+setup_billing_alerts.md
+setup_dev_auth.py
+simple_reauth.py
+test_admin.py
+test_altoona_database.py
+test_altoona_query.py
+test_boolean_metadata.py
+test_csv_extraction.py
+test_csv_fetch.py
+test_find_csv_chunks.py
+test_metadata_check.py
+test_sports_query.py
+verify_csv_autofetch.py
+
+# Node and Python caches
+__pycache__/
+node_modules/
+logs/
+venv/
+
+# Markdown/feature docs (if not needed for prod)
+*.md

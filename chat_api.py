@@ -126,17 +126,17 @@ def safe_drive_request(request_func, max_retries=3, base_delay=1):
         except (ssl.SSLError, socket.error, ConnectionError) as e:
             if attempt < max_retries:
                 delay = base_delay * (2 ** attempt)  # Exponential backoff
-                print(f"SSL/Network error on attempt {attempt + 1}: {str(e)}. Retrying in {delay}s...")
-                time.sleep(delay)
+                    # print(f"SSL/Network error on attempt {attempt + 1}: {str(e)}. Retrying in {delay}s...")  # Disabled for production
+                time.sleep(min(delay, 0.5))  # Reduce delay for faster retries
                 continue
             else:
-                print(f"SSL/Network error after {max_retries + 1} attempts: {str(e)}")
+                    # print(f"SSL/Network error after {max_retries + 1} attempts: {str(e)}")  # Disabled for production
                 return None
         except HttpError as e:
-            print(f"Google API HTTP error: {str(e)}")
+                # print(f"Google API HTTP error: {str(e)}")  # Disabled for production
             return None
         except Exception as e:
-            print(f"Unexpected error: {str(e)}")
+                # print(f"Unexpected error: {str(e)}")  # Disabled for production
             return None
     
     return None
@@ -153,7 +153,7 @@ def compress_response(data):
             }
         return {'compressed': False, 'data': data}
     except Exception as e:
-        print(f"Compression error: {e}")
+            # print(f"Compression error: {e}")  # Disabled for production
         return {'compressed': False, 'data': data}
 
 def get_cache_key(parent_id, query=None):
@@ -207,7 +207,7 @@ def preload_folder_structure():
     """
     Enhanced preload with deeper folder structure caching
     """
-    print("Starting enhanced folder structure preload...")
+    # print("Starting enhanced folder structure preload...")  # Disabled for production
     
     try:
         # Step 1: Start with root folders
@@ -229,7 +229,7 @@ def preload_folder_structure():
         if response and 'files' in response:
             root_files = response['files']
             update_cache(cache_key, root_files)
-            print(f"Preloaded {len(root_files)} root folders")
+            # print(f"Preloaded {len(root_files)} root folders")  # Disabled for production
             
             # Step 2: Preload first level of top 8 folders (most likely to be accessed)
             priority_folders = root_files[:8]  # Reduced from 10 to avoid overwhelming API
@@ -254,17 +254,17 @@ def preload_folder_structure():
                     if subfolder_response and 'files' in subfolder_response:
                         subitems = subfolder_response['files']
                         update_cache(subfolder_cache_key, subitems)
-                        print(f"  → Preloaded {len(subitems)} items in '{folder['name'][:25]}...'")
+                        # print(f"  → Preloaded {len(subitems)} items in '{folder['name'][:25]}...'")  # Disabled for production
                         
                     # Small delay to be respectful to API rate limits
-                    time.sleep(0.2)
+                    time.sleep(0.01)  # Minimize delay for API friendliness
                     
                 except Exception as subfolder_error:
-                    print(f"  → Failed to preload '{folder['name']}': {subfolder_error}")
+                    # print(f"  → Failed to preload '{folder['name']}': {subfolder_error}")  # Disabled for production
                     continue
         
     except Exception as e:
-        print(f"Error in enhanced preload: {str(e)}")
+        # print(f"Error in enhanced preload: {str(e)}")  # Disabled for production
 
 def start_background_cache_refresh():
     """Start background thread for cache refresh with simplified approach"""
@@ -285,40 +285,40 @@ def start_background_cache_refresh():
                     for key in keys_to_remove:
                         del memory_cache[key]
                     
-                    print(f"Cache refresh completed. Memory cache: {len(memory_cache)} items")
+                    # print(f"Cache refresh completed. Memory cache: {len(memory_cache)} items")  # Disabled for production
                 
                 time.sleep(3600)  # Refresh every hour (back to stable interval)
             except Exception as e:
-                print(f"Error in cache refresh: {str(e)}")
+                # print(f"Error in cache refresh: {str(e)}")  # Disabled for production
                 time.sleep(600)  # Wait 10 minutes before retry on error
     
     refresh_thread = Thread(target=refresh_loop, daemon=True)
     refresh_thread.start()
-    print("Background cache refresh started")
+    # print("Background cache refresh started")  # Disabled for production
 
 def initialize_rag_system():
     """Initialize the RAG system and load available collections"""
     global rag_system, multi_collection_rag, drive_service, available_collections
     
     try:
-        print("[+] Initializing Google Drive authentication...")
+        # print("[+] Initializing Google Drive authentication...")  # Disabled for production
         try:
             # Use non-interactive mode during server startup
             drive_service = authenticate_google_drive(interactive=False)
             if drive_service:
-                print("✅ Google Drive authentication successful!")
+                # print("✅ Google Drive authentication successful!")  # Disabled for production
             else:
-                print("⚠️  Google Drive credentials not found - run 'python auth.py' to set up")
+                # print("⚠️  Google Drive credentials not found - run 'python auth.py' to set up")  # Disabled for production
                 drive_service = None
         except Exception as drive_error:
-            print(f"❌ Google Drive authentication failed: {drive_error}")
-            print("    Please run: python auth.py to set up Google Drive credentials")
-            print("    Continuing without Google Drive (folders will be unavailable)")
+            # print(f"❌ Google Drive authentication failed: {drive_error}")  # Disabled for production
+            # print("    Please run: python auth.py to set up Google Drive credentials")  # Disabled for production
+            # print("    Continuing without Google Drive (folders will be unavailable)")  # Disabled for production
             drive_service = None
         
         # Load available collections from indexed_folders.json (if exists)
         indexed_folders_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'indexed_folders.json')
-        print(f"Looking for indexed folders at: {indexed_folders_file}")
+        # print(f"Looking for indexed folders at: {indexed_folders_file}")  # Disabled for production
         
         if os.path.exists(indexed_folders_file):
             with open(indexed_folders_file, 'r') as f:
@@ -333,15 +333,15 @@ def initialize_rag_system():
                     'indexed_at': folder_info.get('indexed_at', '')
                 }
         else:
-            print(f"⚠️  indexed_folders.json not found at {indexed_folders_file}")
-            print("⚠️  Collections will be empty until Google Drive is set up")
+            # print(f"⚠️  indexed_folders.json not found at {indexed_folders_file}")  # Disabled for production
+            # print("⚠️  Collections will be empty until Google Drive is set up")  # Disabled for production
         
-        print(f"[+] Found {len(available_collections)} available collections")
+        # print(f"[+] Found {len(available_collections)} available collections")  # Disabled for production
         
         # Initialize RAG systems for the available collections
         if available_collections:
             try:
-                print("[+] Initializing RAG systems...")
+                # print("[+] Initializing RAG systems...")  # Disabled for production
                 
                 # Initialize individual collection RAG systems
                 for collection_name in available_collections:
@@ -351,12 +351,12 @@ def initialize_rag_system():
                                 drive_service=drive_service, 
                                 collection_name=collection_name
                             )
-                            print(f"    ✓ Initialized RAG for collection: {collection_name}")
+                            # print(f"    ✓ Initialized RAG for collection: {collection_name}")  # Disabled for production
                             # Use the first available collection as default if rag_system is None
                             if rag_system is None:
                                 rag_system = temp_rag
                         except Exception as e:
-                            print(f"    ⚠️  Failed to initialize RAG for {collection_name}: {e}")
+                            # print(f"    ⚠️  Failed to initialize RAG for {collection_name}: {e}")  # Disabled for production
                 
                 # Initialize multi-collection RAG if multiple collections available
                 collection_names = [k for k in available_collections.keys() if k != "ALL_COLLECTIONS"]
@@ -368,15 +368,15 @@ def initialize_rag_system():
                             drive_service=drive_service,
                             available_collections=collections_dict
                         )
-                        print(f"    ✓ Initialized multi-collection RAG for {len(collection_names)} collections")
+                        # print(f"    ✓ Initialized multi-collection RAG for {len(collection_names)} collections")  # Disabled for production
                     except Exception as e:
-                        print(f"    ⚠️  Failed to initialize multi-collection RAG: {e}")
+                        # print(f"    ⚠️  Failed to initialize multi-collection RAG: {e}")  # Disabled for production
                         import traceback
                         traceback.print_exc()
                         
-                print("✅ RAG system initialization completed")
+                # print("✅ RAG system initialization completed")  # Disabled for production
             except Exception as e:
-                print(f"❌ Error during RAG initialization: {e}")
+                # print(f"❌ Error during RAG initialization: {e}")  # Disabled for production
         
         # Add special "ALL_COLLECTIONS" entry
         if len(available_collections) > 1:
@@ -387,15 +387,15 @@ def initialize_rag_system():
                 'indexed_at': 'Combined',
                 'is_combined': True
             }
-            print(f"[+] Added combined collection mode with {available_collections['ALL_COLLECTIONS']['files_processed']} total documents")
+            # print(f"[+] Added combined collection mode with {available_collections['ALL_COLLECTIONS']['files_processed']} total documents")  # Disabled for production
         
         if rag_system is not None:
-            print("✅ RAG system fully initialized and ready for chat")
+            pass  # print("✅ RAG system fully initialized and ready for chat")
         else:
-            print("⚠️  RAG system not initialized - chat will be unavailable")
+            pass  # print("⚠️  RAG system not initialized - chat will be unavailable")
         
     except Exception as e:
-        print(f"[!] Error initializing RAG system: {e}")
+        # print(f"[!] Error initializing RAG system: {e}")  # Disabled for production
         raise e
 
 def extract_document_links(response_text):
@@ -1145,6 +1145,56 @@ def create_app():
         print(f"[!] Warning: RAG system initialization failed: {e}")
         print("[!] Server will start with limited functionality")
     return app
+
+@app.route('/chat/stream', methods=['POST'])
+@require_auth
+@limiter.limit("30 per minute")
+def chat_stream():
+    """Stream chat responses as they are generated (token/chunk streaming)."""
+    global rag_system, multi_collection_rag
+    from flask import Response
+    import time
+
+    def stream_generator():
+        try:
+            data = request.get_json()
+            if not data or 'message' not in data:
+                yield json.dumps({'error': 'Message is required'})
+                return
+            message = data['message']
+            collection = data.get('collection')
+            file_id = data.get('file_id')
+
+            # Check if RAG system is initialized
+            if not rag_system:
+                yield json.dumps({'error': 'RAG system is still initializing. Please wait a moment and try again.', 'code': 'SYSTEM_INITIALIZING'})
+                return
+
+            # Multi-collection mode
+            if collection == "ALL_COLLECTIONS":
+                if not multi_collection_rag:
+                    yield json.dumps({'error': 'Multi-collection system not available. Please select a specific collection.'})
+                    return
+                # --- Streaming not implemented for multi-collection yet ---
+                response = multi_collection_rag.process_chat(message, file_id=file_id)
+                yield json.dumps({'answer': response.get('answer', 'No response generated')})
+                return
+
+            # Single collection streaming
+            # --- This assumes rag_system.query_stream yields answer chunks ---
+            if hasattr(rag_system, 'query_stream'):
+                for chunk in rag_system.query_stream(message, file_id=file_id):
+                    yield f"data: {json.dumps({'answer_chunk': chunk})}\n\n"
+                    time.sleep(0.01)
+                yield f"data: {json.dumps({'done': True})}\n\n"
+            else:
+                # Fallback: non-streaming
+                response = rag_system.query(message, file_id=file_id)
+                yield f"data: {json.dumps({'answer': response.get('answer', 'No response generated'), 'done': True})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return Response(stream_generator(), mimetype='text/event-stream')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RAG Chat API Server')

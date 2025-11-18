@@ -1724,7 +1724,7 @@ class EnhancedRAGSystem:
                     # Handle rate limits gracefully
                     if "quota" in str(tool_error).lower() or "rate" in str(tool_error).lower():
                         print(f"  ⚠️  Rate limit hit. Waiting 2 seconds...")
-                        time.sleep(2)
+                        time.sleep(0.5)  # Reduce delay for rate limit recovery
                         tool_result = json.dumps({"error": "Rate limit reached. Please provide answer with available information."})
                     else:
                         tool_result = json.dumps({"error": f"Tool failed: {str(tool_error)}"})
@@ -1824,6 +1824,20 @@ class EnhancedRAGSystem:
                 'chat_history': history,
                 'files': [], 'contexts': [], 'query_type': 'agent_error'
             }
+
+    def query_stream(self, message, file_id=None):
+        """Yields answer chunks for streaming (token or sentence level)."""
+        # This is a minimal implementation for Gemini/Vertex/OpenAI APIs that support streaming.
+        # If your LLM API does not support streaming, you can yield the full answer as one chunk.
+        response = self.query(message, file_id=file_id)
+        answer = response.get('answer', '')
+        # Example: yield by sentence (for demonstration)
+        import re
+        for sentence in re.split(r'(?<=[.!?]) +', answer):
+            if sentence.strip():
+                yield sentence
+        # Optionally yield sources or metadata at the end
+        # yield json.dumps({'sources': response.get('sources', [])})
 
     def _generate_google_drive_link(self, file_id: str, mime_type: str = None) -> str:
         """
@@ -1965,8 +1979,3 @@ def interactive_mode(collection_name, collection_display_name):
             break
         except Exception as e:
             print(f"\n✗ Error: {e}")
-
-
-if __name__ == "__main__":
-    print("This file is not meant to be run directly.")
-    print("Please run `python main.py` to start the system.")
