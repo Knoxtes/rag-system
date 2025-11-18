@@ -2,9 +2,9 @@
 
 import os
 
-# Google Cloud Settings - CHANGE THIS!
-PROJECT_ID = "rag-chatbot-475316"  # ⚠️ Replace with your actual project ID
-LOCATION = "us-central1"
+# Google Cloud Settings - Load from environment
+PROJECT_ID = os.getenv("PROJECT_ID", "your-project-id")  # ⚠️ Set via environment variable
+LOCATION = os.getenv("LOCATION", "us-central1")
 
 # File paths
 CREDENTIALS_FILE = "credentials.json"

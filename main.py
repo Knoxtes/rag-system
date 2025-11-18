@@ -4,6 +4,19 @@ import os
 import json
 from config import INDEXED_FOLDERS_FILE
 
+# Validate startup configuration
+try:
+    from startup_validation import validate_startup
+    if not validate_startup():
+        print("\n⚠️  System has validation errors. Please fix them before continuing.")
+        print("Some features may not work properly.")
+        response = input("\nContinue anyway? (yes/no): ").strip().lower()
+        if response != 'yes':
+            print("Exiting...")
+            sys.exit(1)
+except ImportError:
+    print("⚠️  startup_validation.py not found. Skipping validation checks.")
+
 # --- REMOVED: Debug prints for google.generativeai ---
 
 def print_menu():
@@ -190,8 +203,8 @@ def check_status():
         print(f"✗ Vector DB Client: {e}")
     
     from config import PROJECT_ID
-    if PROJECT_ID == "YOUR_PROJECT_ID" or PROJECT_ID == "rag-chatbot-475316":
-        print("✗ PROJECT_ID not set in config.py or is set to default")
+    if PROJECT_ID == "your-project-id":
+        print("✗ PROJECT_ID not set in environment variable")
     else:
         print(f"✓ PROJECT_ID: {PROJECT_ID}")
 

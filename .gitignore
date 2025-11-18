@@ -50,6 +50,11 @@ indexed_folders.json
 *.log
 logs/
 
+# Backup files
+*.backup
+*.bak
+*~
+
 # Testing
 .pytest_cache/
 .coverage
