@@ -6,6 +6,11 @@ import os
 PROJECT_ID = "rag-chatbot-475316"  # ⚠️ Replace with your actual project ID
 LOCATION = "us-central1"
 
+# API Settings
+USE_VERTEX_AI = True  # Use Vertex AI (Google Cloud credits) instead of consumer API
+# Set to False to use free consumer API with GOOGLE_API_KEY
+# Note: Vertex AI requires Google Cloud credentials and billing enabled
+
 # File paths
 CREDENTIALS_FILE = "credentials.json"
 TOKEN_FILE = "token.pickle"
@@ -49,6 +54,19 @@ ENABLE_QUERY_CACHE = True  # Cache frequent queries to reduce API calls
 CACHE_TTL_SECONDS = 300  # Cache lifetime: 5 minutes
 CACHE_MAX_SIZE = 1000  # Maximum number of cached queries
 
+# Embedding Cache Settings (NEW - for performance)
+ENABLE_EMBEDDING_CACHE = True  # Cache embeddings to avoid recomputation
+EMBEDDING_CACHE_DIR = "./embedding_cache"  # Directory for embedding cache
+EMBEDDING_CACHE_TTL_DAYS = 7  # Cache lifetime in days
+
+# CSV Processing Cache (NEW - for faster re-indexing)
+ENABLE_CSV_CACHE = True  # Cache processed CSV files
+CSV_CACHE_DIR = "./csv_cache"  # Directory for CSV cache
+
+# Performance Settings (NEW)
+EMBEDDING_BATCH_SIZE = 32  # Batch size for embedding generation
+RERANKING_BATCH_SIZE = 16  # Batch size for reranking
+
 # Advanced Retrieval Settings
 USE_PARENT_DOCUMENT_RETRIEVAL = True  # Retrieve small chunks, return larger parent context
 PARENT_CHUNK_SIZE = 800  # Size of parent chunks (2x child chunks)
@@ -57,6 +75,10 @@ USE_CONTEXTUAL_COMPRESSION = True  # Filter retrieved chunks to only relevant se
 # Agent Settings
 MAX_AGENT_ITERATIONS = 8  # Maximum tool calls before forcing final answer
 AGENT_TEMPERATURE = 0.3   # Lower = more focused, higher = more creative
+
+# Multi-Collection Settings
+ENABLE_AI_ROUTING = True  # Use AI to route queries to best collection (costs extra API call)
+AI_ROUTING_CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to use routing (0.0-1.0)
 
 # Synthesis Settings (OPTIMIZED for cost)
 ENABLE_MULTI_QUERY = True  # Generate multiple query variations for better recall

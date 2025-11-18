@@ -27,7 +27,8 @@ from rag_system import EnhancedRAGSystem, MultiCollectionRAGSystem
 from auth import authenticate_google_drive
 from oauth_config import require_auth, oauth_config
 from auth_routes import auth_bp
-from config import SCOPES, CREDENTIALS_FILE, TOKEN_FILE
+from config import SCOPES, CREDENTIALS_FILE, TOKEN_FILE, USE_VERTEX_AI
+from cost_monitor import get_monitor, print_cost_summary
 import re
 
 app = Flask(__name__)
@@ -53,6 +54,13 @@ limiter.init_app(app)
 
 # Register authentication blueprint
 app.register_blueprint(auth_bp)
+
+# Register Google Drive OAuth blueprint
+try:
+    from google_drive_oauth import gdrive_oauth_bp
+    app.register_blueprint(gdrive_oauth_bp)
+except ImportError as e:
+    print(f"Warning: Could not load Google Drive OAuth routes: {e}")
 
 # Register admin blueprint
 try:
@@ -354,13 +362,17 @@ def initialize_rag_system():
                 collection_names = [k for k in available_collections.keys() if k != "ALL_COLLECTIONS"]
                 if len(collection_names) > 1:
                     try:
+                        # Pass the collection dict, not just the names
+                        collections_dict = {k: v for k, v in available_collections.items() if k != "ALL_COLLECTIONS"}
                         multi_collection_rag = MultiCollectionRAGSystem(
                             drive_service=drive_service,
-                            available_collections=collection_names
+                            available_collections=collections_dict
                         )
                         print(f"    ✓ Initialized multi-collection RAG for {len(collection_names)} collections")
                     except Exception as e:
                         print(f"    ⚠️  Failed to initialize multi-collection RAG: {e}")
+                        import traceback
+                        traceback.print_exc()
                         
                 print("✅ RAG system initialization completed")
             except Exception as e:
@@ -450,32 +462,52 @@ def chat():
     global rag_system, multi_collection_rag
     
     try:
+        print(f"[DEBUG] Chat endpoint called")
+        print(f"[DEBUG] rag_system: {rag_system is not None}")
+        print(f"[DEBUG] multi_collection_rag: {multi_collection_rag is not None}")
+        
         data = request.get_json()
+        print(f"[DEBUG] Request data: {data}")
         
         if not data or 'message' not in data:
             return jsonify({'error': 'Message is required'}), 400
         
         message = data['message']
         collection = data.get('collection')
+        file_id = data.get('file_id')  # Extract file_id for targeted queries
+        print(f"[DEBUG] Message: {message}, Collection: {collection}, File ID: {file_id}")
         
+        # Check if RAG system is initialized
         if not rag_system:
-            return jsonify({'error': 'RAG system not initialized'}), 500
+            print(f"[DEBUG] RAG system not initialized, returning 503")
+            return jsonify({
+                'error': 'RAG system is still initializing. Please wait a moment and try again.',
+                'code': 'SYSTEM_INITIALIZING'
+            }), 503  # Service Unavailable
         
         # Handle ALL_COLLECTIONS mode
         if collection == "ALL_COLLECTIONS":
+            print(f"[DEBUG] ALL_COLLECTIONS requested, multi_collection_rag available: {multi_collection_rag is not None}")
             if not multi_collection_rag:
-                return jsonify({'error': 'Multi-collection system not available'}), 500
+                print(f"[DEBUG] Multi-collection not available, returning error")
+                return jsonify({'error': 'Multi-collection system not available. Please select a specific collection.'}), 400
             
             print(f"🔍 Multi-collection query: {message}")
-            response = multi_collection_rag.process_chat(message)
+            if file_id:
+                print(f"  📄 Targeted query for specific file: {file_id}")
+            response = multi_collection_rag.process_chat(message, file_id=file_id)
             
             # Extract documents/sources from multi-collection response
             documents = []
             for source in response.get('sources', []):
+                metadata = source.get('metadata', {})
+                file_info = metadata.get('file_info', {})
+                
                 documents.append({
-                    'title': source.get('title', 'Untitled'),
-                    'content': source.get('content', ''),
+                    'filename': source.get('title', 'Untitled'),
                     'url': source.get('url', ''),
+                    'type': file_info.get('file_type', 'Document'),
+                    'extension': '',  # Not used but expected by frontend
                     'collection': source.get('collection', ''),
                     'score': source.get('score', 0)
                 })
@@ -500,7 +532,9 @@ def chat():
         
         # Query single collection RAG system
         print(f"Processing query: {message}")
-        response = rag_system.query(message)
+        if file_id:
+            print(f"  📄 Targeted query for specific file: {file_id}")
+        response = rag_system.query(message, file_id=file_id)
         
         # Extract answer and documents
         answer = response.get('answer', 'No response generated')
@@ -960,6 +994,48 @@ def clear_cache():
         with cache_lock:
             folder_cache.clear()
         return jsonify({'message': 'Cache cleared successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/cost/summary', methods=['GET'])
+def cost_summary():
+    """Get API cost summary and budget status"""
+    try:
+        monitor = get_monitor()
+        summary = monitor.get_summary()
+        
+        # Add warning level
+        percent_used = summary['percent_used']
+        if percent_used >= 95:
+            warning_level = 'critical'
+        elif percent_used >= 80:
+            warning_level = 'high'
+        elif percent_used >= 60:
+            warning_level = 'medium'
+        else:
+            warning_level = 'low'
+        
+        summary['warning_level'] = warning_level
+        summary['using_vertex_ai'] = USE_VERTEX_AI
+        
+        return jsonify(summary)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/cost/reset', methods=['POST'])
+@require_auth
+def reset_cost_tracking():
+    """Reset cost tracking (admin only)"""
+    try:
+        monitor = get_monitor()
+        monitor.costs = {
+            'total_cost': 0.0,
+            'monthly_costs': {},
+            'daily_costs': {},
+            'queries': []
+        }
+        monitor._save_costs()
+        return jsonify({'message': 'Cost tracking reset successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

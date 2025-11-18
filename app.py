@@ -46,11 +46,6 @@ try:
         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         return response
     
-    # Health check for Plesk
-    @application.route('/health-check')
-    def health_check():
-        return {'status': 'healthy', 'version': os.getenv('APP_VERSION', '1.0.0')}
-    
     logging.info("RAG System production WSGI application started successfully")
     
 except Exception as e:

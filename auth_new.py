@@ -1,6 +1,6 @@
 """
-Google Drive Authentication - Simple InstalledAppFlow
-Works with 'installed' type OAuth credentials
+Google Drive Authentication - Clean Implementation
+Uses OAuth 2.0 Desktop App flow with proper error handling
 """
 
 import os
@@ -12,9 +12,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 # Configuration
-# Including full drive scope to access shared drives and all drive content
 SCOPES = [
-    'https://www.googleapis.com/auth/drive',  # Full access to all Google Drive files (required for shared drives)
     'https://www.googleapis.com/auth/drive.readonly',
     'https://www.googleapis.com/auth/drive.metadata.readonly'
 ]
@@ -22,13 +20,9 @@ CREDENTIALS_FILE = 'credentials.json'
 TOKEN_FILE = 'token.pickle'
 
 
-def authenticate_google_drive(interactive=True):
+def authenticate_google_drive():
     """
     Authenticate with Google Drive API.
-    
-    For interactive use (like folder_indexer.py), set interactive=True.
-    For automated use (like the Flask app), credentials must already exist.
-    
     Returns: Google Drive service object or None
     """
     creds = None
@@ -64,21 +58,28 @@ def authenticate_google_drive(interactive=True):
         
         # Get new credentials if refresh failed or no existing creds
         if not creds:
-            if not interactive:
-                print("❌ No valid Google Drive credentials found.")
-                print("   Run 'python auth.py' to set up authentication.")
-                return None
-                
             if not os.path.exists(CREDENTIALS_FILE):
                 print("\n" + "="*80)
                 print("❌ ERROR: credentials.json not found")
                 print("="*80)
+                print("\nPlease create OAuth 2.0 credentials:")
+                print("1. Go to: https://console.cloud.google.com/apis/credentials")
+                print("2. Click '+ CREATE CREDENTIALS' → 'OAuth client ID'")
+                print("3. Application type: 'Desktop app'")
+                print("4. Name: 'RAG System Desktop'")
+                print("5. Click 'CREATE'")
+                print("6. Download JSON and save as 'credentials.json' in this folder")
+                print("="*80)
                 return None
             
             print("\n" + "="*80)
-            print("🔐 GOOGLE DRIVE AUTHORIZATION")
+            print("🔐 NEW AUTHORIZATION REQUIRED")
             print("="*80)
-            print("\nThis will open your browser for authorization.")
+            print("\nThis will:")
+            print("1. Open your browser")
+            print("2. Ask you to sign in to Google")
+            print("3. Request permission to access Google Drive")
+            print("4. Redirect back automatically")
             print("\nPress Ctrl+C to cancel, or press Enter to continue...")
             print("="*80)
             
@@ -89,24 +90,20 @@ def authenticate_google_drive(interactive=True):
                 return None
             
             try:
-                # Use local server flow (automatic code handling)
-                print("\n🌐 Starting authorization flow...")
-                print("Your browser will open automatically.")
-                print("If it doesn't open, copy the URL that appears and paste it in your browser.")
-                
+                # Create flow
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    CREDENTIALS_FILE,
+                    CREDENTIALS_FILE, 
                     SCOPES
                 )
                 
-                # Run local server flow - this handles everything automatically
-                print("\n🔄 Running authorization (this will open your browser)...")
+                # Run local server (this opens browser automatically)
+                print("\n🌐 Opening browser for authorization...")
+                print("   If browser doesn't open, copy the URL that appears")
+                
                 creds = flow.run_local_server(
-                    port=5000,  # Match the port in credentials.json redirect URI
-                    prompt='consent',
-                    success_message='Authorization successful! You can close this window and return to the terminal.',
-                    open_browser=True,
-                    redirect_uri_trailing_slash=False  # Match exact redirect URI format
+                    port=0,  # Use any available port
+                    success_message='✅ Authorization successful! You can close this window.',
+                    open_browser=True
                 )
                 
                 print("\n✅ Authorization successful!")
@@ -119,8 +116,10 @@ def authenticate_google_drive(interactive=True):
                 
             except Exception as e:
                 print(f"\n❌ Authorization failed: {e}")
-                import traceback
-                traceback.print_exc()
+                print("\nTroubleshooting:")
+                print("- Make sure you created a 'Desktop app' OAuth client")
+                print("- Not a 'Web application' or 'Android' client")
+                print("- Download the JSON and save as credentials.json")
                 return None
     
     # Step 3: Build and test service

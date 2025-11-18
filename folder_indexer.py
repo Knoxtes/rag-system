@@ -648,11 +648,24 @@ class FolderIndexer:
                         print("    ⚠️  Empty content")
                         continue
                     
-                    chunks = chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
+                    # Check if this is a CSV file
+                    is_csv = mime_type == 'text/csv' or file['name'].lower().endswith('.csv')
+                    
+                    # NEW: Don't chunk CSVs - treat as single unit
+                    if is_csv:
+                        print(f"    📊 CSV DETECTED: {file['name']} - storing as SINGLE COMPLETE unit")
+                        # Add folder context to CSV for better search matching
+                        folder_path = file.get('relative_path', '')
+                        folder_context = f"\n[FILE LOCATION: {folder_path}]\n[FILE NAME: {file['name']}]\n\n"
+                        text_with_context = folder_context + text
+                        chunks = [text_with_context]  # Single chunk = entire CSV with context
+                    else:
+                        chunks = chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
+                    
                     if not chunks:
                         continue
                     
-                    print(f"    ✓ {len(text):,} chars → {len(chunks)} chunks")
+                    print(f"    ✓ {len(text):,} chars → {len(chunks)} chunk(s)")
                     
                     # Create metadata with enhanced tracking
                     metadatas = [
@@ -665,6 +678,7 @@ class FolderIndexer:
                             'mime_type': mime_type,
                             'chunk_index': i,
                             'total_chunks': len(chunks),
+                            'is_csv': is_csv,  # Flag CSV chunks for auto-fetching
                             'modified_time': file.get('modifiedTime'),
                             'indexed_time': time.strftime('%Y-%m-%d %H:%M:%S'),
                             'processing_status': 'new' if file_id not in self.incremental_manager.file_registry else 'modified'
@@ -932,7 +946,20 @@ class FolderIndexer:
                         continue
                     
                     print(f"  ✓ {len(text):,} chars")
-                    chunks = chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
+                    
+                    # Check if this is a CSV file
+                    is_csv = mime_type == 'text/csv' or file['name'].lower().endswith('.csv')
+                    
+                    # NEW: Don't chunk CSVs - treat as single unit
+                    if is_csv:
+                        print(f"    📊 CSV DETECTED: {file['name']} - storing as SINGLE COMPLETE unit")
+                        # Add folder context to CSV for better search matching
+                        folder_path = file.get('relative_path', '')
+                        folder_context = f"\n[FILE LOCATION: {folder_path}]\n[FILE NAME: {file['name']}]\n\n"
+                        text_with_context = folder_context + text
+                        chunks = [text_with_context]  # Single chunk = entire CSV with context
+                    else:
+                        chunks = chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
                     
                     if not chunks:
                         empty += 1
@@ -949,6 +976,7 @@ class FolderIndexer:
                             'mime_type': mime_type,
                             'chunk_index': i,
                             'total_chunks': len(chunks),
+                            'is_csv': is_csv,  # Flag CSV chunks for auto-fetching
                             'modified_time': file.get('modifiedTime') 
                         }
                         for i in range(len(chunks))

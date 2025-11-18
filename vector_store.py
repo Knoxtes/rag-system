@@ -72,8 +72,14 @@ class VectorStore:
         except Exception as e:
             print(f"  Error adding documents: {e}")
     
-    def search(self, query_embedding, n_results=5):
-        """Search for similar documents in this collection"""
+    def search(self, query_embedding, n_results=5, where=None):
+        """Search for similar documents in this collection
+        
+        Args:
+            query_embedding: The query embedding vector
+            n_results: Number of results to return
+            where: Optional ChromaDB where filter (dict) to filter results
+        """
         try:
             count = self.collection.count()
             
@@ -89,10 +95,18 @@ class VectorStore:
             if hasattr(query_embedding, 'tolist'):
                 query_embedding = query_embedding.tolist()
             
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=actual_n_results
-            )
+            # Build query parameters
+            query_params = {
+                'query_embeddings': [query_embedding],
+                'n_results': actual_n_results
+            }
+            
+            # Add where filter if provided
+            if where:
+                query_params['where'] = where
+                print(f"  🔍 Applying filter: {where}")
+            
+            results = self.collection.query(**query_params)
             
             return results
             
@@ -153,6 +167,23 @@ class VectorStore:
             print(f"✓ Collection '{collection_name}' deleted.")
         except Exception as e:
             print(f"Error deleting collection '{collection_name}': {e}")
+
+
+def get_collection_info():
+    """Get basic collection information for health checks"""
+    try:
+        vs = VectorStore()
+        stats = vs.get_stats()
+        return {
+            'status': 'healthy',
+            'collection_name': stats.get('collection_name', 'unknown'),
+            'total_documents': stats.get('total_documents', 0)
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e)
+        }
 
 
 if __name__ == "__main__":

@@ -5,6 +5,17 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from google.generativeai.protos import Part, FunctionResponse
 import google.generativeai.types as genai_types # Use this for Schema/Tool
+
+# Import Vertex AI for Google Cloud credits
+try:
+    import vertexai
+    from vertexai.generative_models import GenerativeModel as VertexGenerativeModel
+    from vertexai.generative_models import Part as VertexPart
+    VERTEX_AI_AVAILABLE = True
+except ImportError:
+    VERTEX_AI_AVAILABLE = False
+    print("⚠️  Vertex AI not installed. Install with: pip install google-cloud-aiplatform")
+
 from embeddings import LocalEmbedder, LocalReranker, HybridSearcher
 from vector_store import VectorStore
 from answer_logger import AnswerLogger
@@ -15,7 +26,8 @@ from config import (
     BM25_WEIGHT, DENSE_WEIGHT, USE_CONTEXTUAL_COMPRESSION, MAX_CHUNKS_PER_FILE,
     ENABLE_MULTI_QUERY, ENABLE_CROSS_ENCODER_FUSION, SYNTHESIS_CONTEXT_WINDOW,
     MIN_SOURCES_FOR_SYNTHESIS, ENABLE_QUERY_CACHE, CACHE_TTL_SECONDS, CACHE_MAX_SIZE,
-    SYNTHESIS_QUERY_THRESHOLD
+    SYNTHESIS_QUERY_THRESHOLD, ENABLE_AI_ROUTING, AI_ROUTING_CONFIDENCE_THRESHOLD,
+    PROJECT_ID, LOCATION, USE_VERTEX_AI
 )
 import webbrowser
 import os
@@ -253,6 +265,43 @@ When asked to summarize, compare, or aggregate information across multiple docum
 **Remember:** The search is smart - it auto-expands queries AND generates multiple variations for synthesis tasks. Keep queries focused and specific. Read ALL snippets before answering, and ALWAYS include source links for referenced information!
 """
 
+def _get_generative_model(model_name='gemini-2.0-flash-exp'):
+    """
+    Get a generative model (Vertex AI or consumer API based on config).
+    
+    Args:
+        model_name: Model identifier (e.g., 'gemini-2.0-flash-exp', 'gemini-1.5-pro')
+    
+    Returns:
+        Model instance (either Vertex AI or genai)
+    """
+    if USE_VERTEX_AI:
+        if not VERTEX_AI_AVAILABLE:
+            print("⚠️  Vertex AI not available, falling back to consumer API")
+            genai.configure(api_key=GOOGLE_API_KEY)
+            return genai.GenerativeModel(model_name)
+        
+        # Initialize Vertex AI
+        vertexai.init(project=PROJECT_ID, location=LOCATION)
+        print(f"  ☁️  Using Vertex AI with Google Cloud project: {PROJECT_ID}")
+        
+        # Map consumer model names to Vertex AI model names
+        # Use latest stable models (auto-updated aliases)
+        vertex_model_map = {
+            'gemini-2.0-flash-exp': 'gemini-2.0-flash',  # Latest stable 2.0
+            'gemini-2.5-flash-preview-09-2025': 'gemini-2.5-flash',  # Latest stable 2.5
+            'gemini-1.5-flash': 'gemini-2.5-flash',  # Upgrade to 2.5
+            'gemini-1.5-pro': 'gemini-2.5-pro'  # Upgrade to 2.5
+        }
+        
+        vertex_model_name = vertex_model_map.get(model_name, 'gemini-2.5-flash')
+        print(f"  📦 Using Vertex AI model: {vertex_model_name}")
+        return VertexGenerativeModel(vertex_model_name)
+    else:
+        # Use consumer API
+        genai.configure(api_key=GOOGLE_API_KEY)
+        return genai.GenerativeModel(model_name)
+
 
 class MultiCollectionRAGSystem:
     """
@@ -275,6 +324,9 @@ class MultiCollectionRAGSystem:
         
         genai.configure(api_key=api_key)
         
+        # Initialize AI model for collection routing
+        self.routing_model = _get_generative_model('gemini-2.0-flash-exp')
+        
         # Initialize individual RAG systems for each collection
         for collection_name, collection_info in available_collections.items():
             print(f"  → Loading collection: {collection_info['name']}")
@@ -287,29 +339,146 @@ class MultiCollectionRAGSystem:
         
         print(f"[+] Multi-Collection Agent Ready! {len(self.collection_systems)} collections active.")
     
-    def process_question(self, question: str):
+    def _route_to_best_collection(self, question: str):
+        """
+        Use AI to determine which collection is most likely to answer the question.
+        Returns the collection_name and confidence score.
+        """
+        try:
+            # Build collection descriptions
+            collection_descriptions = []
+            for coll_id, coll_info in self.available_collections.items():
+                collection_descriptions.append(f"- {coll_info['name']}: {coll_info['location']} ({coll_info.get('files_processed', 0)} files)")
+            
+            collections_text = "\n".join(collection_descriptions)
+            
+            prompt = f"""Given this user question, determine which document collection is MOST LIKELY to contain the answer.
+
+User Question: "{question}"
+
+Available Collections:
+{collections_text}
+
+Analyze the question and respond with ONLY a JSON object in this format:
+{{
+  "best_collection": "exact collection name from the list above",
+  "confidence": 0.0-1.0,
+  "reasoning": "brief explanation"
+}}
+
+Consider:
+- Keywords and topic (e.g., "employee", "policy", "handbook" → HR/employee documents)
+- Question type (policy questions → handbooks, technical → documentation, sales → business docs)
+- Be specific - if unsure, use low confidence
+
+Respond ONLY with the JSON object, no other text."""
+
+            response = self.routing_model.generate_content(prompt)
+            response_text = response.text.strip()
+            
+            # Extract JSON from response (handle markdown code blocks)
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            routing_result = json.loads(response_text)
+            
+            # Find the matching collection ID
+            best_collection_name = routing_result.get('best_collection', '')
+            confidence = float(routing_result.get('confidence', 0))
+            reasoning = routing_result.get('reasoning', '')
+            
+            # Match collection name to ID
+            matched_id = None
+            for coll_id, coll_info in self.available_collections.items():
+                if coll_info['name'].lower() == best_collection_name.lower():
+                    matched_id = coll_id
+                    break
+            
+            if matched_id and confidence > AI_ROUTING_CONFIDENCE_THRESHOLD:  # Use config threshold
+                print(f"\n  🎯 AI Routing: {best_collection_name} (confidence: {confidence:.0%})")
+                print(f"     Reasoning: {reasoning}")
+                return matched_id, confidence
+            else:
+                print(f"\n  🔀 AI Routing: Low confidence ({confidence:.0%}) - searching all collections")
+                return None, confidence
+                
+        except Exception as e:
+            print(f"\n  ⚠️  Collection routing failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return None, 0.0
+    
+    def process_question(self, question: str, file_id=None):
         """
         Process a question across all collections and combine results
+        
+        Args:
+            question: The user's question
+            file_id: Optional file ID to filter results to a specific file
         """
         print(f"\n🔍 Multi-Collection Search: '{question[:50]}...'")
+        
+        if file_id:
+            print(f"  📄 Filtering to specific file: {file_id}")
+        
+        # Step 1: Use AI to route to best collection (if enabled)
+        best_collection_id = None
+        routing_confidence = 0.0
+        
+        if ENABLE_AI_ROUTING:
+            best_collection_id, routing_confidence = self._route_to_best_collection(question)
+        else:
+            print(f"  ℹ️  AI routing disabled (set ENABLE_AI_ROUTING=True in config.py to enable)")
+        
+        # Enhance query for better semantic matching
+        # Add context keywords to help distinguish different types of information
+        enhanced_question = question
+        
+        # Detect query intent and add context - be more aggressive with detection
+        question_lower = question.lower()
+        if any(word in question_lower for word in ['holiday', 'holidays', 'pto', 'vacation', 'time off', 'leave', 'day off', 'days off']):
+            # HR/policy query - ALWAYS enhance for holidays/PTO questions
+            enhanced_question = f"{question} employee policy handbook HR benefits time off leave vacation"
+            print(f"  🎯 Detected HR policy query (time off/holidays), enhanced search")
+        elif any(word in question_lower for word in ['benefit', 'benefits', 'insurance', 'healthcare', 'health care', 'dental', 'vision', '401k', 'retirement']):
+            enhanced_question = f"{question} employee benefits policy handbook HR compensation"
+            print(f"  🎯 Detected benefits query, enhanced search")
+        elif any(word in question_lower for word in ['procedure', 'process', 'how to', 'steps to', 'guideline', 'guidelines']):
+            enhanced_question = f"{question} procedure process guidelines documentation handbook"
+            print(f"  🎯 Detected procedure query, enhanced search")
         
         all_results = []
         collection_results = {}
         
-        # Search each collection
-        for collection_name, rag_system in self.collection_systems.items():
+        # Search each collection (prioritize routed collection if confident)
+        search_order = list(self.collection_systems.keys())
+        if best_collection_id and routing_confidence > AI_ROUTING_CONFIDENCE_THRESHOLD:
+            # Move best collection to front for priority search
+            if best_collection_id in search_order:
+                search_order.remove(best_collection_id)
+                search_order.insert(0, best_collection_id)
+        
+        for collection_name in search_order:
+            rag_system = self.collection_systems[collection_name]
             try:
-                print(f"  → Searching {self.available_collections[collection_name]['name']}...")
+                is_primary = (collection_name == best_collection_id and routing_confidence > AI_ROUTING_CONFIDENCE_THRESHOLD)
+                print(f"  → Searching {self.available_collections[collection_name]['name']}{'  [PRIMARY TARGET 🎯]' if is_primary else ''}...")
                 
-                # Use the existing search_documents function
-                results = rag_system.search_documents(question, top_k=5)  # Reduced per collection
+                # Get more results from primary collection
+                top_k = 12 if is_primary else 6
+                
+                # Use the existing search_documents function with enhanced query
+                results = rag_system.search_documents(enhanced_question, top_k=top_k, file_id=file_id)
                 
                 if results:
-                    # Tag results with collection info
+                    # Tag results with collection info - don't boost yet, reranking will reset scores
                     for result in results:
                         result['collection_name'] = collection_name
                         result['collection_display'] = self.available_collections[collection_name]['name']
                         result['collection_location'] = self.available_collections[collection_name]['location']
+                        result['is_primary_collection'] = is_primary  # Tag for later boosting
                     
                     all_results.extend(results)
                     collection_results[collection_name] = len(results)
@@ -324,7 +493,13 @@ class MultiCollectionRAGSystem:
         
         if not all_results:
             print("  No results found across any collection")
-            return []
+            summary_info = {
+                'total_results': 0,
+                'collections_searched': len(self.collection_systems),
+                'collection_breakdown': collection_results,
+                'top_collections': []
+            }
+            return [], summary_info
         
         # Re-rank all results together using the first collection's reranker
         if len(self.collection_systems) > 0:
@@ -337,45 +512,161 @@ class MultiCollectionRAGSystem:
                 contents.append(content)
             
             try:
-                # Re-rank across all collections
+                # Re-rank across all collections using ORIGINAL question (not enhanced)
+                # Enhanced query helps retrieval but confuses reranking
                 reranked_scores = first_system.reranker.rerank(question, contents)
+                print(f"  🔄 Reranked {len(contents)} results using original query")
                 
-                # Apply new scores
+                # Apply new scores - handle dict or float format
                 for i, result in enumerate(all_results):
                     if i < len(reranked_scores):
-                        result['score'] = reranked_scores[i]
+                        score_item = reranked_scores[i]
+                        # Handle both dict and float formats
+                        if isinstance(score_item, dict):
+                            result['score'] = float(score_item.get('score', score_item.get('relevance_score', 0)))
+                        else:
+                            result['score'] = float(score_item)
+                        result['rerank_score'] = result['score']  # Store original rerank score for debugging
                 
-                # Sort by new scores
-                all_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+                # Sort by new scores - use safe key function
+                all_results.sort(key=lambda x: float(x.get('score', 0)) if isinstance(x.get('score', 0), (int, float, str)) else 0, reverse=True)
+                
+                # Log initial score range
+                if all_results:
+                    min_score = min(float(r.get('score', 0)) for r in all_results)
+                    max_score = max(float(r.get('score', 0)) for r in all_results)
+                    score_range = max_score - min_score
+                    print(f"\n  📊 Score range before boosting: {min_score:.2f} to {max_score:.2f} (range: {score_range:.2f})")
+                
+                # Apply ADDITIVE boosting (not multiplicative) - works correctly with negative scores
+                print(f"\n  📚 Applying smart boosting...")
+                for result in all_results:
+                    title = result.get('title', '').lower()
+                    metadata = result.get('metadata', {})
+                    file_path = metadata.get('source', '').lower()
+                    original_score = float(result.get('score', 0))
+                    
+                    # Additive boosts - add fixed amounts instead of multiplying
+                    boost_amount = 0
+                    boost_reasons = []
+                    
+                    # Layer 1: Primary collection boost (from AI routing)
+                    if result.get('is_primary_collection', False):
+                        boost_amount += 2.0  # Add +2.0 to score
+                        boost_reasons.append("primary collection (+2.0)")
+                    
+                    # Layer 2: Policy/handbook document boost (strong boost for HR documents)
+                    if any(keyword in title or keyword in file_path for keyword in 
+                           ['handbook', 'policy', 'policies', 'hr', 'human resource', 'employee', 'benefits', 'manual', 'guide']):
+                        boost_amount += 8.0  # Add +8.0 to score (massive boost to overcome bad rerank scores)
+                        boost_reasons.append("policy document (+8.0)")
+                    
+                    if boost_amount > 0:
+                        result['score'] = original_score + boost_amount
+                        boost_desc = ", ".join(boost_reasons)
+                        print(f"    🔼 {title[:40]}... ({boost_desc}): {original_score:.2f} → {result['score']:.2f}")
+                
+                # Re-sort after boosting
+                all_results.sort(key=lambda x: float(x.get('score', 0)) if isinstance(x.get('score', 0), (int, float, str)) else 0, reverse=True)
                 
             except Exception as e:
                 print(f"  ⚠️  Reranking failed, using original scores: {e}")
+                import traceback
+                traceback.print_exc()
+                # Try to normalize existing scores before sorting
+                for result in all_results:
+                    try:
+                        score = result.get('score', 0)
+                        if isinstance(score, str):
+                            result['score'] = float(score)
+                        elif not isinstance(score, (int, float)):
+                            result['score'] = 0.0
+                    except (ValueError, TypeError):
+                        result['score'] = 0.0
         
-        # Take top results and add collection summary
-        final_results = all_results[:TOP_K_RESULTS]
+        # Smart filtering: Remove extremely low scoring results while keeping reasonable diversity
+        # Cross-encoder scores can be negative, so we filter relative to the top score
+        if all_results:
+            # Sort by score first to get proper top score
+            all_results_sorted = sorted(all_results, key=lambda x: float(x.get('score', -999)) if isinstance(x.get('score', 0), (int, float)) else -999, reverse=True)
+            
+            top_score = float(all_results_sorted[0].get('score', -999)) if all_results_sorted else -999
+            # Keep results within reasonable range of top score - more aggressive filtering
+            score_threshold = top_score - 2.0  # Keep results within 2 points of top score (tightened from 3)
+            
+            print(f"\n  📊 Top 5 results before filtering:")
+            for i, r in enumerate(all_results_sorted[:5]):
+                score = r.get('score', 0)
+                title = r.get('title', 'Untitled')[:40]
+                coll = r.get('collection_display', 'Unknown')
+                print(f"     {i+1}. [{coll}] {title}... (score: {score:.2f})")
+            
+            filtered_results = [r for r in all_results_sorted if float(r.get('score', -999)) >= score_threshold]
+            
+            # Ensure we have at least 5 results even if filtering is aggressive
+            if len(filtered_results) < 5:
+                filtered_results = all_results_sorted[:8]
+            
+            print(f"\n  📏 Score threshold: {score_threshold:.2f} (top: {top_score:.2f}) - keeping {len(filtered_results)}/{len(all_results_sorted)} results")
+        else:
+            filtered_results = []
+        
+        # Ensure collection diversity - don't return all results from just one collection
+        collection_counts = {}
+        diverse_results = []
+        MAX_PER_COLLECTION = 5  # Max results from any single collection
+        
+        for result in filtered_results:
+            coll = result.get('collection_name', 'unknown')
+            if coll not in collection_counts:
+                collection_counts[coll] = 0
+            
+            if collection_counts[coll] < MAX_PER_COLLECTION:
+                diverse_results.append(result)
+                collection_counts[coll] += 1
+        
+        # Take top results after diversity filtering
+        MAX_SOURCES = 6  # Reduced for more focused, high-quality answers
+        final_results = diverse_results[:MAX_SOURCES]
+        
+        print(f"\n  ✅ Final {len(final_results)} sources selected:")
+        for i, r in enumerate(final_results):
+            title = r.get('title', 'Untitled')[:50]
+            coll = r.get('collection_display', 'Unknown')[:30]
+            score = r.get('score', 0)
+            print(f"     {i+1}. [{coll}] {title}... (score: {score:.2f})")
         
         # Add summary info
         summary_info = {
             'total_results': len(all_results),
             'collections_searched': len(self.collection_systems),
             'collection_breakdown': collection_results,
-            'top_collections': sorted(collection_results.items(), key=lambda x: x[1], reverse=True)[:3]
+            'top_collections': sorted(collection_results.items(), key=lambda x: x[1], reverse=True)[:3],
+            'min_score': min([float(r.get('score', 0)) for r in final_results if isinstance(r.get('score', 0), (int, float))]) if final_results else 0,
+            'max_score': max([float(r.get('score', 0)) for r in final_results if isinstance(r.get('score', 0), (int, float))]) if final_results else 0
         }
         
         print(f"  ✓ Combined {len(all_results)} results from {len(self.collection_systems)} collections")
-        print(f"  → Returning top {len(final_results)} results")
+        print(f"  📋 After filtering & diversity: {len(final_results)} results from {len(collection_counts)} collections")
+        print(f"  → Scores: {summary_info['min_score']:.2f} to {summary_info['max_score']:.2f}")
+        for coll, count in collection_counts.items():
+            print(f"     • {self.available_collections.get(coll, {}).get('name', coll)}: {count} results")
         
         return final_results, summary_info
     
-    def process_chat(self, question: str):
+    def process_chat(self, question: str, file_id=None):
         """
         Process a chat question using multi-collection search and Gemini
+        
+        Args:
+            question: The user's question
+            file_id: Optional file ID to filter results to a specific file
         """
         start_time = time.time()
         
         try:
             # Search across all collections
-            search_results, summary_info = self.process_question(question)
+            search_results, summary_info = self.process_question(question, file_id=file_id)
             
             if not search_results:
                 return {
@@ -389,6 +680,7 @@ class MultiCollectionRAGSystem:
             first_system = next(iter(self.collection_systems.values()))
             
             # Build context from multi-collection results
+            # CSVs/spreadsheets are now stored as complete single chunks (no multi-chunk loading needed)
             context_parts = []
             sources = []
             
@@ -396,10 +688,33 @@ class MultiCollectionRAGSystem:
                 snippet = result.get('content', '')
                 title = result.get('title', 'Untitled')
                 collection_name = result.get('collection_display', 'Unknown Collection')
+                metadata = result.get('metadata', {})
+                
+                # Check if this is a CSV/Excel file
+                file_type = metadata.get('file_info', {}).get('mimeType', '').lower()
+                is_spreadsheet = any(x in file_type for x in ['csv', 'spreadsheet', 'excel', 'sheet'])
+                is_csv_filename = title.lower().endswith(('.csv', '.xlsx', '.xls'))
+                
+                # Note: With updated indexing, CSVs are stored as complete single chunks
+                # If content has "COMPLETE FILE" marker, we know it's the full document
+                is_complete_file = 'COMPLETE FILE' in snippet[:300] if snippet else False
+                
+                if (is_spreadsheet or is_csv_filename) and is_complete_file:
+                    print(f"  📊 Spreadsheet: {title} (complete file, single chunk)")
+                
+                # Regular handling - CSVs are now complete in single chunks
+                # Check if this is a chunk (partial document)
+                chunk_info = metadata.get('chunk_info', {})
+                is_chunk = chunk_info.get('chunk_index') is not None
+                
+                chunk_note = ""
+                if is_chunk:
+                    chunk_idx = chunk_info.get('chunk_index', 0)
+                    total_chunks = chunk_info.get('total_chunks', 1)
+                    chunk_note = f"\n[NOTE: This is chunk {chunk_idx + 1} of {total_chunks} from this document - data may be incomplete]"
                 
                 context_parts.append(f"""
-[Source {i+1} from {collection_name}]
-Title: {title}
+[Source: "{title}" from {collection_name}]{chunk_note}
 Content: {snippet}
 """)
                 
@@ -425,27 +740,55 @@ Based on the information from multiple document collections below, please provid
 {context}
 
 **Instructions:**
+- Carefully review ALL sources provided above, especially those from employee handbooks, HR policies, or official company documents
 - Synthesize information from all relevant sources across collections
-- Clearly indicate which collection each piece of information comes from
-- Provide a comprehensive answer that leverages the breadth of available information
-- Include source references with collection names
-- If information conflicts between collections, acknowledge and explain the differences
+- **IMPORTANT**: If the question is about company policies, benefits, or procedures, PRIORITIZE information from handbooks and policy documents over sales materials or marketing content
+- **CRITICAL FOR DATA/NUMBERS**: When analyzing spreadsheets, CSV files, or numerical data:
+  * Do NOT assume patterns - read ALL provided data thoroughly
+  * Do NOT stop reading when you see repeated zeros or empty values
+  * Do NOT extrapolate or assume remaining data follows a pattern
+  * Calculate totals by summing ALL values provided, not just the first few
+  * If the data appears incomplete, state that you can only report what's provided
+- **CRITICAL CITATION RULE**: When citing sources, use the EXACT document title from the source headers above in the format [Source: "Document Title"]
+- **ONLY include sources in your final answer that you ACTUALLY REFERENCE** - do not list unused sources
+- If you reference information from a source multiple times, only cite it once with [Source: "Document Title"]
+- If you find relevant information in the sources, USE IT in your answer - do not say "no information available" when sources exist
+- If information conflicts between sources, prioritize official policy documents over other materials
+- Provide a direct, comprehensive answer based on the sources provided
 
 **Multi-Collection Search Summary:**
 - Searched {summary_info['collections_searched']} collections
-- Found {summary_info['total_results']} total results
+- Found {summary_info['total_results']} results, showing top {len(search_results)}
+- Relevance scores: {summary_info['min_score']:.2f} to {summary_info['max_score']:.2f}
 - Top contributing collections: {', '.join([f"{info[0]} ({info[1]} results)" for info in summary_info['top_collections']])}
 
 Please provide your answer:
 """
             
             # Generate response using first system's model
-            model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025')
+            model = _get_generative_model('gemini-2.5-flash-preview-09-2025')
             response = model.generate_content(prompt)
             
+            answer_text = response.text
+            
+            # Filter sources to only include those actually cited in the answer
+            cited_sources = []
+            seen_titles = set()  # Track unique titles
+            
+            for source in sources:
+                title = source['title']
+                # Check if this source is cited in the answer (case-insensitive)
+                if f'"{title}"' in answer_text or title.lower() in answer_text.lower():
+                    # Only add if we haven't seen this title before
+                    if title not in seen_titles:
+                        cited_sources.append(source)
+                        seen_titles.add(title)
+            
+            print(f"\n  📄 Filtered sources: {len(cited_sources)}/{len(sources)} actually cited")
+            
             return {
-                'answer': response.text,
-                'sources': sources,
+                'answer': answer_text,
+                'sources': cited_sources,  # Only return cited sources
                 'search_time': time.time() - start_time,
                 'multi_collection_summary': summary_info
             }
@@ -771,7 +1114,13 @@ class EnhancedRAGSystem:
             query_embedding = self.embedder.embed_query(expanded_query)
             
             # 3. Vector Search (Dense Semantic Search)
-            results = self.vector_store.search(query_embedding, n_results=INITIAL_RETRIEVAL_COUNT)
+            # Apply file_id filter if specified for targeted queries
+            where_filter = None
+            if hasattr(self, '_target_file_id') and self._target_file_id:
+                where_filter = {"file_id": self._target_file_id}
+                safe_print(f"  🎯 Filtering to specific file: {self._target_file_id}")
+            
+            results = self.vector_store.search(query_embedding, n_results=INITIAL_RETRIEVAL_COUNT, where=where_filter)
             
             if not results['documents'] or not results['documents'][0]:
                 continue
@@ -787,6 +1136,75 @@ class EnhancedRAGSystem:
             return json.dumps({"error": "No documents found in the database."})
         
         safe_print(f"  📊 Multi-query search: {len(all_contexts)} unique documents retrieved")
+        
+        # 4.5. CSV AUTO-FETCH: If any CSV chunks are found, fetch ALL chunks from those CSV files
+        # This ensures complete data for CSVs that were chunked to fit embedding model limits
+        csv_files_found = {}
+        for metadata in all_metadatas:
+            if metadata.get('is_csv', False):
+                file_id = metadata.get('file_id')
+                if file_id and file_id not in csv_files_found:
+                    csv_files_found[file_id] = {
+                        'file_name': metadata.get('file_name'),
+                        'file_path': metadata.get('file_path', ''),
+                        'total_chunks': metadata.get('total_chunks', 1)
+                    }
+        
+        if csv_files_found:
+            print(f"  📊 CSV AUTO-FETCH: Found {len(csv_files_found)} CSV file(s) in search results")
+            print(f"     Fetching ALL chunks to ensure complete data...")
+            
+            initial_doc_count = len(all_contexts)
+            chunks_added = 0
+            
+            for file_id, info in csv_files_found.items():
+                file_display = info['file_name']
+                if info['file_path']:
+                    file_display = f"{info['file_path']}/{info['file_name']}"
+                    
+                print(f"     📄 {file_display}")
+                print(f"        Expected chunks: {info['total_chunks']}")
+                
+                # Fetch all chunks for this CSV file
+                try:
+                    all_docs = self.vector_store.collection.get(
+                        where={"file_id": file_id}
+                    )
+                    
+                    if all_docs and all_docs.get('documents'):
+                        chunks_retrieved = len(all_docs['documents'])
+                        chunks_added_for_file = 0
+                        
+                        for doc, metadata in zip(all_docs['documents'], all_docs['metadatas']):
+                            if doc not in all_contexts:
+                                all_contexts.append(doc)
+                                all_metadatas.append(metadata)
+                                chunks_added_for_file += 1
+                        
+                        chunks_added += chunks_added_for_file
+                        print(f"        ✓ Retrieved: {chunks_retrieved} chunks")
+                        print(f"        ✓ Added to context: {chunks_added_for_file} new chunks")
+                        
+                        # Warning if chunk count doesn't match expected
+                        if chunks_retrieved != info['total_chunks']:
+                            print(f"        ⚠️  Warning: Expected {info['total_chunks']} chunks but found {chunks_retrieved}")
+                    else:
+                        print(f"        ⚠️  No chunks found for file_id: {file_id}")
+                        
+                except Exception as e:
+                    print(f"        ❌ Error fetching CSV chunks: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            final_doc_count = len(all_contexts)
+            print(f"  📊 CSV auto-fetch complete:")
+            print(f"     Before: {initial_doc_count} documents")
+            print(f"     After: {final_doc_count} documents (+{chunks_added} CSV chunks)")
+        else:
+            # Debug: Show if any documents were marked as CSV
+            csv_metadata_count = sum(1 for m in all_metadatas if 'is_csv' in m)
+            if csv_metadata_count == 0:
+                print(f"  ℹ️  No CSV files detected in search results (no is_csv metadata flags found)")
         
         # 5. HYBRID SEARCH: Combine BM25 (keyword) + Dense (semantic)
         contexts = all_contexts
@@ -899,7 +1317,7 @@ class EnhancedRAGSystem:
             output_snippets.append({
                 "source_path": full_path,
                 "snippet": snippet,
-                "relevance": f"{score:.2f}",
+                "relevance": score,  # Store as float, not string
                 "chunk_index": chunk_idx,
                 "file_info": file_info  # Enhanced with Google Drive link and metadata
             })
@@ -1098,11 +1516,98 @@ class EnhancedRAGSystem:
 
     # --- The NEW Agent Executor Loop ---
     
-    def query(self, question, chat_history=[]):
+    def search_documents(self, question, top_k=10, file_id=None):
+        """
+        Search for relevant documents and return structured results.
+        This method is used by MultiCollectionRAGSystem.
+        
+        Args:
+            question: The search query
+            top_k: Number of top results to return
+            file_id: Optional file ID to filter results
+            
+        Returns:
+            List of dicts with keys: title, content, url, score
+        """
+        # Store file_id for tool calls
+        self._target_file_id = file_id
+        try:
+            # Use the RAG search tool to get documents
+            context_json = self._tool_rag_search(question)
+            
+            # Parse the JSON - _tool_rag_search returns a list of snippets directly
+            snippets = json.loads(context_json)
+            
+            # Handle error response (dict with "error" or "status" key)
+            if isinstance(snippets, dict):
+                if "error" in snippets:
+                    print(f"  ⚠️  RAG search returned error: {snippets.get('error')}")
+                    return []
+                if "status" in snippets:
+                    print(f"  ⚠️  RAG search status: {snippets.get('status')}")
+                    return []
+            
+            # snippets should be a list of dicts with keys: source_path, snippet, relevance, chunk_index, file_info
+            if not isinstance(snippets, list) or not snippets:
+                print(f"  ⚠️  No snippets found in search results")
+                return []
+            
+            print(f"  ✓ Found {len(snippets)} snippets from _tool_rag_search")
+            
+            # Convert snippets to the format expected by MultiCollectionRAGSystem
+            results = []
+            for snippet in snippets[:top_k]:
+                # Extract file info from the file_info dict
+                file_info = snippet.get('file_info', {})
+                
+                # Parse relevance score - should be a float from _tool_rag_search
+                relevance = snippet.get('relevance', 0.0)
+                try:
+                    score = float(relevance)
+                except (ValueError, TypeError, AttributeError):
+                    score = 0.0
+                
+                result = {
+                    'title': file_info.get('file_name', 'Untitled'),
+                    'content': snippet.get('snippet', ''),
+                    'url': file_info.get('google_drive_link', ''),  # Fixed: use correct key
+                    'score': score,
+                    'metadata': {
+                        'source': snippet.get('source_path', ''),
+                        'chunk_index': snippet.get('chunk_index', 0),
+                        'file_info': file_info,
+                        'file_type': file_info.get('file_type', 'Document'),
+                        'file_id': file_info.get('file_id', '')
+                    }
+                }
+                results.append(result)
+            
+            print(f"  ✓ Returning {len(results)} formatted results")
+            return results
+            
+        except Exception as e:
+            print(f"  ⚠️  Error in search_documents: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    def query(self, question, chat_history=[], file_id=None):
         """
         Processes a query using the agentic loop with safety limits.
         'chat_history' is now managed *internally* by the agent.
+        
+        Args:
+            question: The user's question
+            chat_history: Previous conversation history
+            file_id: Optional Google Drive file ID to filter results to a specific file
         """
+        # Store file_id for use in tool calls
+        self._target_file_id = file_id
+        if file_id:
+            safe_print("=" * 80)
+            safe_print(f"📄 TARGETED FILE QUERY (file_id: {file_id})")
+            safe_print("=" * 80)
+        
         safe_print("=" * 80)
         safe_print(f"👤 USER: {question}")
         safe_print("=" * 80)

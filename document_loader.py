@@ -23,14 +23,37 @@ from config import (
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import re
 
-# OCR Integration
-from ocr_service import OCRServiceFactory, is_image_file, get_image_format_from_mime
+# OCR Integration (optional)
+try:
+    from ocr_service import OCRServiceFactory, is_image_file, get_image_format_from_mime
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
+    def is_image_file(mime_type, filename): return False
+    def get_image_format_from_mime(mime_type): return None
+    class OCRServiceFactory:
+        @staticmethod
+        def create_service(*args, **kwargs): return None
 
-# Text Clarification Integration  
-from text_clarification import get_clarification_service
+# Text Clarification Integration (optional)
+try:
+    from text_clarification import get_clarification_service
+    TEXT_CLARIFICATION_AVAILABLE = True
+except ImportError:
+    TEXT_CLARIFICATION_AVAILABLE = False
+    def get_clarification_service(): return None
 
-# Text Quality Filter Integration
-from text_quality_filter import get_quality_filter
+# Text Quality Filter Integration (optional)
+try:
+    from text_quality_filter import get_quality_filter
+    TEXT_QUALITY_AVAILABLE = True
+except ImportError:
+    TEXT_QUALITY_AVAILABLE = False
+    def get_quality_filter():
+        class DummyFilter:
+            def assess_text_quality(self, text, filename, source_type):
+                return {'should_include': True, 'quality_score': 1.0, 'reason': 'Quality filter not available'}
+        return DummyFilter()
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -145,10 +168,10 @@ def extract_text_from_pptx(file_content):
 
 
 def extract_text_from_xlsx(file_content):
-    """Extract text from Excel"""
+    """Extract text from Excel - returns complete file without chunking marker"""
     try:
         df_dict = pd.read_excel(file_content, sheet_name=None, engine='openpyxl')
-        text_parts = []
+        text_parts = ["[EXCEL Data - COMPLETE FILE]"]
         
         for sheet_name, df in df_dict.items():
             # Skip empty sheets
@@ -175,25 +198,101 @@ def extract_text_from_xlsx(file_content):
 
 
 def extract_text_from_csv(file_content):
-    """Extract text from CSV"""
+    """
+    Extract text from CSV - NEW APPROACH: Store complete CSV data as single unit
+    Instead of chunking for embeddings, we create a comprehensive summary + full data reference
+    """
     try:
         file_content.seek(0)
-        # Try to read with a safety limit first
-        df = pd.read_csv(file_content, nrows=50000) # Limit to 50k rows for safety
+        df = pd.read_csv(file_content, nrows=50000)  # Safety limit
         
-        text_parts = ["[CSV Data]"]
+        # NEW APPROACH: Create single comprehensive representation
+        # This will be ONE chunk that references the complete data
+        
         headers = " | ".join([str(col) for col in df.columns if str(col)])
-        text_parts.append(f"Headers: {headers}")
+        total_rows = len(df)
         
-        # Index ALL loaded rows
+        # Create a rich summary that includes:
+        # 1. File structure (headers, row count)
+        # 2. Column names for semantic search
+        # 3. Sample data (first/last rows)
+        # 4. Statistical summary
+        
+        summary_parts = []
+        
+        # Header with metadata
+        summary_parts.append(f"[CSV Data - COMPLETE FILE]")
+        summary_parts.append(f"Headers: {headers}\n")
+        summary_parts.append(f"Total Rows: {total_rows}\n")
+        
+        # Add column names repeatedly for better semantic search matching
+        summary_parts.append(f"Column Names: {', '.join([str(col) for col in df.columns])}\n")
+        
+        # Check last few rows for totals/summary rows (common in financial CSVs)
+        summary_parts.append("\n========== KEY TOTALS FROM FILE ==========")
+        totals_found = False
+        
+        # Look at last 10 rows for total/summary rows
+        last_rows = df.tail(10)
+        for idx, row in last_rows.iterrows():
+            # Check if this row contains total indicators
+            first_col_value = str(row.iloc[0]).lower() if len(row) > 0 else ""
+            if any(indicator in first_col_value for indicator in ['total', 'sum', 'grand', 'report total', '---', '===', 'summary']):
+                totals_found = True
+                # Format this row nicely
+                row_parts = []
+                for col_name, value in zip(df.columns, row.values):
+                    if pd.notna(value) and str(value).strip():
+                        # Format numeric values as currency if appropriate
+                        try:
+                            num_val = float(str(value).replace('$', '').replace(',', ''))
+                            if num_val != 0:
+                                col_str = str(col_name)
+                                # Check if column looks like a month or currency column
+                                if any(keyword in col_str.lower() for keyword in ['revenue', 'sales', 'amount', 'price', 'total', '-20', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']):
+                                    row_parts.append(f"  {col_name}: ${num_val:,.2f}")
+                                else:
+                                    row_parts.append(f"  {col_name}: {value}")
+                        except:
+                            row_parts.append(f"  {col_name}: {value}")
+                
+                if row_parts:
+                    summary_parts.append(f"\n{first_col_value.upper()}:")
+                    summary_parts.extend(row_parts)
+        
+        if not totals_found:
+            # If no explicit total row, calculate column sums
+            summary_parts.append("\n(Calculated column totals):")
+            for col in df.columns:
+                try:
+                    numeric_col = pd.to_numeric(df[col], errors='coerce')
+                    non_null_count = numeric_col.notna().sum()
+                    if non_null_count > 0:
+                        total = numeric_col.sum()
+                        if total != 0:
+                            col_str = str(col)
+                            if any(keyword in col_str.lower() for keyword in ['revenue', 'sales', 'amount', 'price', 'cost', 'total', 'value', '-20', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']) or '$' in col_str:
+                                summary_parts.append(f"  {col}: ${total:,.2f}")
+                except:
+                    pass
+        
+        summary_parts.append("=" * 50 + "\n")
+        
+        # Add ALL the data (not chunked)
+        # Format each row for readability
+        summary_parts.append("\nCOMPLETE DATA:\n")
         for idx, row in df.iterrows():
-            row_text = " | ".join([str(val) for val in row.values if pd.notna(val) and str(val).strip()])
+            row_text = " | ".join([str(val) for val in row.values if pd.notna(val)])
             if row_text:
-                text_parts.append(row_text)
+                summary_parts.append(row_text)
         
-        return "\n".join(text_parts)
+        # Add summary footer
+        summary_parts.append(f"\n-------Report Total------- (All {total_rows} rows included above)")
+        
+        # Return complete CSV as single text block
+        return "\n".join(summary_parts)
+        
     except Exception as e:
-        # Fallback for very large or malformed CSVs
         print(f"  Pandas CSV read failed ({e}), falling back to raw text.")
         file_content.seek(0)
         return file_content.read().decode('utf-8', errors='ignore')
@@ -446,6 +545,7 @@ if USE_PARENT_DOCUMENT_RETRIEVAL:
 def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP, return_parents=False):
     """
     Recursively split text into overlapping chunks using Langchain.
+    CSV files are pre-chunked and split on chunk boundaries.
     
     Args:
         text: Text to chunk
@@ -459,7 +559,22 @@ def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP, return_parent
     if not text or len(text.strip()) == 0:
         return [] if not return_parents else ([], [])
     
-    # Get child chunks
+    # Check if this is a CSV with pre-defined chunk boundaries
+    if "--- CSV CHUNK BOUNDARY ---" in text:
+        # Split on boundaries and return as-is
+        chunks = [chunk.strip() for chunk in text.split("--- CSV CHUNK BOUNDARY ---") if chunk.strip()]
+        if return_parents and USE_PARENT_DOCUMENT_RETRIEVAL:
+            return (chunks, chunks)  # Parent and child are the same for CSVs
+        return chunks
+    
+    # Check if this is a complete file that shouldn't be chunked (Excel files)
+    if "COMPLETE FILE" in text[:200]:
+        # Return as single chunk without splitting
+        if return_parents and USE_PARENT_DOCUMENT_RETRIEVAL:
+            return ([text], [text])  # Parent and child are the same
+        return [text]
+    
+    # Get child chunks for regular documents
     child_chunks = text_splitter.split_text(text)
     
     # Optionally get parent chunks

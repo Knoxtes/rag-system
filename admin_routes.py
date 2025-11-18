@@ -191,8 +191,21 @@ def admin_dashboard():
                 if (response.ok) {
                     const html = await response.text();
                     document.getElementById('loading-screen').style.display = 'none';
-                    document.getElementById('dashboard-content').innerHTML = html;
-                    document.getElementById('dashboard-content').style.display = 'block';
+                    const contentDiv = document.getElementById('dashboard-content');
+                    contentDiv.innerHTML = html;
+                    contentDiv.style.display = 'block';
+                    
+                    // Execute scripts in the loaded content
+                    const scripts = contentDiv.querySelectorAll('script');
+                    scripts.forEach(script => {
+                        const newScript = document.createElement('script');
+                        if (script.src) {
+                            newScript.src = script.src;
+                        } else {
+                            newScript.textContent = script.textContent;
+                        }
+                        document.body.appendChild(newScript);
+                    });
                 } else {
                     showAuthError();
                 }
@@ -295,6 +308,15 @@ def admin_dashboard_content():
             </div>
         </div>
         
+        <!-- Google Drive Authentication Status -->
+        <div class="action-card" style="margin: 20px 0; border-left: 4px solid #3b82f6;">
+            <h3>🔐 Google Drive Authentication</h3>
+            <div id="gdrive-status">
+                <p style="color: #94a3b8;">Checking connection status...</p>
+            </div>
+            <div id="gdrive-actions" style="margin-top: 15px;"></div>
+        </div>
+        
         <div class="actions-grid">
             <div class="action-card">
                 <h3>🔄 Update Collections</h3>
@@ -318,21 +340,113 @@ def admin_dashboard_content():
     </div>
     
     <script>
-        let refreshInterval;
+        // Wrap everything in a function that executes immediately
+        (function() {
+            console.log('[Admin Dashboard] Script loaded and executing');
+            
+            let refreshInterval;
+        
+        async function checkGDriveAuth() {
+            const token = localStorage.getItem('authToken');
+            console.log('[GDrive Auth] Checking status...');
+            try {
+                const response = await fetch('/admin/gdrive/status', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                console.log('[GDrive Auth] Response status:', response.status);
+                const data = await response.json();
+                console.log('[GDrive Auth] Data:', data);
+                
+                const statusDiv = document.getElementById('gdrive-status');
+                const actionsDiv = document.getElementById('gdrive-actions');
+                
+                if (data.authenticated) {
+                    statusDiv.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 24px;">✅</span>
+                            <div>
+                                <p style="color: #10b981; font-weight: bold; margin: 0;">Connected</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.message}</p>
+                            </div>
+                        </div>
+                    `;
+                    actionsDiv.innerHTML = `
+                        <button class="btn" onclick="disconnectGDrive()" style="background: #ef4444;">Disconnect</button>
+                        <button class="btn" onclick="checkGDriveAuth()" style="background: #6366f1; margin-left: 10px;">Refresh Status</button>
+                    `;
+                } else {
+                    statusDiv.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 24px;">❌</span>
+                            <div>
+                                <p style="color: #ef4444; font-weight: bold; margin: 0;">Not Connected</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.message}</p>
+                            </div>
+                        </div>
+                    `;
+                    actionsDiv.innerHTML = `
+                        <button class="btn success" onclick="connectGDrive()">Connect Google Drive</button>
+                        <p style="font-size: 13px; color: #64748b; margin-top: 10px;">
+                            Required to index documents from Google Drive
+                        </p>
+                    `;
+                }
+            } catch (error) {
+                console.error('GDrive auth check error:', error);
+                document.getElementById('gdrive-status').innerHTML = `
+                    <p style="color: #ef4444;">Error checking connection status</p>
+                `;
+            }
+        }
+        
+        function connectGDrive() {
+            // Open OAuth flow in current window
+            window.location.href = '/admin/gdrive/authorize';
+        }
+        
+        async function disconnectGDrive() {
+            if (!confirm('Are you sure you want to disconnect Google Drive?')) {
+                return;
+            }
+            
+            const token = localStorage.getItem('authToken');
+            try {
+                const response = await fetch('/admin/gdrive/disconnect', { 
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Google Drive disconnected successfully');
+                    checkGDriveAuth();
+                } else {
+                    alert('Error disconnecting: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Disconnect error:', error);
+                alert('Error disconnecting from Google Drive');
+            }
+        }
         
         async function refreshStats() {
             const token = localStorage.getItem('authToken');
+            console.log('[Stats] Fetching system stats...');
             try {
                 const response = await fetch('/admin/stats/system', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
+                console.log('[Stats] Response status:', response.status);
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('[Stats] Data received:', data);
                     updateStatsDisplay(data);
+                } else {
+                    console.error('[Stats] Failed to fetch:', response.statusText);
                 }
             } catch (error) {
-                console.error('Stats refresh error:', error);
+                console.error('[Stats] Error:', error);
             }
         }
         
@@ -403,12 +517,25 @@ def admin_dashboard_content():
         refreshInterval = setInterval(refreshStats, 30000);
         
         // Initial load
+        console.log('[Admin Dashboard] Starting initial data load...');
         refreshStats();
+        checkGDriveAuth();  // Check Google Drive auth status
+        console.log('[Admin Dashboard] Initial functions called');
         
         // Clean up on page unload
         window.addEventListener('beforeunload', () => {
             if (refreshInterval) clearInterval(refreshInterval);
         });
+        
+        // Make functions globally accessible
+        window.refreshStats = refreshStats;
+        window.checkGDriveAuth = checkGDriveAuth;
+        window.updateCollections = updateCollections;
+        window.clearCache = clearCache;
+        window.connectGDrive = connectGDrive;
+        window.disconnectGDrive = disconnectGDrive;
+        
+        })(); // End of IIFE
     </script>
     """
 

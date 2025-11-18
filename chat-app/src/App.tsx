@@ -76,7 +76,8 @@ const FolderTreeItem: React.FC<{
   onToggle: (id: string) => void;
   onFileSelect: (file: FolderItem) => void;
   level: number;
-}> = ({ item, onToggle, onFileSelect, level }) => {
+  selectedFileId?: string | null;
+}> = ({ item, onToggle, onFileSelect, level, selectedFileId }) => {
   const handleToggle = () => {
     if (item.type === 'folder' && !item.isSearchResult) {
       onToggle(item.id);
@@ -116,11 +117,15 @@ const FolderTreeItem: React.FC<{
 
 
 
+  const isSelected = item.type === 'file' && selectedFileId === item.id;
+
   return (
     <div style={{ paddingLeft: `${paddingLeft}px` }}>
       <div 
         className={`flex items-center py-1 px-2 hover:bg-gray-700 rounded cursor-pointer transition-colors duration-200 ${
           item.isSearchResult ? 'bg-gray-800/50' : ''
+        } ${
+          isSelected ? 'bg-blue-900/40 border border-blue-500/50' : ''
         }`}
         onClick={handleToggle}
         title={item.name}
@@ -167,6 +172,7 @@ const FolderTreeItem: React.FC<{
               onToggle={onToggle}
               onFileSelect={onFileSelect}
               level={level + 1}
+              selectedFileId={selectedFileId}
             />
           ))}
         </div>
@@ -186,6 +192,7 @@ const ChatApp: React.FC = () => {
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFolders, setShowFolders] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<FolderItem | null>(null);
   const [cacheInfo, setCacheInfo] = useState<{total_entries: number; cached_responses: number}>({total_entries: 0, cached_responses: 0});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -217,11 +224,13 @@ const ChatApp: React.FC = () => {
       // Add ALL_COLLECTIONS option if there are multiple collections
       const collectionsWithAll = {
         ...fetchedCollections,
-        ...(Object.keys(fetchedCollections).length > 1 ? {
+        ...(Object.keys(fetchedCollections).filter(k => k !== 'ALL_COLLECTIONS').length > 1 ? {
           'ALL_COLLECTIONS': {
-            name: 'All Documents',
+            name: 'All Collections',
             location: 'Multi-collection search',
-            files_processed: Object.values(fetchedCollections).reduce((sum: number, col: any) => sum + col.files_processed, 0),
+            files_processed: Object.values(fetchedCollections)
+              .filter((col: any) => !col.is_combined)
+              .reduce((sum: number, col: any) => sum + col.files_processed, 0),
             indexed_at: 'Combined',
             is_combined: true
           }
@@ -230,8 +239,9 @@ const ChatApp: React.FC = () => {
       
       setCollections(collectionsWithAll);
       
-      // Set first collection as default
-      const firstCollection = Object.keys(collectionsWithAll)[0];
+      // Set first actual collection as default (not ALL_COLLECTIONS)
+      const actualCollections = Object.keys(collectionsWithAll).filter(k => k !== 'ALL_COLLECTIONS');
+      const firstCollection = actualCollections[0];
       if (firstCollection) {
         setSelectedCollection(firstCollection);
       }
@@ -247,7 +257,7 @@ const ChatApp: React.FC = () => {
       // Add welcome message
       const welcomeMessage: Message = {
         id: Date.now().toString(),
-        text: `Welcome to the RAG Chat Assistant! 🤖\n\nI'm ready to help you find information from your indexed documents. Ask me anything about your business processes, documents, or data.\n\n**Available Collections:** ${Object.keys(collectionsWithAll).length}`,
+        text: `Welcome to the RAG Chat Assistant! 🤖\n\nI'm ready to help you find information from your indexed documents. Ask me anything about your business processes, documents, or data.\n\n**Available Collections:** ${actualCollections.length}`,
         sender: 'assistant',
         timestamp: new Date()
       };
@@ -505,7 +515,10 @@ const ChatApp: React.FC = () => {
 
   // Handle file selection
   const handleFileSelect = (file: FolderItem) => {
-    if (file.webViewLink) {
+    if (file.type === 'file') {
+      setSelectedFile(file);
+      console.log(`📄 Selected file for targeted query: ${file.name}`);
+    } else if (file.webViewLink) {
       window.open(file.webViewLink, '_blank');
     }
   };
@@ -535,7 +548,8 @@ const ChatApp: React.FC = () => {
     try {
       const response = await axios.post(`${API_BASE_URL}/chat`, {
         message: inputText,
-        collection: selectedCollection
+        collection: selectedCollection,
+        file_id: selectedFile?.id || null
       });
 
       const assistantMessage: Message = {
@@ -549,12 +563,23 @@ const ChatApp: React.FC = () => {
       // Remove loading message and add real response
       setMessages(prev => prev.slice(0, -1).concat([assistantMessage]));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send message:', error);
+      
+      let errorText = 'Sorry, I encountered an error processing your request. Please make sure the API server is running.';
+      
+      // Handle specific error cases
+      if (error.response?.status === 503) {
+        errorText = 'The AI system is still initializing. Please wait a moment and try again.';
+      } else if (error.response?.data?.code === 'SYSTEM_INITIALIZING') {
+        errorText = 'The AI system is still loading. Please wait a few seconds and try your question again.';
+      } else if (error.response?.status === 401) {
+        errorText = 'Authentication expired. Please refresh the page and sign in again.';
+      }
       
       const errorMessage: Message = {
         id: (Date.now() + 3).toString(),
-        text: 'Sorry, I encountered an error processing your request. Please make sure the API server is running.',
+        text: errorText,
         sender: 'assistant',
         timestamp: new Date()
       };
@@ -629,19 +654,39 @@ const ChatApp: React.FC = () => {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-200 truncate max-w-xs">
-              {document.filename}
+              {document.filename || 'Untitled'}
             </p>
-            <p className="text-xs text-gray-400">{document.type}</p>
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <span>{document.type || 'Document'}</span>
+              {(document as any).collection && (
+                <>
+                  <span>•</span>
+                  <span className="text-blue-400">{(document as any).collection}</span>
+                </>
+              )}
+              {(document as any).score !== undefined && (
+                <>
+                  <span>•</span>
+                  <span className="text-green-400">
+                    {((document as any).score > 0 
+                      ? `+${((document as any).score).toFixed(2)}` 
+                      : ((document as any).score).toFixed(2))} relevance
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
-        <a
-          href={document.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-gray-400 hover:text-blue-400"
-        >
-          <ExternalLink className="w-4 h-4" />
-        </a>
+        {document.url && (
+          <a
+            href={document.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-gray-400 hover:text-blue-400"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        )}
       </div>
     </motion.div>
   );
@@ -834,6 +879,22 @@ const ChatApp: React.FC = () => {
 
         {/* Input Area */}
         <div className="border-t border-dark-800 p-6">
+          {/* Selected File Indicator */}
+          {selectedFile && (
+            <div className="mb-3 p-3 bg-blue-900/30 border border-blue-500/50 rounded-lg flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-blue-400" />
+                <span className="text-sm text-blue-200">Asking about: <span className="font-semibold">{selectedFile.name}</span></span>
+              </div>
+              <button
+                onClick={() => setSelectedFile(null)}
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+                title="Clear file selection"
+              >
+                <span className="text-lg">×</span>
+              </button>
+            </div>
+          )}
           <div className="flex items-end space-x-4">
             <div className="flex-1 relative">
               <input
@@ -936,6 +997,7 @@ const ChatApp: React.FC = () => {
                     onToggle={toggleFolder}
                     onFileSelect={handleFileSelect}
                     level={0}
+                    selectedFileId={selectedFile?.id || null}
                   />
                 ))}
                 {folders.length === 0 && (
