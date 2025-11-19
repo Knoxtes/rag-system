@@ -651,7 +651,8 @@ def chat():
                     'type': file_info.get('file_type', 'Document'),
                     'extension': '',  # Not used but expected by frontend
                     'collection': source.get('collection', ''),
-                    'score': source.get('score', 0)
+                    'score': source.get('score', 0),
+                    'file_id': metadata.get('file_id', '')
                 })
             
             return jsonify({

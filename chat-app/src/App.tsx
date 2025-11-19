@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, FileText, ExternalLink, Database, Loader2, Folder, FolderOpen, Search, ChevronRight, ChevronDown, Sun, Moon, Download } from 'lucide-react';
+import { Send, Bot, User, FileText, ExternalLink, Database, Loader2, Folder, FolderOpen, Search, ChevronRight, ChevronDown, Sun, Moon, Download, HelpCircle, X, ChevronLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import axios from 'axios';
@@ -43,6 +43,7 @@ interface Document {
   url: string;
   type: string;
   extension: string;
+  file_id?: string;
 }
 
 interface Message {
@@ -219,6 +220,8 @@ const ChatApp: React.FC = () => {
   const [collections, setCollections] = useState<Record<string, Collection>>({});
   const [selectedCollection, setSelectedCollection] = useState<string>('');
   const [isCollectionSwitching, setIsCollectionSwitching] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [helpSlide, setHelpSlide] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [initComplete, setInitComplete] = useState(false);
   const [folders, setFolders] = useState<FolderItem[]>([]);
@@ -228,6 +231,88 @@ const ChatApp: React.FC = () => {
   const [cacheInfo, setCacheInfo] = useState<{total_entries: number; cached_responses: number}>({total_entries: 0, cached_responses: 0});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Help slides content
+  const helpSlides = [
+    {
+      title: "Selecting Collections",
+      content: (
+        <div className="space-y-4">
+          <p className="text-gray-700 dark:text-gray-300">
+            The <span className="font-semibold text-brand-green dark:text-blue-400">All Collections</span> database is selected by default, which searches across all available resources.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            You can select a <span className="font-semibold">specific collection</span> from the dropdown above to potentially get more focused and relevant answers based on your topic:
+          </p>
+          <ul className="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400 ml-4">
+            <li>Marketing materials in <span className="font-medium">Market Resources</span></li>
+            <li>HR policies in <span className="font-medium">Human Resources</span></li>
+            <li>Sales data in <span className="font-medium">Sales</span></li>
+            <li>And more specialized collections...</li>
+          </ul>
+          <p className="text-gray-700 dark:text-gray-300">
+            After selecting your collection, simply type your question in the chat box at the bottom and press Enter or click Send.
+          </p>
+        </div>
+      )
+    },
+    {
+      title: "File Browser & Document Analysis",
+      content: (
+        <div className="space-y-4">
+          <p className="text-gray-700 dark:text-gray-300">
+            On the <span className="font-semibold text-brand-green dark:text-blue-400">right side</span>, you'll find the Google Drive file browser with search functionality.
+          </p>
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg space-y-3">
+            <p className="font-semibold text-blue-900 dark:text-blue-300">You can:</p>
+            <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 ml-2">
+              <li><span className="font-medium">Browse folders</span> to explore your Drive structure</li>
+              <li><span className="font-medium">Search for files</span> using the search bar</li>
+              <li><span className="font-medium">Click any file</span> to select it for workspace analysis</li>
+              <li><span className="font-medium">View on Drive</span> or <span className="font-medium">Download</span> files directly</li>
+            </ul>
+          </div>
+          <p className="text-gray-700 dark:text-gray-300">
+            When a document is selected, you can ask <span className="font-semibold">specific questions about that file</span>, and the AI will analyze only that document.
+          </p>
+          <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="font-semibold text-green-700 dark:text-green-400">Pro Tip:</span> Click the <Search className="w-4 h-4 inline" /> magnifying glass on any source citation to instantly analyze that document!
+            </p>
+          </div>
+        </div>
+      )
+    },
+    {
+      title: "Theme & Support",
+      content: (
+        <div className="space-y-4">
+          <div className="space-y-3">
+            <p className="text-gray-700 dark:text-gray-300">
+              Toggle between <span className="font-semibold">Light</span> and <span className="font-semibold">Dark Mode</span> using the theme button below the help button.
+            </p>
+            <div className="flex items-center justify-center gap-4 p-4 bg-gray-100 dark:bg-dark-700 rounded-lg">
+              <Sun className="w-6 h-6 text-yellow-500" />
+              <span className="text-gray-600 dark:text-gray-400">⟷</span>
+              <Moon className="w-6 h-6 text-blue-400" />
+            </div>
+          </div>
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-l-4 border-blue-500">
+            <p className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Need Help or Have Feedback?</p>
+            <p className="text-gray-700 dark:text-gray-300 text-sm">
+              Report issues or share suggestions with:
+            </p>
+            <a 
+              href="mailto:ESexton@7MountainsMedia.com?subject=RAG System Feedback"
+              className="text-brand-green dark:text-blue-400 hover:underline font-medium text-sm mt-1 block"
+            >
+              Ethan Sexton - ESexton@7MountainsMedia.com
+            </a>
+          </div>
+        </div>
+      )
+    }
+  ];
 
   // Scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -850,55 +935,118 @@ const ChatApp: React.FC = () => {
     </div>
   );
 
-  const DocumentPreview = ({ document }: { document: Document }) => (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="bg-light-100 dark:bg-dark-800 border border-brand-mint dark:border-dark-600 rounded-lg p-3 mt-2 hover:border-brand-green dark:hover:border-blue-500 transition-colors group"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-brand-mint/30 dark:bg-blue-500/10 rounded-lg">
-            <FileText className="w-4 h-4 text-brand-green dark:text-blue-400" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-brand-dark dark:text-gray-200 truncate max-w-xs">
-              {document.filename || 'Untitled'}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-brand-dark/60 dark:text-gray-400">
-              <span>{document.type || 'Document'}</span>
-              {(document as any).collection && (
-                <>
-                  <span>•</span>
-                  <span className="text-brand-green dark:text-blue-400">{(document as any).collection}</span>
-                </>
-              )}
-              {(document as any).score !== undefined && (
-                <>
-                  <span>•</span>
-                  <span className="text-green-600 dark:text-green-400">
-                    {((document as any).score > 0 
-                      ? `+${((document as any).score).toFixed(2)}` 
-                      : ((document as any).score).toFixed(2))} relevance
-                  </span>
-                </>
-              )}
+  const DocumentPreview = ({ document }: { document: Document }) => {
+    const handleAnalyzeDocument = () => {
+      if (document.file_id) {
+        // Find the file in the folders structure
+        const findFileInFolders = (items: FolderItem[]): FolderItem | null => {
+          for (const item of items) {
+            if (item.type === 'file' && item.id === document.file_id) {
+              return item;
+            }
+            if (item.children) {
+              const found = findFileInFolders(item.children);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        
+        const file = findFileInFolders(folders);
+        if (file) {
+          setSelectedFile(file);
+          // Scroll to input area
+          inputRef.current?.focus();
+        } else {
+          // Create a minimal file object if not found in folders
+          const minimalFile: FolderItem = {
+            id: document.file_id,
+            name: document.filename,
+            type: 'file',
+            mimeType: 'application/octet-stream',
+            webViewLink: document.url || '',
+            hasChildren: false,
+            parent_id: ''
+          };
+          setSelectedFile(minimalFile);
+          inputRef.current?.focus();
+        }
+      }
+    };
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-light-100 dark:bg-dark-800 border border-brand-mint dark:border-dark-600 rounded-lg p-3 mt-2 hover:border-brand-green dark:hover:border-blue-500 transition-colors group"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
+            <div className="p-2 bg-brand-mint/30 dark:bg-blue-500/10 rounded-lg flex-shrink-0">
+              <FileText className="w-4 h-4 text-brand-green dark:text-blue-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-brand-dark dark:text-gray-200 truncate">
+                {document.filename || 'Untitled'}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-brand-dark/60 dark:text-gray-400">
+                <span>{document.type || 'Document'}</span>
+                {(document as any).collection && (
+                  <>
+                    <span>•</span>
+                    <span className="text-brand-green dark:text-blue-400">{(document as any).collection}</span>
+                  </>
+                )}
+                {(document as any).score !== undefined && (
+                  <>
+                    <span>•</span>
+                    <span className="text-green-600 dark:text-green-400">
+                      {((document as any).score > 0 
+                        ? `+${((document as any).score).toFixed(2)}` 
+                        : ((document as any).score).toFixed(2))} relevance
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {document.file_id && (
+              <button
+                onClick={handleAnalyzeDocument}
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-brand-dark/60 dark:text-gray-400 hover:text-brand-green dark:hover:text-blue-400"
+                title="Analyze this document"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+            )}
+            {document.file_id && (
+              <a
+                href={`https://drive.google.com/uc?export=download&id=${document.file_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-brand-dark/60 dark:text-gray-400 hover:text-brand-green dark:hover:text-blue-400"
+                title="Download from Google Drive"
+              >
+                <Download className="w-4 h-4" />
+              </a>
+            )}
+            {document.url && (
+              <a
+                href={document.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-brand-dark/60 dark:text-gray-400 hover:text-brand-green dark:hover:text-blue-400"
+                title="Open in Google Drive"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            )}
+          </div>
         </div>
-        {document.url && (
-          <a
-            href={document.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-brand-dark/60 dark:text-gray-400 hover:text-brand-green dark:hover:text-blue-400"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </a>
-        )}
-      </div>
-    </motion.div>
-  );
+      </motion.div>
+    );
+  };
 
   return (
     <div className="h-screen bg-brand-white dark:bg-dark-950 flex transition-colors duration-200 overflow-hidden">
@@ -997,6 +1145,16 @@ const ChatApp: React.FC = () => {
         {/* Theme Toggle */}
         <div className="bg-white dark:bg-dark-800 rounded-lg p-4 border border-white/20 dark:border-transparent mb-0">
           <h4 className="text-sm font-medium text-brand-dark dark:text-gray-300 mb-3">Theme</h4>
+          <button
+            onClick={() => { setShowHelp(true); setHelpSlide(0); }}
+            className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors mb-2"
+          >
+            <span className="text-sm text-brand-dark dark:text-gray-300">
+              Help & Tutorial
+            </span>
+            <HelpCircle className="w-5 h-5 text-brand-green dark:text-blue-400" />
+          </button>
+          
           <button
             onClick={toggleTheme}
             className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors"
@@ -1145,8 +1303,9 @@ const ChatApp: React.FC = () => {
                   </a>
                 )}
                 <a
-                  href={`${API_BASE_URL}/drive/download/${selectedFile.id}`}
-                  download={selectedFile.name}
+                  href={`https://drive.google.com/uc?export=download&id=${selectedFile.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-brand-green dark:bg-blue-600 text-white rounded-lg text-sm hover:bg-brand-green/90 dark:hover:bg-blue-700 transition-colors"
                 >
                   <Download className="w-4 h-4" />
@@ -1185,6 +1344,148 @@ const ChatApp: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Help Modal */}
+      {showHelp && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowHelp(false)}>
+          <div 
+            className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-600">
+              <h2 className="text-2xl font-bold text-brand-dark dark:text-white">
+                {helpSlides[helpSlide].title}
+              </h2>
+              <button
+                onClick={() => setShowHelp(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {helpSlides[helpSlide].content}
+            </div>
+
+            {/* Modal Footer - Navigation */}
+            <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-dark-600">
+              <button
+                onClick={() => setHelpSlide(Math.max(0, helpSlide - 1))}
+                disabled={helpSlide === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </button>
+
+              <div className="flex gap-2">
+                {helpSlides.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setHelpSlide(index)}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      index === helpSlide 
+                        ? 'bg-brand-green dark:bg-blue-400' 
+                        : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {helpSlide < helpSlides.length - 1 ? (
+                <button
+                  onClick={() => setHelpSlide(Math.min(helpSlides.length - 1, helpSlide + 1))}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-green dark:bg-blue-600 text-white hover:bg-brand-green/90 dark:hover:bg-blue-700 transition-colors"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowHelp(false)}
+                  className="px-4 py-2 rounded-lg bg-brand-green dark:bg-blue-600 text-white hover:bg-brand-green/90 dark:hover:bg-blue-700 transition-colors"
+                >
+                  Got it!
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Help Modal */}
+      {showHelp && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowHelp(false)}>
+          <div 
+            className="bg-white dark:bg-dark-800 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-dark-600">
+              <h2 className="text-2xl font-bold text-brand-dark dark:text-white">
+                {helpSlides[helpSlide].title}
+              </h2>
+              <button
+                onClick={() => setShowHelp(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              {helpSlides[helpSlide].content}
+            </div>
+
+            {/* Modal Footer - Navigation */}
+            <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-dark-600">
+              <button
+                onClick={() => setHelpSlide(Math.max(0, helpSlide - 1))}
+                disabled={helpSlide === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </button>
+
+              <div className="flex gap-2">
+                {helpSlides.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setHelpSlide(index)}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      index === helpSlide 
+                        ? 'bg-brand-green dark:bg-blue-400' 
+                        : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {helpSlide < helpSlides.length - 1 ? (
+                <button
+                  onClick={() => setHelpSlide(Math.min(helpSlides.length - 1, helpSlide + 1))}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-green dark:bg-blue-600 text-white hover:bg-brand-green/90 dark:hover:bg-blue-700 transition-colors"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowHelp(false)}
+                  className="px-4 py-2 rounded-lg bg-brand-green dark:bg-blue-600 text-white hover:bg-brand-green/90 dark:hover:bg-blue-700 transition-colors"
+                >
+                  Got it!
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Folder Browser Panel */}
       <div className="w-80 bg-brand-green dark:bg-dark-900 border-l border-brand-green dark:border-dark-800 p-6 flex flex-col overflow-hidden">
