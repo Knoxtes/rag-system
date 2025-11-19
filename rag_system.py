@@ -891,16 +891,6 @@ class EnhancedRAGSystem:
             max_output_tokens=2048,
         )
 
-        # --- Listing available models for diagnostics ---
-        print("\n--- Listing All Available Models (for your API Key) ---")
-        try:
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    print(f"  - {m.name} (Display: {m.display_name})")
-        except Exception as e:
-            print(f"  Could not list models: {e}")
-        print("--------------------------------------------------------\n")
-        
         # --- MODIFIED: Using the model you confirmed is available ---
         model_name = 'models/gemini-2.5-flash-preview-09-2025' 
         

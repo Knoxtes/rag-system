@@ -1,13 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, FileText, ExternalLink, Database, Loader2, Folder, FolderOpen, Search, ChevronRight, ChevronDown, Sun, Moon } from 'lucide-react';
+import { Send, Bot, User, FileText, ExternalLink, Database, Loader2, Folder, FolderOpen, Search, ChevronRight, ChevronDown, Sun, Moon, Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import axios from 'axios';
 import { AuthProvider, useAuth, LoginPage } from './Auth';
 import AuthPickup from './AuthPickup';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000';
+
+// Debug logging for API configuration
+console.log('API_BASE_URL configured as:', API_BASE_URL);
+console.log('Environment variables:', {
+  REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+  REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
+  NODE_ENV: process.env.NODE_ENV
+});
 
 // Configure axios interceptors for auth
 axios.interceptors.request.use((config) => {
@@ -182,6 +190,8 @@ const FolderTreeItem: React.FC<{
 };
 
 const ChatApp: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+  
   // Theme state with localStorage persistence
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('rag_theme');
@@ -210,6 +220,7 @@ const ChatApp: React.FC = () => {
   const [selectedCollection, setSelectedCollection] = useState<string>('');
   const [isCollectionSwitching, setIsCollectionSwitching] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [initComplete, setInitComplete] = useState(false);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFolders, setShowFolders] = useState(false);
@@ -227,20 +238,60 @@ const ChatApp: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize app
-  useEffect(() => {
-    initializeApp();
-  }, []);
-
-  const initializeApp = async () => {
+  const initializeApp = useCallback(async () => {
     try {
-      // Check health
-      const healthResponse = await axios.get(`${API_BASE_URL}/health`);
-      setIsConnected(healthResponse.data.rag_initialized);
+      console.log('🚀 Initializing app...');
+      console.log('🌐 API Base URL:', API_BASE_URL);
+      
+      // Check health with retry logic
+      let healthResponse;
+      let retries = 0;
+      const maxRetries = 5; // Increased retries
+      
+      while (retries < maxRetries) {
+        try {
+          console.log(`🔍 Health check attempt ${retries + 1}/${maxRetries}...`);
+          healthResponse = await axios.get(`${API_BASE_URL}/api/health`, { 
+            timeout: 15000, // Increased timeout
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            }
+          });
+          console.log('✅ Health check successful:', healthResponse.data);
+          break;
+        } catch (error: any) {
+          retries++;
+          console.log(`❌ Health check attempt ${retries} failed:`, {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data,
+            url: `${API_BASE_URL}/api/health`
+          });
+          if (retries < maxRetries) {
+            const delay = Math.min(2000 * retries, 10000); // Exponential backoff
+            console.log(`⏳ Waiting ${delay}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      // Check if RAG is properly initialized
+      const ragInitialized = healthResponse?.data?.rag_initialized;
+      const backendStatus = healthResponse?.data?.flask_backend;
+      
+      console.log('🤖 RAG Status:', { ragInitialized, backendStatus });
+      
+      setIsConnected(ragInitialized === true && backendStatus === 'healthy');
 
       // Get available collections
+      console.log('📚 Loading collections...');
       const collectionsResponse = await axios.get(`${API_BASE_URL}/collections`);
       const fetchedCollections = collectionsResponse.data.collections;
+      
+      console.log('✅ Collections loaded:', Object.keys(fetchedCollections).length);
       
       // Add ALL_COLLECTIONS option if there are multiple collections
       const collectionsWithAll = {
@@ -270,30 +321,67 @@ const ChatApp: React.FC = () => {
         }
       }
 
-      // Load root folders (gracefully handle Google Drive API issues)
-      try {
-        await loadFolders();
-      } catch (error) {
-        console.warn('Google Drive folders unavailable (API not configured):', error);
-        // Continue without folders - RAG system still works
-      }
-
+      // Note: Folders will be loaded separately after authentication is complete
 
       // For welcome message, count actual collections (excluding ALL_COLLECTIONS)
       const actualCollections = Object.keys(collectionsWithAll).filter(k => k !== 'ALL_COLLECTIONS');
       const welcomeMessage: Message = {
         id: Date.now().toString(),
-        text: `Welcome to 7 Mountians Media Ask Assistant! 🤖\n\nI'm ready to help you find information from your indexed documents. Ask me anything about your business processes, documents, or data.`,
+        text: `Welcome to 7 Mountains Media Ask Assistant! 🤖\n\nI'm ready to help you find information from your ${actualCollections.length} indexed collections. Ask me anything about your business processes, documents, or data.`,
         sender: 'assistant',
         timestamp: new Date()
       };
       setMessages([welcomeMessage]);
+      setInitComplete(true);
+      console.log('✅ App initialization completed!');
 
-    } catch (error) {
-      console.error('Failed to initialize app:', error);
+    } catch (error: any) {
+      console.error('❌ Failed to initialize app:', error);
+      console.error('🔍 Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        url: error.config?.url,
+        timeout: error.code === 'ECONNABORTED'
+      });
+      
       setIsConnected(false);
+      
+      // Show a user-friendly message with specific error info
+      const errorMessage = error.response?.status 
+        ? `⚠️ **Backend Connection Issue (${error.response.status})**\n\nServer returned: ${error.response.status} ${error.response.statusText}\n\nURL: ${API_BASE_URL}\n\n*Please check if the server is running and try refreshing.*`
+        : '⚠️ **Backend Connection Issue**\n\nThe system is starting up or the server may be unreachable.\n\n*Please wait a moment and try refreshing the page.*';
+      
+      setMessages([{
+        id: `error-${Date.now()}`,
+        text: errorMessage,
+        sender: 'assistant' as const,
+        timestamp: new Date()
+      }]);
+      
+      // Retry connection after a delay
+      setTimeout(() => {
+        console.log('🔄 Retrying app initialization...');
+        initializeApp();
+      }, 15000); // Increased retry delay
     }
-  };
+  }, []);
+
+  // Initialize app when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('User authenticated, initializing app...');
+      if (!initComplete) {
+        initializeApp();
+      }
+    }
+  }, [isAuthenticated, initializeApp, initComplete]);
+
+  // Initial app initialization (without folders)
+  useEffect(() => {
+    initializeApp();
+  }, [initializeApp]);
 
   // Enhanced batch loading for multiple folders
   const loadFoldersBatch = async (folderIds: string[]) => {
@@ -310,7 +398,7 @@ const ChatApp: React.FC = () => {
   };
 
   // Enhanced progressive folder loading with prefetching
-  const loadFolders = async (parentId: string = '') => {
+  const loadFolders = useCallback(async (parentId: string = '') => {
     try {
       const response = await axios.get(`${API_BASE_URL}/folders`, {
         params: { parent_id: parentId }
@@ -383,15 +471,26 @@ const ChatApp: React.FC = () => {
           children: []
         }));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Google Drive folders not available:', error);
       if (parentId === '') {
-        // Set empty folders array for root level
+        // Set empty folders array for root level and show helpful message
         setFolders([]);
+        console.log('Google Drive integration temporarily unavailable - you can still chat with indexed documents');
       }
       return [];
     }
-  };
+  }, [setCacheInfo]);
+
+  // Load folders when authentication becomes available
+  useEffect(() => {
+    if (isAuthenticated && initComplete) {
+      console.log('🗂️ Loading Google Drive folders...');
+      loadFolders().catch(error => {
+        console.warn('Google Drive folders unavailable:', error);
+      });
+    }
+  }, [isAuthenticated, initComplete, loadFolders]);
 
   // Search folders
   const searchFolders = async (query: string) => {
@@ -432,7 +531,7 @@ const ChatApp: React.FC = () => {
   };
 
   // Get cache status
-  const getCacheStatus = async () => {
+  const getCacheStatus = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/cache/status`);
       setCacheInfo({
@@ -442,14 +541,14 @@ const ChatApp: React.FC = () => {
     } catch (error) {
       console.error('Failed to get cache status:', error);
     }
-  };
+  }, [cacheInfo.cached_responses]);
 
   // Load cache status on app init and periodically
   useEffect(() => {
     getCacheStatus();
     const interval = setInterval(getCacheStatus, 30000); // Update every 30 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [getCacheStatus]);
 
   // Debounced search
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -549,6 +648,70 @@ const ChatApp: React.FC = () => {
     }
   };
 
+  // Function to refresh access token
+  const refreshAuthToken = async () => {
+    const refreshToken = localStorage.getItem('rag_refresh_token');
+    if (!refreshToken) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          refresh_token: refreshToken
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('rag_auth_token', data.access_token);
+        return true;
+      }
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+    }
+    
+    return false;
+  };
+
+  // Enhanced fetch with automatic token refresh
+  const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+    const authToken = localStorage.getItem('rag_auth_token');
+    
+    // First attempt with current token
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+        ...options.headers,
+      }
+    });
+
+    // If unauthorized and we have a refresh token, try to refresh
+    if (response.status === 401 && localStorage.getItem('rag_refresh_token')) {
+      const refreshSuccess = await refreshAuthToken();
+      if (refreshSuccess) {
+        // Retry with new token
+        const newToken = localStorage.getItem('rag_auth_token');
+        return fetch(url, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(newToken ? { 'Authorization': `Bearer ${newToken}` } : {}),
+            ...options.headers,
+          }
+        });
+      }
+    }
+
+    return response;
+  };
+
   const sendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
 
@@ -572,13 +735,9 @@ const ChatApp: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Use fetch for streaming
-      const response = await fetch(`${API_BASE_URL}/chat/stream`, {
+      // Use fetchWithAuth instead of regular fetch for automatic token refresh
+      const response = await fetchWithAuth(`${API_BASE_URL}/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(localStorage.getItem('rag_auth_token') ? { 'Authorization': `Bearer ${localStorage.getItem('rag_auth_token')}` } : {})
-        },
         body: JSON.stringify({
           message: inputText,
           collection: selectedCollection,
@@ -586,46 +745,34 @@ const ChatApp: React.FC = () => {
         })
       });
 
-      if (!response.ok || !response.body) {
-        throw new Error('Streaming response failed');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Prepare to stream the response
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let done = false;
-      let assistantText = '';
-      let documents: Document[] = [];
-
-      // Update the loading message as chunks arrive
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          // If the backend sends JSON lines, parse for documents
-          // Otherwise, just append text
-          assistantText += chunk;
-          setMessages(prev => {
-            // Update the last (loading) message with new text
-            const updated = [...prev];
-            updated[updated.length - 1] = {
-              ...updated[updated.length - 1],
-              text: assistantText
-            };
-            return updated;
-          });
-        }
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
       }
 
-      // Finalize the assistant message
+      // Update the assistant message with the complete response
       setMessages(prev => {
         const updated = [...prev];
+        const responseText = data.answer || 'No response generated.';
+        const isWorkspaceQuery = data.query_type === 'workspace';
+        
+        // Add workspace analysis indicator if applicable
+        let finalText = responseText;
+        if (isWorkspaceQuery && data.file_analyzed) {
+          const fileName = data.documents?.[0]?.filename || 'selected file';
+          finalText = `🔍 **Direct Document Analysis of "${fileName}"**\n\n${responseText}`;
+        }
+        
         updated[updated.length - 1] = {
           ...updated[updated.length - 1],
-          text: assistantText,
+          text: finalText,
           isLoading: false,
-          documents: documents
+          documents: data.documents || []
         };
         return updated;
       });
@@ -965,18 +1112,47 @@ const ChatApp: React.FC = () => {
         <div className="flex-shrink-0 bg-brand-green dark:bg-dark-950 border-t border-brand-green dark:border-dark-800 p-6">
           {/* Selected File Indicator */}
           {selectedFile && (
-            <div className="mb-3 p-3 bg-white dark:bg-blue-900/30 border border-white/30 dark:border-blue-500/50 rounded-lg flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <FileText className="w-4 h-4 text-brand-green dark:text-blue-400" />
-                <span className="text-sm text-brand-dark dark:text-blue-200">Asking about: <span className="font-semibold">{selectedFile.name}</span></span>
+            <div className="mb-3">
+              <div className="p-3 bg-white dark:bg-blue-900/30 border border-white/30 dark:border-blue-500/50 rounded-lg flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FileText className="w-4 h-4 text-brand-green dark:text-blue-400" />
+                  <span className="text-sm text-brand-dark dark:text-blue-200">
+                    🔍 <span className="font-semibold">Workspace Analysis</span> of: <span className="font-semibold">{selectedFile.name}</span>
+                  </span>
+                  <span className="text-xs bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 px-2 py-1 rounded-full">
+                    Direct Document Query
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedFile(null)}
+                  className="text-brand-green dark:text-blue-400 hover:text-brand-green/80 dark:hover:text-blue-300 transition-colors"
+                  title="Clear file selection"
+                >
+                  <span className="text-lg">×</span>
+                </button>
               </div>
-              <button
-                onClick={() => setSelectedFile(null)}
-                className="text-brand-green dark:text-blue-400 hover:text-brand-green/80 dark:hover:text-blue-300 transition-colors"
-                title="Clear file selection"
-              >
-                <span className="text-lg">×</span>
-              </button>
+              {/* File Action Buttons */}
+              <div className="mt-2 flex gap-2">
+                {selectedFile.webViewLink && (
+                  <a
+                    href={selectedFile.webViewLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-blue-900/30 border border-white/30 dark:border-blue-500/50 rounded-lg text-sm text-brand-dark dark:text-blue-200 hover:bg-gray-50 dark:hover:bg-blue-900/50 transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    View on Google Drive
+                  </a>
+                )}
+                <a
+                  href={`${API_BASE_URL}/drive/download/${selectedFile.id}`}
+                  download={selectedFile.name}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-brand-green dark:bg-blue-600 text-white rounded-lg text-sm hover:bg-brand-green/90 dark:hover:bg-blue-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Direct Download
+                </a>
+              </div>
             </div>
           )}
           <div className="flex items-end space-x-4">
@@ -1091,8 +1267,8 @@ const ChatApp: React.FC = () => {
                       <p className="text-sm">No files found for "{searchQuery}"</p>
                     ) : (
                       <div>
-                        <p className="text-sm">Google Drive folders unavailable</p>
-                        <p className="text-xs text-gray-600 mt-1">You can still chat with indexed documents</p>
+                        <p className="text-sm">📁 Drive Folders Initializing</p>
+                        <p className="text-xs text-gray-500 mt-1">Chat system is ready • Folders will load when available</p>
                       </div>
                     )}
                   </div>

@@ -99,14 +99,18 @@ def authenticate_google_drive(interactive=True):
                     SCOPES
                 )
                 
+                # Set access_type to offline BEFORE running the flow
+                flow.oauth2session.scope = SCOPES
+                
                 # Run local server flow - this handles everything automatically
                 print("\n🔄 Running authorization (this will open your browser)...")
+                # Force access_type='offline' to get refresh token
                 creds = flow.run_local_server(
-                    port=5000,  # Match the port in credentials.json redirect URI
-                    prompt='consent',
+                    port=0,  # Use any available port to avoid conflicts
+                    prompt='consent',  # Force consent screen to ensure refresh token
+                    access_type='offline',  # Critical: request offline access for refresh token
                     success_message='Authorization successful! You can close this window and return to the terminal.',
-                    open_browser=True,
-                    redirect_uri_trailing_slash=False  # Match exact redirect URI format
+                    open_browser=True
                 )
                 
                 print("\n✅ Authorization successful!")

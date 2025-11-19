@@ -113,8 +113,9 @@ def callback():
         
         print(f"Successful OAuth login for: {user_info['email']}")
         
-        # Generate JWT token
-        jwt_token = oauth_config.generate_jwt_token(user_info)
+        # Generate both access and refresh tokens
+        access_token = oauth_config.generate_jwt_token(user_info, is_refresh_token=False)
+        refresh_token = oauth_config.generate_jwt_token(user_info, is_refresh_token=True)
         
         # Check if user is admin to determine redirect destination
         from admin_auth import is_admin_user
@@ -151,10 +152,11 @@ def callback():
     <script>
         console.log('Admin authentication completion...');
         try {{
-            localStorage.setItem('authToken', '{jwt_token}');
+            localStorage.setItem('authToken', '{access_token}');
             localStorage.setItem('user_info', '{user_info_escaped}');
             localStorage.setItem('is_admin', 'true');
-            localStorage.setItem('rag_auth_token', '{jwt_token}');
+            localStorage.setItem('rag_auth_token', '{access_token}');
+            localStorage.setItem('rag_refresh_token', '{refresh_token}');
             
             setTimeout(function() {{
                 window.location.href = '{redirect_url}';
@@ -167,7 +169,8 @@ def callback():
 </html>"""
         else:
             # For regular users, store in session and redirect to React app
-            session['pending_auth_token'] = jwt_token
+            session['pending_auth_token'] = access_token
+            session['pending_refresh_token'] = refresh_token
             session['pending_user_info'] = user_info
             session.permanent = True
             
@@ -318,3 +321,26 @@ def get_current_user():
     except Exception as e:
         logging.error(f"Get user error: {str(e)}")
         return jsonify({'error': 'Failed to get user info'}), 500
+
+@auth_bp.route('/refresh', methods=['POST'])
+def refresh_token():
+    """Refresh access token using refresh token"""
+    try:
+        data = request.get_json()
+        if not data or 'refresh_token' not in data:
+            return jsonify({'error': 'Refresh token required'}), 400
+        
+        refresh_token = data['refresh_token']
+        result = oauth_config.refresh_access_token(refresh_token)
+        
+        if 'error' in result:
+            return jsonify({'error': result['error']}), 401
+        
+        return jsonify({
+            'access_token': result['access_token'],
+            'message': 'Token refreshed successfully'
+        })
+        
+    except Exception as e:
+        logging.error(f"Token refresh error: {str(e)}")
+        return jsonify({'error': 'Failed to refresh token'}), 500

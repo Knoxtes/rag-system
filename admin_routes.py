@@ -3,7 +3,7 @@ Admin Routes and Collection Management
 Restricted admin interface for system management
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session, redirect
 from admin_auth import require_admin
 from system_stats import system_stats
 import json
@@ -14,9 +14,15 @@ from datetime import datetime
 import traceback
 from vector_store import VectorStore
 from config import INDEXED_FOLDERS_FILE
+from google_auth_oauthlib.flow import Flow
+import pickle
 
 # Create admin blueprint
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+# Google OAuth Configuration
+SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+TOKEN_FILE = 'token.pickle'
 
 # Global variables for background tasks
 indexing_status = {
@@ -625,3 +631,128 @@ def run_collection_update():
                 'error': str(e),
                 'completed_at': datetime.now().isoformat()
             })
+
+
+# ===== Google Drive OAuth Endpoints =====
+
+@admin_bp.route('/gdrive/status')
+@require_admin
+def gdrive_status():
+    """Check Google Drive authentication status"""
+    try:
+        if os.path.exists(TOKEN_FILE):
+            with open(TOKEN_FILE, 'rb') as token:
+                creds = pickle.load(token)
+                
+            if creds and creds.valid:
+                return jsonify({
+                    'authenticated': True,
+                    'message': 'Google Drive connected and authenticated',
+                    'has_refresh_token': creds.refresh_token is not None
+                })
+            elif creds and creds.expired and creds.refresh_token:
+                return jsonify({
+                    'authenticated': True,
+                    'message': 'Token expired but has refresh token (will auto-renew)',
+                    'has_refresh_token': True
+                })
+            else:
+                return jsonify({
+                    'authenticated': False,
+                    'message': 'Token invalid or missing refresh token',
+                    'has_refresh_token': creds.refresh_token is not None if creds else False
+                })
+        else:
+            return jsonify({
+                'authenticated': False,
+                'message': 'Not connected to Google Drive'
+            })
+    except Exception as e:
+        return jsonify({
+            'authenticated': False,
+            'message': f'Error checking status: {str(e)}'
+        }), 500
+
+
+@admin_bp.route('/gdrive/authorize')
+@require_admin
+def gdrive_authorize():
+    """Start Google OAuth flow"""
+    try:
+        flow = Flow.from_client_secrets_file(
+            'credentials.json',
+            scopes=SCOPES,
+            redirect_uri='http://localhost:5001/admin/gdrive/callback'
+        )
+        
+        # Generate authorization URL with offline access for refresh token
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            prompt='consent',  # Force consent screen to get refresh token
+            include_granted_scopes='true'
+        )
+        
+        # Store state in session for security
+        session['oauth_state'] = state
+        
+        return redirect(authorization_url)
+        
+    except Exception as e:
+        return jsonify({'error': f'OAuth initialization failed: {str(e)}'}), 500
+
+
+@admin_bp.route('/gdrive/callback')
+def gdrive_callback():
+    """Handle OAuth callback from Google"""
+    try:
+        # Verify state for CSRF protection
+        state = session.get('oauth_state')
+        if not state:
+            return "Error: No OAuth state found in session. Please try connecting again.", 400
+        
+        flow = Flow.from_client_secrets_file(
+            'credentials.json',
+            scopes=SCOPES,
+            state=state,
+            redirect_uri='http://localhost:5001/admin/gdrive/callback'
+        )
+        
+        # Exchange authorization code for credentials
+        flow.fetch_token(authorization_response=request.url)
+        creds = flow.credentials
+        
+        # Save credentials with refresh token
+        with open(TOKEN_FILE, 'wb') as token:
+            pickle.dump(creds, token)
+        
+        # Clear OAuth state from session
+        session.pop('oauth_state', None)
+        
+        # Redirect back to admin dashboard with success flag
+        return redirect('/admin/dashboard?auth_complete=true&gdrive=connected')
+        
+    except Exception as e:
+        return f"OAuth callback error: {str(e)}", 500
+
+
+@admin_bp.route('/gdrive/disconnect', methods=['POST'])
+@require_admin
+def gdrive_disconnect():
+    """Disconnect Google Drive by removing token"""
+    try:
+        if os.path.exists(TOKEN_FILE):
+            os.remove(TOKEN_FILE)
+            return jsonify({
+                'success': True,
+                'message': 'Google Drive disconnected successfully'
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'message': 'Already disconnected'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

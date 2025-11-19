@@ -29,7 +29,7 @@ npm start
 ```
 
 This will simultaneously start:
-- **Flask API** on http://localhost:5000 (backend)
+- **Flask API** on http://localhost:3000 (unified server)
 - **React App** on http://localhost:3000 (frontend)
 
 ### Manual Installation

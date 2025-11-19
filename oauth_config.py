@@ -24,7 +24,7 @@ class OAuthConfig:
         # OAuth Configuration
         self.client_id = os.getenv('GOOGLE_CLIENT_ID')
         self.client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
-        self.redirect_uri = os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:5000/auth/callback')
+        self.redirect_uri = os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:3000/auth/callback')
         
         # Organization Configuration
         self.allowed_domains = os.getenv('ALLOWED_DOMAINS', '').split(',')
@@ -32,7 +32,8 @@ class OAuthConfig:
         
         # Security Configuration
         self.secret_key = os.getenv('JWT_SECRET_KEY', secrets.token_urlsafe(32))
-        self.token_expiry_hours = int(os.getenv('TOKEN_EXPIRY_HOURS', '24'))
+        self.token_expiry_hours = int(os.getenv('TOKEN_EXPIRY_HOURS', '168'))  # Default 7 days
+        self.refresh_token_expiry_days = int(os.getenv('REFRESH_TOKEN_EXPIRY_DAYS', '30'))  # Default 30 days
         
         # OAuth Scopes - Include Google Drive scopes
         self.scopes = [
@@ -96,17 +97,29 @@ class OAuthConfig:
                 scopes=self.scopes
             )
     
-    def generate_jwt_token(self, user_info):
+    def generate_jwt_token(self, user_info, is_refresh_token=False):
         """Generate JWT token for authenticated user"""
-        payload = {
-            'user_id': user_info['id'],
-            'email': user_info['email'],
-            'name': user_info['name'],
-            'picture': user_info.get('picture', ''),
-            'domain': user_info['email'].split('@')[1] if '@' in user_info['email'] else '',
-            'exp': datetime.utcnow() + timedelta(hours=self.token_expiry_hours),
-            'iat': datetime.utcnow()
-        }
+        if is_refresh_token:
+            # Refresh tokens last longer and have limited scope
+            payload = {
+                'user_id': user_info['id'],
+                'email': user_info['email'],
+                'type': 'refresh',
+                'exp': datetime.utcnow() + timedelta(days=self.refresh_token_expiry_days),
+                'iat': datetime.utcnow()
+            }
+        else:
+            # Access tokens have full user info
+            payload = {
+                'user_id': user_info['id'],
+                'email': user_info['email'],
+                'name': user_info['name'],
+                'picture': user_info.get('picture', ''),
+                'domain': user_info['email'].split('@')[1] if '@' in user_info['email'] else '',
+                'type': 'access',
+                'exp': datetime.utcnow() + timedelta(hours=self.token_expiry_hours),
+                'iat': datetime.utcnow()
+            }
         
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
     
@@ -119,6 +132,30 @@ class OAuthConfig:
             return {'error': 'Token expired'}
         except jwt.InvalidTokenError:
             return {'error': 'Invalid token'}
+    
+    def refresh_access_token(self, refresh_token):
+        """Generate new access token from refresh token"""
+        try:
+            payload = jwt.decode(refresh_token, self.secret_key, algorithms=['HS256'])
+            
+            if payload.get('type') != 'refresh':
+                return {'error': 'Invalid refresh token'}
+            
+            # Create new access token with basic user info
+            user_info = {
+                'id': payload['user_id'],
+                'email': payload['email'],
+                'name': payload['email'].split('@')[0],  # Fallback name from email
+                'picture': ''
+            }
+            
+            new_access_token = self.generate_jwt_token(user_info, is_refresh_token=False)
+            return {'access_token': new_access_token}
+            
+        except jwt.ExpiredSignatureError:
+            return {'error': 'Refresh token expired'}
+        except jwt.InvalidTokenError:
+            return {'error': 'Invalid refresh token'}
     
     def is_domain_allowed(self, email):
         """Check if user's domain is in allowed list"""

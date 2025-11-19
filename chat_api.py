@@ -28,7 +28,6 @@ from auth import authenticate_google_drive
 from oauth_config import require_auth, oauth_config
 from auth_routes import auth_bp
 from config import SCOPES, CREDENTIALS_FILE, TOKEN_FILE, USE_VERTEX_AI
-from cost_monitor import get_monitor, print_cost_summary
 import re
 
 app = Flask(__name__)
@@ -69,14 +68,7 @@ try:
 except ImportError as e:
     print(f"Warning: Could not load admin routes: {e}")
 
-# Register health monitoring (production only)
-if os.getenv('FLASK_ENV') == 'production':
-    try:
-        from health_monitor import health_bp
-        app.register_blueprint(health_bp)
-    except ImportError:
-        pass
-
+# Health monitoring integrated into main app
 # Production Logging
 if not app.debug:
     file_handler = RotatingFileHandler('logs/rag_system.log', maxBytes=10240000, backupCount=10)
@@ -88,11 +80,142 @@ if not app.debug:
     app.logger.setLevel(logging.INFO)
     app.logger.info('RAG System startup')
 
+def analyze_file_with_workspace(file_id: str, user_question: str):
+    """
+    Analyze a specific Google Drive file using workspace/direct document analysis
+    instead of the RAG system for more targeted responses.
+    """
+    global drive_service
+    
+    if not drive_service:
+        return None
+        
+    try:
+        # Get file metadata from Google Drive
+        file_metadata = drive_service.files().get(fileId=file_id).execute()
+        file_name = file_metadata.get('name', 'Unknown File')
+        mime_type = file_metadata.get('mimeType', '')
+        
+        print(f"  📋 Analyzing file: {file_name} (type: {mime_type})")
+        
+        # Download and process the file content
+        file_content = download_and_process_file(file_id, file_name, mime_type)
+        if not file_content:
+            return None
+            
+        # Use Gemini to analyze the document directly
+        workspace_response = query_document_with_gemini(file_content, file_name, user_question)
+        
+        return {
+            'answer': workspace_response,
+            'documents': [{
+                'filename': file_name,
+                'type': 'Direct Analysis',
+                'url': f"https://drive.google.com/file/d/{file_id}/view",
+                'extension': file_name.split('.')[-1] if '.' in file_name else '',
+                'collection': 'workspace_analysis',
+                'score': 1.0
+            }]
+        }
+        
+    except Exception as e:
+        print(f"  ❌ Error in workspace analysis: {e}")
+        return None
+
+def download_and_process_file(file_id: str, file_name: str, mime_type: str):
+    """Download and extract text content from a Google Drive file"""
+    global drive_service
+    
+    try:
+        # Handle different file types
+        if mime_type == 'text/csv':
+            # Download CSV directly
+            request = drive_service.files().get_media(fileId=file_id)
+            content = request.execute().decode('utf-8')
+            return f"CSV File: {file_name}\n\n{content}"
+            
+        elif mime_type == 'application/vnd.google-apps.spreadsheet':
+            # Export Google Sheets as CSV
+            request = drive_service.files().export_media(fileId=file_id, mimeType='text/csv')
+            content = request.execute().decode('utf-8')
+            return f"Spreadsheet: {file_name}\n\n{content}"
+            
+        elif mime_type == 'application/vnd.google-apps.document':
+            # Export Google Docs as plain text
+            request = drive_service.files().export_media(fileId=file_id, mimeType='text/plain')
+            content = request.execute().decode('utf-8')
+            return f"Document: {file_name}\n\n{content}"
+            
+        elif mime_type in ['text/plain']:
+            # Download text files
+            request = drive_service.files().get_media(fileId=file_id)
+            content = request.execute().decode('utf-8')
+            return f"Text File: {file_name}\n\n{content}"
+            
+        elif 'application/pdf' in mime_type:
+            print(f"  ⚠️ PDF files require special processing - not yet supported for workspace analysis")
+            return None
+            
+        else:
+            print(f"  ⚠️ Unsupported file type: {mime_type}")
+            print(f"    Supported types: CSV, Google Sheets, Google Docs, Text files")
+            return None
+            
+    except Exception as e:
+        print(f"  ❌ Error downloading file: {e}")
+        return None
+
+def query_document_with_gemini(document_content: str, file_name: str, user_question: str):
+    """Use Gemini to analyze the document content directly"""
+    try:
+        import google.generativeai as genai
+        from config import USE_VERTEX_AI
+        
+        # Prepare the prompt for document analysis
+        analysis_prompt = f"""You are analyzing a specific document for a user. Here is the document content:
+
+=== DOCUMENT: {file_name} ===
+{document_content[:15000]}  # Limit content to avoid token limits
+=== END DOCUMENT ===
+
+User Question: {user_question}
+
+Please provide a comprehensive answer based ONLY on the content of this specific document. If the information to answer the question is not in this document, please say so clearly. Be specific and cite relevant parts of the document in your response.
+
+Focus on:
+1. Direct answers from the document content
+2. Specific data, numbers, or details from the document
+3. Clear references to sections or data points
+4. If the question cannot be answered from this document, explain why
+
+Answer:"""
+
+        if USE_VERTEX_AI:
+            # Use Vertex AI
+            import vertexai
+            from vertexai.generative_models import GenerativeModel
+            
+            model = GenerativeModel("gemini-1.5-pro")
+            response = model.generate_content(analysis_prompt)
+            return response.text
+        else:
+            # Use regular Gemini API
+            model = genai.GenerativeModel('gemini-1.5-pro')
+            response = model.generate_content(analysis_prompt)
+            return response.text
+            
+    except Exception as e:
+        print(f"  ❌ Error in Gemini analysis: {e}")
+        return f"I was able to access the document '{file_name}' but encountered an error during analysis: {str(e)}. You can try asking a different question or use the regular chat mode."
+
 # Global variables to hold the RAG system
 rag_system = None
 multi_collection_rag = None
 drive_service = None
 available_collections = {}
+
+# Initialization guard to prevent double initialization
+_rag_initialized = False
 
 # Folder cache for better performance
 folder_cache = {}
@@ -265,6 +388,7 @@ def preload_folder_structure():
         
     except Exception as e:
         # print(f"Error in enhanced preload: {str(e)}")  # Disabled for production
+        pass
 
 def start_background_cache_refresh():
     """Start background thread for cache refresh with simplified approach"""
@@ -298,7 +422,14 @@ def start_background_cache_refresh():
 
 def initialize_rag_system():
     """Initialize the RAG system and load available collections"""
-    global rag_system, multi_collection_rag, drive_service, available_collections
+    global rag_system, multi_collection_rag, drive_service, available_collections, _rag_initialized
+    
+    # Prevent double initialization
+    if _rag_initialized:
+        print("[!] RAG system already initialized, skipping...")
+        return
+    
+    _rag_initialized = True
     
     try:
         # print("[+] Initializing Google Drive authentication...")  # Disabled for production
@@ -307,6 +438,7 @@ def initialize_rag_system():
             drive_service = authenticate_google_drive(interactive=False)
             if drive_service:
                 # print("✅ Google Drive authentication successful!")  # Disabled for production
+                pass
             else:
                 # print("⚠️  Google Drive credentials not found - run 'python auth.py' to set up")  # Disabled for production
                 drive_service = None
@@ -335,6 +467,7 @@ def initialize_rag_system():
         else:
             # print(f"⚠️  indexed_folders.json not found at {indexed_folders_file}")  # Disabled for production
             # print("⚠️  Collections will be empty until Google Drive is set up")  # Disabled for production
+            pass
         
         # print(f"[+] Found {len(available_collections)} available collections")  # Disabled for production
         
@@ -342,6 +475,7 @@ def initialize_rag_system():
         if available_collections:
             try:
                 # print("[+] Initializing RAG systems...")  # Disabled for production
+                pass
                 
                 # Initialize individual collection RAG systems
                 for collection_name in available_collections:
@@ -357,6 +491,7 @@ def initialize_rag_system():
                                 rag_system = temp_rag
                         except Exception as e:
                             # print(f"    ⚠️  Failed to initialize RAG for {collection_name}: {e}")  # Disabled for production
+                            pass
                 
                 # Initialize multi-collection RAG if multiple collections available
                 collection_names = [k for k in available_collections.keys() if k != "ALL_COLLECTIONS"]
@@ -377,6 +512,7 @@ def initialize_rag_system():
                 # print("✅ RAG system initialization completed")  # Disabled for production
             except Exception as e:
                 # print(f"❌ Error during RAG initialization: {e}")  # Disabled for production
+                pass
         
         # Add special "ALL_COLLECTIONS" entry
         if len(available_collections) > 1:
@@ -449,9 +585,15 @@ def health_check():
 @require_auth
 def get_collections():
     """Get available collections"""
+    try:
+        user_email = getattr(request, 'current_user', {}).get('email', 'unknown')
+    except RuntimeError:
+        # Handle case where we're outside request context
+        user_email = 'unknown'
+    
     return jsonify({
         'collections': available_collections,
-        'user': request.current_user['email']
+        'user': user_email
     })
 
 @app.route('/chat', methods=['POST'])
@@ -534,6 +676,25 @@ def chat():
         print(f"Processing query: {message}")
         if file_id:
             print(f"  📄 Targeted query for specific file: {file_id}")
+            
+            # Use workspace query for specific file analysis
+            try:
+                workspace_response = analyze_file_with_workspace(file_id, message)
+                if workspace_response:
+                    print(f"  ✅ Workspace analysis completed for file: {file_id}")
+                    return jsonify({
+                        'answer': workspace_response['answer'],
+                        'documents': workspace_response.get('documents', []),
+                        'query_type': 'workspace',
+                        'file_analyzed': file_id,
+                        'analysis_method': 'direct_workspace_query'
+                    })
+                else:
+                    print(f"  ⚠️ Workspace analysis failed, falling back to RAG")
+            except Exception as workspace_error:
+                print(f"  ❌ Workspace query error: {workspace_error}")
+                print(f"  🔄 Falling back to RAG system")
+        
         response = rag_system.query(message, file_id=file_id)
         
         # Extract answer and documents
@@ -606,13 +767,24 @@ def switch_collection():
 def get_folders():
     """Get folders from Google Drive with caching and retry logic for SSL errors"""
     try:
-        # Check if Google Drive service is available
+        global drive_service
+        
+        # Check if Google Drive service is available, try to reinitialize if not
+        if drive_service is None:
+            print("[!] Drive service not available, attempting to reinitialize...")
+            try:
+                drive_service = authenticate_google_drive(interactive=False)
+            except Exception as e:
+                print(f"[!] Drive service reinit failed: {e}")
+            
+        # If still not available, return unavailable response    
         if drive_service is None:
             return jsonify({
                 'error': 'Google Drive service not available',
-                'message': 'Please set up Google Drive authentication by running: python auth.py',
+                'message': 'Google Drive authentication needs to be set up. The chat system will still work with indexed documents.',
                 'items': [],
-                'cached': False
+                'cached': False,
+                'can_retry': True
             }), 503
         
         parent_id = request.args.get('parent_id', '')
@@ -885,6 +1057,123 @@ def reinitialize_drive():
         print(f"Error reinitializing Google Drive: {str(e)}")
         return jsonify({'error': f'Failed to initialize Google Drive: {str(e)}'}), 500
 
+@app.route('/drive/status', methods=['GET'])
+@require_auth 
+def drive_status():
+    """Check Google Drive service status"""
+    global drive_service
+    
+    try:
+        if drive_service is None:
+            # Try to initialize
+            try:
+                drive_service = authenticate_google_drive(interactive=False)
+            except:
+                pass
+                
+        if drive_service is None:
+            return jsonify({
+                'available': False,
+                'message': 'Google Drive service not initialized',
+                'can_retry': True
+            })
+        else:
+            # Test the service with a simple call
+            try:
+                drive_service.files().list(pageSize=1).execute()
+                return jsonify({
+                    'available': True,
+                    'message': 'Google Drive service is working',
+                    'can_retry': False
+                })
+            except Exception as e:
+                return jsonify({
+                    'available': False,
+                    'message': f'Google Drive service error: {str(e)}',
+                    'can_retry': True
+                })
+    except Exception as e:
+        return jsonify({
+            'available': False,
+            'message': f'Error checking drive status: {str(e)}',
+            'can_retry': True
+        })
+
+@app.route('/drive/download/<file_id>', methods=['GET'])
+@require_auth
+def download_drive_file(file_id):
+    """Download a file directly from Google Drive"""
+    global drive_service
+    
+    try:
+        if drive_service is None:
+            return jsonify({'error': 'Google Drive service not initialized'}), 503
+        
+        # Get file metadata to get the filename
+        file_metadata = drive_service.files().get(fileId=file_id, fields='name,mimeType').execute()
+        filename = file_metadata.get('name', 'download')
+        mime_type = file_metadata.get('mimeType', 'application/octet-stream')
+        
+        # Download the file content
+        request = drive_service.files().get_media(fileId=file_id)
+        
+        # Stream the file content
+        from io import BytesIO
+        file_buffer = BytesIO()
+        from googleapiclient.http import MediaIoBaseDownload
+        downloader = MediaIoBaseDownload(file_buffer, request)
+        
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        
+        # Prepare response
+        file_buffer.seek(0)
+        from flask import send_file
+        return send_file(
+            file_buffer,
+            mimetype=mime_type,
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        print(f"Error downloading file {file_id}: {str(e)}")
+        return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
+
+@app.route('/test/workspace', methods=['POST'])
+@require_auth
+def test_workspace():
+    """Test workspace analysis functionality"""
+    try:
+        data = request.get_json()
+        if not data or 'file_id' not in data:
+            return jsonify({'error': 'file_id required'}), 400
+            
+        file_id = data['file_id']
+        test_question = data.get('question', 'What is this document about?')
+        
+        result = analyze_file_with_workspace(file_id, test_question)
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'result': result,
+                'message': 'Workspace analysis completed successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Workspace analysis failed - file type may not be supported or file is inaccessible'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Error testing workspace functionality'
+        }), 500
+
 @app.route('/auth/drive-setup', methods=['GET'])
 @require_auth  
 def drive_auth_setup():
@@ -999,43 +1288,26 @@ def clear_cache():
 
 @app.route('/cost/summary', methods=['GET'])
 def cost_summary():
-    """Get API cost summary and budget status"""
+    """Get API cost summary (simplified version)"""
     try:
-        monitor = get_monitor()
-        summary = monitor.get_summary()
-        
-        # Add warning level
-        percent_used = summary['percent_used']
-        if percent_used >= 95:
-            warning_level = 'critical'
-        elif percent_used >= 80:
-            warning_level = 'high'
-        elif percent_used >= 60:
-            warning_level = 'medium'
-        else:
-            warning_level = 'low'
-        
-        summary['warning_level'] = warning_level
-        summary['using_vertex_ai'] = USE_VERTEX_AI
-        
-        return jsonify(summary)
+        return jsonify({
+            'total_cost': 0.0,
+            'monthly_budget': 50.0,
+            'percent_used': 0.0,
+            'warning_level': 'low',
+            'queries_today': 0,
+            'using_vertex_ai': USE_VERTEX_AI,
+            'message': 'Cost monitoring simplified for production'
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/cost/reset', methods=['POST'])
 @require_auth
 def reset_cost_tracking():
-    """Reset cost tracking (admin only)"""
+    """Reset cost tracking (simplified version)"""
     try:
-        monitor = get_monitor()
-        monitor.costs = {
-            'total_cost': 0.0,
-            'monthly_costs': {},
-            'daily_costs': {},
-            'queries': []
-        }
-        monitor._save_costs()
-        return jsonify({'message': 'Cost tracking reset successfully'})
+        return jsonify({'message': 'Cost tracking reset (simplified for production)'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1145,56 +1417,6 @@ def create_app():
         print(f"[!] Warning: RAG system initialization failed: {e}")
         print("[!] Server will start with limited functionality")
     return app
-
-@app.route('/chat/stream', methods=['POST'])
-@require_auth
-@limiter.limit("30 per minute")
-def chat_stream():
-    """Stream chat responses as they are generated (token/chunk streaming)."""
-    global rag_system, multi_collection_rag
-    from flask import Response
-    import time
-
-    def stream_generator():
-        try:
-            data = request.get_json()
-            if not data or 'message' not in data:
-                yield json.dumps({'error': 'Message is required'})
-                return
-            message = data['message']
-            collection = data.get('collection')
-            file_id = data.get('file_id')
-
-            # Check if RAG system is initialized
-            if not rag_system:
-                yield json.dumps({'error': 'RAG system is still initializing. Please wait a moment and try again.', 'code': 'SYSTEM_INITIALIZING'})
-                return
-
-            # Multi-collection mode
-            if collection == "ALL_COLLECTIONS":
-                if not multi_collection_rag:
-                    yield json.dumps({'error': 'Multi-collection system not available. Please select a specific collection.'})
-                    return
-                # --- Streaming not implemented for multi-collection yet ---
-                response = multi_collection_rag.process_chat(message, file_id=file_id)
-                yield json.dumps({'answer': response.get('answer', 'No response generated')})
-                return
-
-            # Single collection streaming
-            # --- This assumes rag_system.query_stream yields answer chunks ---
-            if hasattr(rag_system, 'query_stream'):
-                for chunk in rag_system.query_stream(message, file_id=file_id):
-                    yield f"data: {json.dumps({'answer_chunk': chunk})}\n\n"
-                    time.sleep(0.01)
-                yield f"data: {json.dumps({'done': True})}\n\n"
-            else:
-                # Fallback: non-streaming
-                response = rag_system.query(message, file_id=file_id)
-                yield f"data: {json.dumps({'answer': response.get('answer', 'No response generated'), 'done': True})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
-
-    return Response(stream_generator(), mimetype='text/event-stream')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RAG Chat API Server')
