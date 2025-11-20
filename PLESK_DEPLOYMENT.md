@@ -38,6 +38,8 @@ That's it! This command will:
    # On Windows
    deploy.bat
    ```
+   
+   **Note:** The deployment script will check for uncommitted changes and prompt you to proceed if any are found. It's recommended to commit or stash changes before deploying.
 
 3. **Start the System**
    ```bash

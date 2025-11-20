@@ -93,6 +93,8 @@ deploy.bat
 bash deploy.sh
 ```
 
+**Note:** The deployment script will automatically check for uncommitted changes and prompt you to proceed if any are found. It's recommended to commit or stash changes before deploying to production.
+
 ### Manual Plesk Setup
 
 1. **Upload Files**: Upload entire project to your domain directory
