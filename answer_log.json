@@ -481,5 +481,82 @@
       "cached": false,
       "response_time": 4.134456157684326
     }
+  },
+  {
+    "timestamp": "2025-11-20T14:55:45.927217",
+    "question": "Can  you summarize the sports schedule",
+    "answer": "I was unable to find any documents related to a \"sports schedule\" or a general project/business events calendar in the indexed database.\n\nIf you are looking for a specific business schedule (e.g., a project timeline, a marketing calendar, or a list of internal events), please provide more details, such as the project name, date, or department, and I will try a more targeted search.",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 2,
+      "cached": false,
+      "response_time": 4.678051948547363
+    }
+  },
+  {
+    "timestamp": "2025-11-20T14:56:23.050789",
+    "question": "Can you summarize the 7MM Sports Schedule",
+    "answer": "I am unable to find any documents or data in the indexed database that specifically detail a \"7MM Sports Schedule.\"\n\nThis could mean the document:\n1.  Does not exist in the indexed database.\n2.  Is a very new file not yet indexed.\n3.  Is stored under a different name or acronym.\n\nIf you can provide an alternative name for the schedule (e.g., \"Seven Market Model Schedule\" or a specific project name), I can try a different search using the `live_drive_search` tool to look for unindexed files.",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 2,
+      "cached": false,
+      "response_time": 5.346670389175415
+    }
+  },
+  {
+    "timestamp": "2025-11-20T15:40:43.027381",
+    "question": "Summarize the january 2025 projection for altoona",
+    "answer": "I apologize, but my search of the indexed database for \"January 2025 projection for Altoona\" and related terms returned no documents.\n\nIt appears the specific projection data for the Altoona market for January 2025 is not currently available in the indexed files.",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 3,
+      "cached": false,
+      "response_time": 5.0595948696136475
+    }
+  },
+  {
+    "timestamp": "2025-11-20T15:42:41.657339",
+    "question": "Summarize the DuBois 013125 6 Month Sales Projection.csv",
+    "answer": "I was unable to find a summary or the contents of the specific file named \"DuBois 013125 6 Month Sales Projection.csv\" in the indexed database or by searching the live Google Drive.\n\nThe indexed database did not contain any documents matching the full file name or the general \"DuBois 6 Month Sales Projection\" query. A live search for the exact file name also returned no results, suggesting the file may not be present or accessible in the current Google Drive structure, or it has not yet been indexed.\n\nIf you can provide a different file name, a folder location, or a more general query about DuBois sales projections, I may be able to find the relevant information.",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 3,
+      "cached": false,
+      "response_time": 6.966874599456787
+    }
+  },
+  {
+    "timestamp": "2025-11-20T15:43:18.348789",
+    "question": "Can you summarize the prepayment and billing policy",
+    "answer": "I am unable to find any documents detailing a specific \"prepayment and billing policy\" in the indexed database.\n\nThe system returned no results for the following search queries:\n1.  `prepayment and billing policy summary`\n2.  `Billing Policy and Payment Terms`\n3.  `client prepayment policy`\n\nPlease try a different query or specify a folder where this policy might be located.",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 3,
+      "cached": false,
+      "response_time": 5.195359706878662
+    }
+  },
+  {
+    "timestamp": "2025-11-20T16:00:50.926885",
+    "question": "Can you summarize the prepayment and billing",
+    "answer": "The Prepayment and Billing Policy is structured based on the type of service (Radio vs. Digital/Creative) and the client's history (New vs. Existing). The overarching goal is to ensure timely payments for seamless service and operational efficiency.\n\nHere is a summary of the key requirements and processes:\n\n### 1. General Prepayment Requirements\n\n| Client Type | Requirement | Credit Limit Setting |\n| :--- | :--- | :--- |\n| **New Clients** | All new accounts are **Cash in Advance (CIA)**. After six months of continuous CIA, clients may be approved for 30 days credit, provided they are not subject to industry-specific restrictions. | A credit limit of **-$1.00** must be set on the account in Natural Log (NL) to trigger a pre-payment notice for Traffic. |\n| **Existing Clients** | Prepayment terms are subject to prior payment history. Clients with consistent on-time payments may be eligible for alternative terms upon approval. | N/A |\n| **Industry-Specific Clients** | Local bars, restaurants, festivals, vaping shops, tanning salons, hair salons, roving businesses, promoters, fireworks, and local concert accounts are **always Cash in Advance**. | N/A |\n| **Agencies** | Agencies are generally **not required to pay in advance** (except for Political buys), but their payment practices should be monitored. | N/A |\n\n**Source:** [PREPAYMENT & BILLING POLICY](https://docs.google.com/document/d/1MFoajPtrZXH3lqiRA04hmaa3LfV22v4JWHKlKXu4RVo/edit)\n\n### 2. Service-Specific Prepayment Timelines\n\n| Service Type | Prepayment Requirement | Payment Timeline | Consequences of Non-Payment |\n| :--- | :--- | :--- | :--- |\n| **Radio Sales** | New clients and restricted industries are CIA. | Payment must be received at least **2 business days** prior to the campaign’s scheduled start date. | Failure to remit payment will result in a delayed schedule start. |\n| **Digital Advertising** (PPC, Display, OTT, etc.) | New clients must prepay the **first month** of the digital advertising budget before the campaign starts. | Payment must be received at least **3 business days** prior to the campaign’s scheduled start date. | Delays or cancellation of the campaign/project. |\n| **Creative Services** | **50% deposit** is required prior to beginning the project. | The remaining balance is due once the product has been approved and delivered. | Creative projects will not begin without the deposit. |\n| **Websites** | Requires the initial 50% deposit, plus an **additional 25%** payment once the design has been approved and prior to development. | N/A | Website Hosting & Maintenance clients will have their website pulled down for non-payment after 30 days overdue. |\n\n**Source:** [PREPAYMENT & BILLING POLICY](https://docs.google.com/document/d/1MFoajPtrZXH3lqiRA04hmaa3LfV22v4JWHKlKXu4RVo/edit)\n\n### 3. Billing and Payment Methods\n\n*   **Electronic Billing:** All new clients are set up for electronic invoicing. Account Executives (AEs) must reach out to existing clients not currently set up to collect the name and email address of the person(s) who will receive and pay invoices.\n*   **Accepted Payment Methods:**\n    *   Bank transfers (ACH or wire)\n    *   Checks ($25 NSF fee for returned checks)\n    *   **Credit/Debit Cards:** All card payments **MUST be made online by the client**. The company will no longer accept card or bank information via phone, email, or in-person.\n\n**Source:** [PREPAYMENT & BILLING POLICY](https://docs.google.com/document/d/1MFoajPtrZXH3lqiRA04hmaa3LfV22v4JWHKlKXu4RVo/edit)\n\n### 4. Consequences, Refunds, and Adjustments\n\n*   **Non-Payment:** Campaigns will not commence without full prepayment or deposit. Local direct clients with an outstanding balance of **60 days or more** will have any active schedules paused until payment is made.\n*   **Refunds (Unused Budget):** If a campaign is paused or terminated, any remaining prepayment funds will be refunded or credited toward future services, as determined by the client.\n*   **Non-Refundable Fees:** Certain fees, such as setup fees or third-party costs already incurred, are non-refundable.\n*   **Sales Adjustments:** Adjustments under $300 may be approved by the General Manager (GM). Adjustments over $300 must be approved by Paul or Kristin. Sales Adjustments are charged against current month revenue and applied against any commission, override, or goal.\n\n**Source:** [PREPAYMENT & BILLING POLICY](https://docs.google.com/document/d/1MFoajPtrZXH3lqiRA04hmaa3LfV22v4JWHKlKXu4RVo/edit)",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 1,
+      "cached": false,
+      "response_time": 13.159119844436646
+    }
+  },
+  {
+    "timestamp": "2025-11-20T17:35:52.917986",
+    "question": "What holidays do we have off this year",
+    "answer": "The company observes fifteen paid holidays per year.\n\nBased on the **2025 Holiday Calendar**, the following days are observed as holidays:\n\n| Holiday | Date | Day of the Week |\n| :--- | :--- | :--- |\n| **New Year’s Day** | January 1st, 2025 | Wednesday |\n| **Martin Luther King Day** | January 20th, 2025 | Monday |\n| **Presidents Day** | February 17th, 2025 | Monday |\n| **Good Friday** | April 18th, 2025 | Friday |\n| **Memorial Day** | May 26th, 2025 | Monday |\n| **Juneteenth** | June 19th, 2025 | Thursday |\n| **4th of July** | July 4th, 2025 | Friday |\n| **Labor Day** | September 1st, 2025 | Monday |\n| **Columbus Day** | October 13th, 2025 | Monday |\n| **Veteran’s Day** | November 11th, 2025 | Tuesday |\n| **Thanksgiving Day** | November 27th, 2025 | Thursday |\n| **Black Friday** | November 28th, 2025 | Friday |\n| **Christmas Eve** | December 24th, 2025 | Wednesday |\n| **Christmas Day** | December 25th, 2025 | Thursday |\n| **New Year’s Eve** | December 31st, 2025 | Wednesday |\n\n***\n\n### Holiday Policy Notes\n\n*   **Weekend Holidays:** If a holiday falls on a Saturday, the company observes the holiday on the preceding Friday. If it falls on a Sunday, the company observes the holiday on the following Monday.\n*   **Programming Personnel:** Programming personnel who are scheduled to work on a holiday will receive one \"comp day\" (day off) for each holiday worked. Comp days require supervisory approval and appropriate notice.\n\nSource: [2025 Holiday Calendar_](https://docs.google.com/document/d/163pj5jhkzPw6VfxfNHwdV5r0yoeTycvXZJZE6UhinUU/edit) and [Handbook 2024](https://docs.google.com/document/d/1I2Hl9_ru3XggpewrKwsC0rIL1mVPBNGP_14Hcb78tPc/edit)",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 1,
+      "cached": false,
+      "response_time": 11.709146499633789
+    }
   }
 ]

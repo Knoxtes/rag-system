@@ -1222,6 +1222,9 @@ class EnhancedRAGSystem:
             
             # Normalize scores to 0-1 range
             max_bm25 = max(bm25_scores.values()) if bm25_scores else 1.0
+            # Handle case where max_bm25 is 0 (all scores are 0)
+            if max_bm25 == 0:
+                max_bm25 = 1.0
             normalized_bm25 = {idx: score/max_bm25 for idx, score in bm25_scores.items()}
             
             # For multi-query, we don't have dense scores, so weight BM25 more
@@ -1235,6 +1238,9 @@ class EnhancedRAGSystem:
                 # Single query: use full hybrid search
                 dense_scores = results.get('distances', [[]])[0]
                 max_dist = max(dense_scores) if dense_scores else 1.0
+                # Handle case where max_dist is 0 (all distances are 0)
+                if max_dist == 0:
+                    max_dist = 1.0
                 normalized_dense = {idx: 1 - (dist/max_dist) for idx, dist in enumerate(dense_scores)}
                 
                 # Combine scores with weights

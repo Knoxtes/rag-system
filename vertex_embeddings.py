@@ -5,6 +5,12 @@ from vertexai.language_models import TextEmbeddingModel, TextEmbeddingInput
 import numpy as np
 from typing import List, Optional
 from config import PROJECT_ID, LOCATION, ENABLE_EMBEDDING_CACHE, EMBEDDING_CACHE_DIR, EMBEDDING_CACHE_TTL_DAYS
+try:
+    import tiktoken
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+    print("⚠️  tiktoken not available, using character count approximation for token counting")
 
 
 class VertexEmbedder:
@@ -33,6 +39,19 @@ class VertexEmbedder:
         self.model = TextEmbeddingModel.from_pretrained(model_name)
         self.model_name = model_name
         self.dimension = 768  # Vertex embeddings are 768-dimensional
+        
+        # Token limits for Vertex AI embedding models
+        self.max_tokens = 20000  # Vertex AI embedding model limit
+        self.max_batch_tokens = 18000  # Leave some buffer
+        
+        # Initialize tokenizer for counting tokens (approximate)
+        self.tokenizer = None
+        if TIKTOKEN_AVAILABLE:
+            try:
+                self.tokenizer = tiktoken.get_encoding("cl100k_base")  # GPT-4 tokenizer as approximation
+            except:
+                pass
+        
         print(f"  ✓ Vertex AI Embeddings ready! Dimension: {self.dimension}")
         
         # Initialize embedding cache if enabled
@@ -47,6 +66,50 @@ class VertexEmbedder:
                 print(f"  ✓ Embedding cache enabled")
             except ImportError:
                 print("  ⚠️  embedding_cache module not found, caching disabled")
+    
+    def count_tokens(self, text: str) -> int:
+        """Count tokens in text (approximate)"""
+        if self.tokenizer:
+            return len(self.tokenizer.encode(text))
+        else:
+            # Fallback: approximate 1 token = 4 characters
+            return len(text) // 4
+    
+    def split_texts_by_tokens(self, texts, max_tokens: int):
+        """Split texts into batches that don't exceed token limit"""
+        batches = []
+        current_batch = []
+        current_tokens = 0
+        
+        for text in texts:
+            text_tokens = self.count_tokens(text)
+            
+            # If single text exceeds limit, truncate it
+            if text_tokens > max_tokens:
+                if self.tokenizer:
+                    # Truncate to max_tokens
+                    tokens = self.tokenizer.encode(text)[:max_tokens]
+                    text = self.tokenizer.decode(tokens)
+                    text_tokens = max_tokens
+                else:
+                    # Fallback: truncate by characters
+                    text = text[:max_tokens * 4]
+                    text_tokens = max_tokens
+                print(f"  ✂️  Truncated text from {self.count_tokens(text)} to {text_tokens} tokens")
+            
+            # Check if adding this text would exceed the limit
+            if current_tokens + text_tokens > max_tokens and current_batch:
+                batches.append(current_batch)
+                current_batch = [text]
+                current_tokens = text_tokens
+            else:
+                current_batch.append(text)
+                current_tokens += text_tokens
+        
+        if current_batch:
+            batches.append(current_batch)
+        
+        return batches
     
     def embed_documents(self, texts: List[str], task_type: str = "RETRIEVAL_DOCUMENT") -> np.ndarray:
         """
@@ -89,20 +152,29 @@ class VertexEmbedder:
         if uncached_texts:
             print(f"  🌐 Generating {len(uncached_texts)} embeddings via Vertex AI...")
             
-            # Vertex AI supports batch processing (up to 250 texts per request)
-            batch_size = 250
-            for i in range(0, len(uncached_texts), batch_size):
-                batch = uncached_texts[i:i + batch_size]
+            # Split texts by token limits
+            token_batches = self.split_texts_by_tokens(uncached_texts, self.max_batch_tokens)
+            print(f"  📦 Split into {len(token_batches)} token-limited batches")
+            
+            for batch_idx, batch in enumerate(token_batches):
+                # Further split by count (Vertex AI supports up to 250 texts per request)
+                count_batch_size = 250
                 
-                # Create TextEmbeddingInput objects with task type
-                inputs = [TextEmbeddingInput(text, task_type) for text in batch]
-                
-                # Get embeddings
-                embeddings = self.model.get_embeddings(inputs)
-                
-                # Extract values
-                batch_embeddings = [emb.values for emb in embeddings]
-                new_embeddings.extend(batch_embeddings)
+                for i in range(0, len(batch), count_batch_size):
+                    sub_batch = batch[i:i + count_batch_size]
+                    
+                    # Create TextEmbeddingInput objects with task type
+                    inputs = [TextEmbeddingInput(text, task_type) for text in sub_batch]
+                    
+                    # Get embeddings
+                    embeddings = self.model.get_embeddings(inputs)
+                    
+                    # Extract values
+                    batch_embeddings = [emb.values for emb in embeddings]
+                    new_embeddings.extend(batch_embeddings)
+                    
+                    if len(token_batches) > 1 or len(batch) > count_batch_size:
+                        print(f"    ✓ Processed batch {batch_idx + 1}/{len(token_batches)}, sub-batch {i//count_batch_size + 1}")
             
             # Cache the new embeddings
             if self.cache:
@@ -173,9 +245,9 @@ class VertexReranker:
         self.embedder = embedder or VertexEmbedder()
         print("  ✓ Vertex Reranker ready (using embedding similarity)")
     
-    def rerank(self, query: str, contexts: List[str], return_scores: bool = True) -> List[dict]:
+    def rerank(self, query: str, contexts: list, return_scores: bool = True):
         """
-        Rerank contexts based on cosine similarity with query.
+        Rerank contexts using cosine similarity with embeddings
         
         Args:
             query: Search query
@@ -188,17 +260,70 @@ class VertexReranker:
         if not contexts:
             return []
         
+        # Limit contexts to prevent token overflow
+        # Estimate tokens and truncate if necessary
+        total_estimated_tokens = sum(self.embedder.count_tokens(ctx) for ctx in contexts)
+        
+        if total_estimated_tokens > self.embedder.max_batch_tokens:
+            print(f"  ⚠️  Contexts too large ({total_estimated_tokens} tokens), limiting for reranking...")
+            
+            # Keep contexts until we hit the token limit
+            limited_contexts = []
+            token_count = 0
+            
+            for ctx in contexts:
+                ctx_tokens = self.embedder.count_tokens(ctx)
+                if token_count + ctx_tokens <= self.embedder.max_batch_tokens:
+                    limited_contexts.append(ctx)
+                    token_count += ctx_tokens
+                else:
+                    break
+            
+            contexts = limited_contexts
+            print(f"  📝 Limited to {len(contexts)} contexts ({token_count} tokens)")
+        
+        # Handle edge cases
+        if not contexts:
+            return []
+        
         # Get embeddings
         query_emb = self.embedder.embed_query(query)
         context_embs = self.embedder.embed_documents(contexts, task_type="RETRIEVAL_DOCUMENT")
         
-        # Calculate cosine similarities
-        # Normalize embeddings
-        query_norm = query_emb / np.linalg.norm(query_emb)
-        context_norms = context_embs / np.linalg.norm(context_embs, axis=1, keepdims=True)
+        # Convert to numpy arrays and handle edge cases
+        query_emb = np.array(query_emb)
+        context_embs = np.array(context_embs)
+        
+        # Check for valid embeddings
+        if context_embs.size == 0 or len(context_embs.shape) != 2:
+            print(f"  ⚠️  Invalid context embeddings shape: {context_embs.shape}")
+            return []
+        
+        # Calculate cosine similarities with safe normalization
+        query_norm = np.linalg.norm(query_emb)
+        if query_norm == 0:
+            print(f"  ⚠️  Query embedding has zero norm")
+            return []
+        
+        query_normalized = query_emb / query_norm
+        
+        # Normalize context embeddings
+        context_norms = np.linalg.norm(context_embs, axis=1, keepdims=True)
+        
+        # Handle zero norms in context embeddings
+        zero_norm_mask = context_norms.flatten() == 0
+        if np.any(zero_norm_mask):
+            print(f"  ⚠️  {np.sum(zero_norm_mask)} context embeddings have zero norm, skipping them")
+            # Replace zero norms with 1 to avoid division by zero
+            context_norms[zero_norm_mask] = 1.0
+        
+        context_normalized = context_embs / context_norms
         
         # Compute similarities
-        similarities = np.dot(context_norms, query_norm)
+        similarities = np.dot(context_normalized, query_normalized)
+        
+        # Set zero scores for contexts that had zero norm
+        similarities[zero_norm_mask] = 0.0
         
         # Create results
         reranked_results = [

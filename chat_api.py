@@ -530,24 +530,26 @@ def initialize_rag_system():
         # Initialize RAG systems for the available collections
         if available_collections:
             try:
-                # print("[+] Initializing RAG systems...")  # Disabled for production
-                pass
+                print("[+] Initializing RAG systems...")  # Temporarily enabled for debugging
                 
                 # Initialize individual collection RAG systems
                 for collection_name in available_collections:
                     if collection_name != "ALL_COLLECTIONS":
                         try:
+                            print(f"    [+] Initializing RAG for collection: {collection_name}")  # Temporarily enabled
                             temp_rag = EnhancedRAGSystem(
                                 drive_service=drive_service, 
                                 collection_name=collection_name
                             )
-                            # print(f"    ✓ Initialized RAG for collection: {collection_name}")  # Disabled for production
+                            print(f"    ✓ Initialized RAG for collection: {collection_name}")  # Temporarily enabled
                             # Use the first available collection as default if rag_system is None
                             if rag_system is None:
                                 rag_system = temp_rag
+                                print(f"    ✓ Set {collection_name} as default RAG system")  # Temporarily enabled
                         except Exception as e:
-                            # print(f"    ⚠️  Failed to initialize RAG for {collection_name}: {e}")  # Disabled for production
-                            pass
+                            print(f"    ⚠️  Failed to initialize RAG for {collection_name}: {e}")  # Temporarily enabled
+                            import traceback
+                            traceback.print_exc()  # Temporarily enabled
                 
                 # Initialize multi-collection RAG if multiple collections available
                 collection_names = [k for k in available_collections.keys() if k != "ALL_COLLECTIONS"]
@@ -559,16 +561,17 @@ def initialize_rag_system():
                             drive_service=drive_service,
                             available_collections=collections_dict
                         )
-                        # print(f"    ✓ Initialized multi-collection RAG for {len(collection_names)} collections")  # Disabled for production
+                        print(f"    ✓ Initialized multi-collection RAG for {len(collection_names)} collections")  # Temporarily enabled
                     except Exception as e:
-                        # print(f"    ⚠️  Failed to initialize multi-collection RAG: {e}")  # Disabled for production
+                        print(f"    ⚠️  Failed to initialize multi-collection RAG: {e}")  # Temporarily enabled
                         import traceback
                         traceback.print_exc()
                         
-                # print("✅ RAG system initialization completed")  # Disabled for production
+                print("✅ RAG system initialization completed")  # Temporarily enabled
             except Exception as e:
-                # print(f"❌ Error during RAG initialization: {e}")  # Disabled for production
-                pass
+                print(f"❌ Error during RAG initialization: {e}")  # Temporarily enabled
+                import traceback
+                traceback.print_exc()
         
         # Add special "ALL_COLLECTIONS" entry
         if len(available_collections) > 1:
@@ -635,6 +638,19 @@ def health_check():
         'collections_available': len(available_collections),
         'auth_required': True,
         'allowed_domains': oauth_config.allowed_domains if oauth_config.allowed_domains else ['all']
+    })
+
+@app.route('/force-init', methods=['GET'])
+def force_init():
+    """Force re-initialization of RAG system"""
+    global _rag_initialized
+    _rag_initialized = False
+    initialize_rag_system()
+    return jsonify({
+        'status': 'reinitialized',
+        'rag_initialized': rag_system is not None,
+        'multi_collection_available': multi_collection_rag is not None,
+        'collections_available': len(available_collections)
     })
 
 @app.route('/collections', methods=['GET'])

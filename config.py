@@ -18,6 +18,9 @@ CREDENTIALS_FILE = "credentials.json"
 TOKEN_FILE = "token.pickle"
 INDEXED_FOLDERS_FILE = "indexed_folders.json"
 
+# Google Drive Settings
+SHARED_DRIVE_ID = '0AMjLFg-ngmOAUk9PVA'  # 7MM Resources shared drive ID
+
 # ChromaDB Settings
 CHROMA_PERSIST_DIR = "./chroma_db"
 COLLECTION_NAME = "google_drive_docs" 

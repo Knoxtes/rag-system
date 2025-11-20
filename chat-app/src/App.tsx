@@ -994,9 +994,7 @@ const ChatApp: React.FC = () => {
     };
     
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+      <div
         className="bg-light-100 dark:bg-dark-800 border border-brand-mint dark:border-dark-600 rounded-lg p-3 mt-2 hover:border-brand-green dark:hover:border-blue-500 transition-colors group"
       >
         <div className="flex items-center justify-between">
@@ -1033,7 +1031,7 @@ const ChatApp: React.FC = () => {
             {document.file_id && (
               <button
                 onClick={handleAnalyzeDocument}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-brand-dark/60 dark:text-gray-400 hover:text-brand-green dark:hover:text-blue-400"
+                className="p-2 text-brand-dark/60 dark:text-gray-400 hover:text-brand-green dark:hover:text-blue-400 transition-colors"
                 title="Analyze this document"
               >
                 <Search className="w-4 h-4" />
@@ -1044,7 +1042,7 @@ const ChatApp: React.FC = () => {
                 href={`https://drive.google.com/uc?export=download&id=${document.file_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-brand-dark/60 dark:text-gray-400 hover:text-brand-green dark:hover:text-blue-400"
+                className="p-2 text-brand-dark/60 dark:text-gray-400 hover:text-brand-green dark:hover:text-blue-400 transition-colors"
                 title="Download from Google Drive"
               >
                 <Download className="w-4 h-4" />
@@ -1063,7 +1061,7 @@ const ChatApp: React.FC = () => {
             )}
           </div>
         </div>
-      </motion.div>
+      </div>
     );
   };
 
