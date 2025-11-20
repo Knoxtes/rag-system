@@ -8,8 +8,10 @@ LOCATION = "us-central1"
 
 # API Settings
 USE_VERTEX_AI = True  # Use Vertex AI (Google Cloud credits) instead of consumer API
+USE_VERTEX_EMBEDDINGS = True  # Use Vertex AI for embeddings (highly recommended for production)
 # Set to False to use free consumer API with GOOGLE_API_KEY
 # Note: Vertex AI requires Google Cloud credentials and billing enabled
+# Vertex Embeddings cost: ~$0.00002 per 1K characters (~$0.30-3/month for 100 users)
 
 # File paths
 CREDENTIALS_FILE = "credentials.json"
@@ -95,10 +97,15 @@ SCOPES = [
 
 # OCR Settings
 OCR_ENABLED = True  # Enable/disable OCR processing for images
-OCR_BACKEND = "easyocr"  # Options: "easyocr", "tesseract", "google_vision"
+OCR_BACKEND = "documentai"  # Options: "documentai", "easyocr", "tesseract", "google_vision"
 OCR_CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence score for OCR text (0.0-1.0)
 OCR_LANGUAGES = ["en"]  # Languages for OCR processing (e.g., ["en", "es", "fr"])
 OCR_GPU_ENABLED = True  # Use GPU acceleration for EasyOCR (if available)
+
+# Google Document AI Settings (when OCR_BACKEND = "documentai")
+DOCUMENTAI_PROJECT_ID = "rag-chatbot-475316"  # Your Google Cloud project ID
+DOCUMENTAI_LOCATION = "us"  # Processor location: "us", "eu", or "asia"
+DOCUMENTAI_PROCESSOR_ID = None  # Optional: Specific processor ID (None = use default OCR processor)
 
 # Text Clarification Settings
 TEXT_CLARIFICATION_ENABLED = True  # Enable/disable AI text clarification for OCR

@@ -17,7 +17,11 @@ from config import (
     OCR_BACKEND,
     OCR_CONFIDENCE_THRESHOLD,
     OCR_LANGUAGES,
-    OCR_ENABLED
+    OCR_ENABLED,
+    # Document AI Settings
+    DOCUMENTAI_PROJECT_ID,
+    DOCUMENTAI_LOCATION,
+    DOCUMENTAI_PROCESSOR_ID
 )
 # --- OPTIMIZATION: Use Langchain for robust, standard chunning ---
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -71,11 +75,23 @@ class GoogleDriveLoader:
         """Initialize OCR service if enabled"""
         if OCR_ENABLED:
             try:
-                self.ocr_service = OCRServiceFactory.create_service(
-                    backend=OCR_BACKEND,
-                    confidence_threshold=OCR_CONFIDENCE_THRESHOLD
-                )
-                logger.info(f"OCR service initialized: {OCR_BACKEND}")
+                # Use Document AI if specified
+                if OCR_BACKEND == "documentai":
+                    from documentai_ocr import create_documentai_service
+                    self.ocr_service = create_documentai_service(
+                        project_id=DOCUMENTAI_PROJECT_ID,
+                        location=DOCUMENTAI_LOCATION,
+                        processor_id=DOCUMENTAI_PROCESSOR_ID,
+                        confidence_threshold=OCR_CONFIDENCE_THRESHOLD
+                    )
+                    logger.info(f"Document AI OCR service initialized (project: {DOCUMENTAI_PROJECT_ID})")
+                else:
+                    # Fallback to legacy OCR service factory
+                    self.ocr_service = OCRServiceFactory.create_service(
+                        backend=OCR_BACKEND,
+                        confidence_threshold=OCR_CONFIDENCE_THRESHOLD
+                    )
+                    logger.info(f"OCR service initialized: {OCR_BACKEND}")
             except Exception as e:
                 logger.warning(f"Failed to initialize OCR service: {e}")
                 self.ocr_service = None
@@ -419,28 +435,34 @@ def extract_text(file_content, mime_type, filename="", ocr_service=None):
             if not text.strip() and ocr_service:
                 logger.info(f"PDF '{filename}' appears to be scanned/image-based, attempting OCR...")
                 try:
-                    # Convert PDF pages to images and OCR each page
-                    import fitz  # PyMuPDF for PDF to image conversion
-                    file_content.seek(0)
-                    pdf_document = fitz.open(stream=file_content.read(), filetype="pdf")
-                    
-                    ocr_text_parts = []
-                    for page_num in range(len(pdf_document)):
-                        # Convert page to image
-                        page = pdf_document.load_page(page_num)
-                        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom for better OCR
-                        image_data = pix.tobytes("png")
+                    # Check if using Document AI (can process entire PDF directly)
+                    if OCR_BACKEND == "documentai" and hasattr(ocr_service, 'process_pdf'):
+                        logger.info(f"Using Document AI to process entire PDF: {filename}")
+                        file_content.seek(0)
+                        ocr_result = ocr_service.process_pdf(file_content.read())
+                        combined_ocr_text = ocr_result.text
+                    else:
+                        # Fallback: Convert PDF pages to images and OCR each page
+                        import fitz  # PyMuPDF for PDF to image conversion
+                        file_content.seek(0)
+                        pdf_document = fitz.open(stream=file_content.read(), filetype="pdf")
                         
-                        # OCR the page image
-                        ocr_result = ocr_service.extract_text(image_data, languages=OCR_LANGUAGES)
-                        if ocr_result.text.strip():
-                            ocr_text_parts.append(f"[Page {page_num + 1}]\n{ocr_result.text}")
+                        ocr_text_parts = []
+                        for page_num in range(len(pdf_document)):
+                            # Convert page to image
+                            page = pdf_document.load_page(page_num)
+                            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom for better OCR
+                            image_data = pix.tobytes("png")
+                            
+                            # OCR the page image
+                            ocr_result = ocr_service.extract_text(image_data, languages=OCR_LANGUAGES)
+                            if ocr_result.text.strip():
+                                ocr_text_parts.append(f"[Page {page_num + 1}]\n{ocr_result.text}")
+                        
+                        pdf_document.close()
+                        combined_ocr_text = "\n\n".join(ocr_text_parts) if ocr_text_parts else ""
                     
-                    pdf_document.close()
-                    
-                    if ocr_text_parts:
-                        # Combine OCR text from all pages
-                        combined_ocr_text = "\n\n".join(ocr_text_parts)
+                    if combined_ocr_text.strip():
                         
                         # Process through quality filter and clarification
                         processed_text = process_extracted_text(

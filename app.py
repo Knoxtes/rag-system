@@ -7,6 +7,11 @@ import sys
 import logging
 from pathlib import Path
 
+# Suppress harmless gRPC ALTS warnings (appears when running locally, not on GCP)
+os.environ['GRPC_ENABLE_FORK_SUPPORT'] = '0'
+logging.getLogger('google.auth').setLevel(logging.ERROR)
+logging.getLogger('google.cloud').setLevel(logging.WARNING)
+
 # Add project directory to Python path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))

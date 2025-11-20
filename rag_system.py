@@ -27,7 +27,7 @@ from config import (
     ENABLE_MULTI_QUERY, ENABLE_CROSS_ENCODER_FUSION, SYNTHESIS_CONTEXT_WINDOW,
     MIN_SOURCES_FOR_SYNTHESIS, ENABLE_QUERY_CACHE, CACHE_TTL_SECONDS, CACHE_MAX_SIZE,
     SYNTHESIS_QUERY_THRESHOLD, ENABLE_AI_ROUTING, AI_ROUTING_CONFIDENCE_THRESHOLD,
-    PROJECT_ID, LOCATION, USE_VERTEX_AI
+    PROJECT_ID, LOCATION, USE_VERTEX_AI, USE_VERTEX_EMBEDDINGS
 )
 import webbrowser
 import os
@@ -830,11 +830,19 @@ class EnhancedRAGSystem:
         
         genai.configure(api_key=api_key)
         
+        # Load embeddings based on config
         print("Loading embeddings...")
-        self.embedder = LocalEmbedder()
-        
-        print("Loading re-ranking model...")
-        self.reranker = LocalReranker()
+        if USE_VERTEX_EMBEDDINGS:
+            from vertex_embeddings import VertexEmbedder, VertexReranker
+            print("  🌐 Using Vertex AI Embeddings (production-grade)")
+            self.embedder = VertexEmbedder()
+            print("Loading re-ranking model...")
+            self.reranker = VertexReranker(self.embedder)
+        else:
+            print("  💻 Using Local Embeddings (development mode)")
+            self.embedder = LocalEmbedder()
+            print("Loading re-ranking model...")
+            self.reranker = LocalReranker()
         
         print(f"Connecting to vector store: '{self.collection_name}'")
         self.vector_store = VectorStore(collection_name=self.collection_name)
