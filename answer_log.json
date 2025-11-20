@@ -470,5 +470,16 @@
       "cached": false,
       "response_time": 6.35938572883606
     }
+  },
+  {
+    "timestamp": "2025-11-20T09:31:27.612816",
+    "question": "What holidays do we have off this year?",
+    "answer": "I am unable to find a definitive list of company-observed holidays for this year in the indexed documents. The search for \"list of company observed holidays for this year\" and \"HR policy time off and holidays\" did not return any relevant documents.\n\nPlease check the official company HR portal or a document titled \"Company Holiday Schedule\" or \"Time Off Policy\" in the main Google Drive for the most accurate and up-to-date information.",
+    "metadata": {
+      "query_type": "agent",
+      "iterations": 2,
+      "cached": false,
+      "response_time": 4.134456157684326
+    }
   }
 ]

@@ -265,16 +265,21 @@ When asked to summarize, compare, or aggregate information across multiple docum
 **Remember:** The search is smart - it auto-expands queries AND generates multiple variations for synthesis tasks. Keep queries focused and specific. Read ALL snippets before answering, and ALWAYS include source links for referenced information!
 """
 
-def _get_generative_model(model_name='gemini-2.0-flash-exp'):
+def _get_generative_model(model_name=None):
     """
     Get a generative model (Vertex AI or consumer API based on config).
     
     Args:
-        model_name: Model identifier (e.g., 'gemini-2.0-flash-exp', 'gemini-1.5-pro')
+        model_name: Model identifier (defaults to GEMINI_MODEL from config)
     
     Returns:
         Model instance (either Vertex AI or genai)
     """
+    # Use configured model if not specified
+    if model_name is None:
+        from config import GEMINI_MODEL
+        model_name = GEMINI_MODEL
+    
     if USE_VERTEX_AI:
         if not VERTEX_AI_AVAILABLE:
             print("⚠️  Vertex AI not available, falling back to consumer API")
@@ -286,12 +291,11 @@ def _get_generative_model(model_name='gemini-2.0-flash-exp'):
         print(f"  ☁️  Using Vertex AI with Google Cloud project: {PROJECT_ID}")
         
         # Map consumer model names to Vertex AI model names
-        # Use latest stable models (auto-updated aliases)
         vertex_model_map = {
-            'gemini-2.0-flash-exp': 'gemini-2.0-flash',  # Latest stable 2.0
-            'gemini-2.5-flash-preview-09-2025': 'gemini-2.5-flash',  # Latest stable 2.5
-            'gemini-1.5-flash': 'gemini-2.5-flash',  # Upgrade to 2.5
-            'gemini-1.5-pro': 'gemini-2.5-pro'  # Upgrade to 2.5
+            'gemini-2.5-flash': 'gemini-2.5-flash',  # Flash 2.5 (cheapest)
+            'gemini-2.0-flash-exp': 'gemini-2.0-flash-exp',
+            'gemini-1.5-flash': 'gemini-1.5-flash',
+            'gemini-1.5-pro': 'gemini-1.5-pro'
         }
         
         vertex_model_name = vertex_model_map.get(model_name, 'gemini-2.5-flash')

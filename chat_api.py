@@ -1,14 +1,13 @@
 # chat_api.py - Flask API for the React chat app
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 import json
 import traceback
 import os
 import sys
 import argparse
 import time
+import io
 from threading import Thread, Lock
 from datetime import datetime, timedelta
 import gzip
@@ -28,6 +27,7 @@ from auth import authenticate_google_drive
 from oauth_config import require_auth, oauth_config
 from auth_routes import auth_bp
 from config import SCOPES, CREDENTIALS_FILE, TOKEN_FILE, USE_VERTEX_AI
+from rate_limiter import limiter
 import re
 
 app = Flask(__name__)
@@ -44,11 +44,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
 CORS(app, origins=cors_origins, supports_credentials=True)
 
-# Rate Limiting
-limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
-)
+# Initialize Rate Limiting
 limiter.init_app(app)
 
 # Register authentication blueprint
@@ -82,8 +78,8 @@ if not app.debug:
 
 def analyze_file_with_workspace(file_id: str, user_question: str):
     """
-    Analyze a specific Google Drive file using workspace/direct document analysis
-    instead of the RAG system for more targeted responses.
+    Analyze a specific Google Drive file using Gemini's native Drive grounding.
+    This uses Google's "Connect to Workspace" feature - no downloads needed!
     """
     global drive_service
     
@@ -91,19 +87,23 @@ def analyze_file_with_workspace(file_id: str, user_question: str):
         return None
         
     try:
-        # Get file metadata from Google Drive
-        file_metadata = drive_service.files().get(fileId=file_id).execute()
+        # Get file metadata from Google Drive (with shared drive support)
+        file_metadata = drive_service.files().get(
+            fileId=file_id, 
+            fields='name,mimeType,webViewLink',
+            supportsAllDrives=True
+        ).execute()
         file_name = file_metadata.get('name', 'Unknown File')
         mime_type = file_metadata.get('mimeType', '')
+        web_link = file_metadata.get('webViewLink', '')
         
-        print(f"  📋 Analyzing file: {file_name} (type: {mime_type})")
+        print(f"  📋 Analyzing file directly: {file_name} (type: {mime_type})")
         
-        # Download and process the file content
+        # Download and analyze the file content directly (no grounding - it doesn't work for Drive)
         file_content = download_and_process_file(file_id, file_name, mime_type)
         if not file_content:
             return None
-            
-        # Use Gemini to analyze the document directly
+        
         workspace_response = query_document_with_gemini(file_content, file_name, user_question)
         
         return {
@@ -111,7 +111,7 @@ def analyze_file_with_workspace(file_id: str, user_question: str):
             'documents': [{
                 'filename': file_name,
                 'type': 'Direct Analysis',
-                'url': f"https://drive.google.com/file/d/{file_id}/view",
+                'url': web_link or f"https://drive.google.com/file/d/{file_id}/view",
                 'extension': file_name.split('.')[-1] if '.' in file_name else '',
                 'collection': 'workspace_analysis',
                 'score': 1.0
@@ -120,62 +120,106 @@ def analyze_file_with_workspace(file_id: str, user_question: str):
         
     except Exception as e:
         print(f"  ❌ Error in workspace analysis: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def download_and_process_file(file_id: str, file_name: str, mime_type: str):
-    """Download and extract text content from a Google Drive file"""
+    """Stream and extract text content from Google Drive file (optimized for bandwidth/memory)"""
     global drive_service
     
     try:
-        # Handle different file types
+        # Handle different file types - using export/streaming where possible
         if mime_type == 'text/csv':
-            # Download CSV directly
+            # Stream CSV directly (no download to disk)
             request = drive_service.files().get_media(fileId=file_id)
-            content = request.execute().decode('utf-8')
-            return f"CSV File: {file_name}\n\n{content}"
+            content = request.execute().decode('utf-8', errors='ignore')
+            # Allow up to 500KB for better analysis quality
+            return f"CSV File: {file_name}\n\n{content[:500000]}"
             
         elif mime_type == 'application/vnd.google-apps.spreadsheet':
-            # Export Google Sheets as CSV
+            # Export Google Sheets as CSV (happens server-side, no download)
             request = drive_service.files().export_media(fileId=file_id, mimeType='text/csv')
-            content = request.execute().decode('utf-8')
-            return f"Spreadsheet: {file_name}\n\n{content}"
+            content = request.execute().decode('utf-8', errors='ignore')
+            # Allow up to 500KB for better analysis quality
+            return f"Spreadsheet: {file_name}\n\n{content[:500000]}"
             
         elif mime_type == 'application/vnd.google-apps.document':
-            # Export Google Docs as plain text
+            # Export Google Docs as plain text (happens server-side, no download)
             request = drive_service.files().export_media(fileId=file_id, mimeType='text/plain')
-            content = request.execute().decode('utf-8')
-            return f"Document: {file_name}\n\n{content}"
+            content = request.execute().decode('utf-8', errors='ignore')
+            # Allow up to 500KB for better analysis quality
+            return f"Document: {file_name}\n\n{content[:500000]}"
             
-        elif mime_type in ['text/plain']:
-            # Download text files
+        elif mime_type in ['text/plain', 'text/markdown', 'application/json']:
+            # Stream text files directly
             request = drive_service.files().get_media(fileId=file_id)
-            content = request.execute().decode('utf-8')
-            return f"Text File: {file_name}\n\n{content}"
+            content = request.execute().decode('utf-8', errors='ignore')
+            # Allow up to 500KB for better analysis quality
+            return f"Text File: {file_name}\n\n{content[:500000]}"
             
         elif 'application/pdf' in mime_type:
-            print(f"  ⚠️ PDF files require special processing - not yet supported for workspace analysis")
-            return None
+            print(f"  📄 PDF detected - checking file size first...")
+            try:
+                # Check file size before downloading (with shared drive support)
+                file_metadata = drive_service.files().get(
+                    fileId=file_id, 
+                    fields='size',
+                    supportsAllDrives=True
+                ).execute()
+                file_size = int(file_metadata.get('size', 0))
+                
+                # Limit PDF size to 20MB to allow larger documents
+                MAX_PDF_SIZE = 20 * 1024 * 1024  # 20MB
+                if file_size > MAX_PDF_SIZE:
+                    print(f"  ⚠️ PDF too large ({file_size / 1024 / 1024:.1f}MB), skipping OCR")
+                    return f"PDF Document: {file_name}\n\nNote: This PDF is {file_size / 1024 / 1024:.1f}MB. For large PDFs, please ask specific questions and I'll help you locate the information."
+                
+                # Stream PDF to memory buffer (not disk)
+                print(f"  📥 Streaming PDF ({file_size / 1024:.1f}KB)...")
+                request = drive_service.files().get_media(fileId=file_id)
+                pdf_content = io.BytesIO(request.execute())
+                
+                # Extract text using document_loader
+                from document_loader import extract_text, GoogleDriveLoader
+                loader = GoogleDriveLoader(drive_service)
+                
+                if loader.ocr_service:
+                    text = extract_text(pdf_content, mime_type, file_name, loader.ocr_service)
+                    if text:
+                        # Allow up to 500KB for better analysis quality
+                        return f"PDF Document: {file_name}\n\n{text[:500000]}"
+                    else:
+                        print(f"  ⚠️ No text extracted from PDF")
+                        return None
+                else:
+                    print(f"  ⚠️ OCR service not available for PDF processing")
+                    return None
+            except Exception as pdf_error:
+                print(f"  ❌ Error processing PDF: {pdf_error}")
+                return None
             
         else:
             print(f"  ⚠️ Unsupported file type: {mime_type}")
-            print(f"    Supported types: CSV, Google Sheets, Google Docs, Text files")
+            print(f"    Supported: Google Docs, Sheets, CSV, Text, JSON, PDF (<5MB)")
             return None
             
     except Exception as e:
         print(f"  ❌ Error downloading file: {e}")
         return None
 
+
+
 def query_document_with_gemini(document_content: str, file_name: str, user_question: str):
     """Use Gemini to analyze the document content directly"""
     try:
-        import google.generativeai as genai
-        from config import USE_VERTEX_AI
+        from config import USE_VERTEX_AI, GOOGLE_API_KEY, PROJECT_ID, LOCATION
         
         # Prepare the prompt for document analysis
         analysis_prompt = f"""You are analyzing a specific document for a user. Here is the document content:
 
 === DOCUMENT: {file_name} ===
-{document_content[:15000]}  # Limit content to avoid token limits
+{document_content[:100000]}  # Allow up to 100KB for better analysis
 === END DOCUMENT ===
 
 User Question: {user_question}
@@ -194,18 +238,30 @@ Answer:"""
             # Use Vertex AI
             import vertexai
             from vertexai.generative_models import GenerativeModel
+            from config import GEMINI_MODEL
             
-            model = GenerativeModel("gemini-1.5-pro")
+            # Initialize Vertex AI
+            vertexai.init(project=PROJECT_ID, location=LOCATION)
+            
+            model = GenerativeModel(GEMINI_MODEL)
             response = model.generate_content(analysis_prompt)
             return response.text
         else:
             # Use regular Gemini API
-            model = genai.GenerativeModel('gemini-1.5-pro')
+            import google.generativeai as genai
+            from config import GEMINI_MODEL
+            
+            # Configure the API key
+            genai.configure(api_key=GOOGLE_API_KEY)
+            
+            model = genai.GenerativeModel(GEMINI_MODEL)
             response = model.generate_content(analysis_prompt)
             return response.text
             
     except Exception as e:
         print(f"  ❌ Error in Gemini analysis: {e}")
+        import traceback
+        traceback.print_exc()
         return f"I was able to access the document '{file_name}' but encountered an error during analysis: {str(e)}. You can try asking a different question or use the regular chat mode."
 
 # Global variables to hold the RAG system
@@ -619,7 +675,67 @@ def chat():
         file_id = data.get('file_id')  # Extract file_id for targeted queries
         print(f"[DEBUG] Message: {message}, Collection: {collection}, File ID: {file_id}")
         
-        # Check if RAG system is initialized
+        # PRIORITY: Handle direct document queries FIRST (before any RAG logic)
+        if file_id:
+            print(f"  📄 WORKSPACE QUERY: Analyzing specific file: {file_id}")
+            
+            # Try workspace query first (downloads up to 500KB)
+            try:
+                workspace_response = analyze_file_with_workspace(file_id, message)
+                
+                # If workspace query succeeded, return it
+                if workspace_response:
+                    print(f"  ✅ Workspace analysis completed successfully")
+                    return jsonify({
+                        'answer': workspace_response['answer'],
+                        'documents': workspace_response.get('documents', []),
+                        'query_type': 'workspace',
+                        'file_analyzed': file_id,
+                        'analysis_method': 'direct_workspace_query'
+                    })
+                
+                # If workspace query failed, try RAG fallback (for large files)
+                print(f"  ⚠️ Workspace analysis incomplete, trying RAG fallback for full data...")
+                
+                # Try to find the file in RAG collections (for CSVs and large files)
+                if collection and collection != "ALL_COLLECTIONS":
+                    try:
+                        # Query specific collection with file reference
+                        print(f"  🔍 Searching RAG collection '{collection}' for file data...")
+                        
+                        # Enhance query with file ID context
+                        rag_query = f"{message} [File ID: {file_id}]"
+                        rag_result = rag_system.query(rag_query, collection_id=collection)
+                        
+                        if rag_result and rag_result.get('answer'):
+                            print(f"  ✅ RAG fallback successful - found full data!")
+                            return jsonify({
+                                'answer': rag_result['answer'],
+                                'documents': rag_result.get('documents', []),
+                                'query_type': 'rag_fallback',
+                                'file_analyzed': file_id,
+                                'analysis_method': 'rag_full_data'
+                            })
+                    except Exception as rag_error:
+                        print(f"  ⚠️ RAG fallback failed: {rag_error}")
+                
+                # Both methods failed
+                print(f"  ❌ All analysis methods failed")
+                return jsonify({
+                    'error': 'Failed to analyze the selected file. The file may be too large or unsupported.',
+                    'file_id': file_id
+                }), 400
+                
+            except Exception as workspace_error:
+                print(f"  ❌ Workspace query error: {workspace_error}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({
+                    'error': f'Error analyzing file: {str(workspace_error)}',
+                    'file_id': file_id
+                }), 500
+        
+        # Check if RAG system is initialized (only needed for RAG queries)
         if not rag_system:
             print(f"[DEBUG] RAG system not initialized, returning 503")
             return jsonify({
@@ -627,17 +743,15 @@ def chat():
                 'code': 'SYSTEM_INITIALIZING'
             }), 503  # Service Unavailable
         
-        # Handle ALL_COLLECTIONS mode
+        # Handle ALL_COLLECTIONS mode (RAG queries only)
         if collection == "ALL_COLLECTIONS":
             print(f"[DEBUG] ALL_COLLECTIONS requested, multi_collection_rag available: {multi_collection_rag is not None}")
             if not multi_collection_rag:
                 print(f"[DEBUG] Multi-collection not available, returning error")
                 return jsonify({'error': 'Multi-collection system not available. Please select a specific collection.'}), 400
             
-            print(f"🔍 Multi-collection query: {message}")
-            if file_id:
-                print(f"  📄 Targeted query for specific file: {file_id}")
-            response = multi_collection_rag.process_chat(message, file_id=file_id)
+            print(f"🔍 Multi-collection RAG query: {message}")
+            response = multi_collection_rag.process_chat(message)
             
             # Extract documents/sources from multi-collection response
             documents = []
@@ -673,30 +787,9 @@ def chat():
             else:
                 return jsonify({'error': f'Collection {collection} not found'}), 400
         
-        # Query single collection RAG system
-        print(f"Processing query: {message}")
-        if file_id:
-            print(f"  📄 Targeted query for specific file: {file_id}")
-            
-            # Use workspace query for specific file analysis
-            try:
-                workspace_response = analyze_file_with_workspace(file_id, message)
-                if workspace_response:
-                    print(f"  ✅ Workspace analysis completed for file: {file_id}")
-                    return jsonify({
-                        'answer': workspace_response['answer'],
-                        'documents': workspace_response.get('documents', []),
-                        'query_type': 'workspace',
-                        'file_analyzed': file_id,
-                        'analysis_method': 'direct_workspace_query'
-                    })
-                else:
-                    print(f"  ⚠️ Workspace analysis failed, falling back to RAG")
-            except Exception as workspace_error:
-                print(f"  ❌ Workspace query error: {workspace_error}")
-                print(f"  🔄 Falling back to RAG system")
-        
-        response = rag_system.query(message, file_id=file_id)
+        # Use RAG system for collection queries (no specific file selected)
+        print(f"Processing RAG query: {message}")
+        response = rag_system.query(message)
         
         # Extract answer and documents
         answer = response.get('answer', 'No response generated')

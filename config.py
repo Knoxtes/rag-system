@@ -51,6 +51,13 @@ MAX_CHUNKS_PER_FILE = 4  # INCREASED: Allow more chunks from highly relevant fil
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 MAX_CONTEXT_CHARACTERS = 8000  # OPTIMIZED: Reduced from 12000 to save API costs (33% reduction)
 
+# Gemini Model Settings
+GEMINI_MODEL = "gemini-2.5-flash"  # Cheapest and fastest model (Flash 2.5)
+# Alternative models:
+# GEMINI_MODEL = "gemini-2.0-flash-exp"  # Flash 2.0 experimental
+# GEMINI_MODEL = "gemini-1.5-flash"      # Previous Flash version
+# GEMINI_MODEL = "gemini-1.5-pro"        # Pro version (more expensive but better quality)
+
 # Query Caching Settings (NEW - for cost optimization)
 ENABLE_QUERY_CACHE = True  # Cache frequent queries to reduce API calls
 CACHE_TTL_SECONDS = 900  # Cache lifetime: 5 minutes

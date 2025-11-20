@@ -7,7 +7,7 @@ import axios from 'axios';
 import { AuthProvider, useAuth, LoginPage } from './Auth';
 import AuthPickup from './AuthPickup';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001';
 
 // Debug logging for API configuration
 console.log('API_BASE_URL configured as:', API_BASE_URL);
@@ -865,14 +865,32 @@ const ChatApp: React.FC = () => {
 
     } catch (error: any) {
       console.error('Failed to send message:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        data: error.response?.data,
+        status: error.response?.status
+      });
+      
       let errorText = 'Sorry, I encountered an error processing your request. Please make sure the API server is running.';
+      
+      // More specific error messages
       if (error.response?.status === 503) {
         errorText = 'The AI system is still initializing. Please wait a moment and try again.';
       } else if (error.response?.data?.code === 'SYSTEM_INITIALIZING') {
         errorText = 'The AI system is still loading. Please wait a few seconds and try your question again.';
       } else if (error.response?.status === 401) {
         errorText = 'Authentication expired. Please refresh the page and sign in again.';
+      } else if (error.response?.status === 400) {
+        errorText = error.response?.data?.error || 'Bad request. Please try again.';
+      } else if (error.response?.status === 500) {
+        errorText = error.response?.data?.error || 'Server error occurred. Please try again.';
+      } else if (error.response?.data?.error) {
+        errorText = error.response.data.error;
+      } else if (error.message) {
+        errorText = `Error: ${error.message}`;
       }
+      
       const errorMessage: Message = {
         id: (Date.now() + 3).toString(),
         text: errorText,

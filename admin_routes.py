@@ -17,6 +17,9 @@ from config import INDEXED_FOLDERS_FILE
 from google_auth_oauthlib.flow import Flow
 import pickle
 
+# Import shared limiter instance
+from rate_limiter import limiter
+
 # Create admin blueprint
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -901,6 +904,7 @@ def admin_dashboard_content():
 
 @admin_bp.route('/stats/system')
 @require_admin
+@limiter.exempt  # Exempt admin polling endpoints
 def get_system_stats():
     """Get system health statistics"""
     try:
@@ -931,9 +935,26 @@ def update_collections():
 
 @admin_bp.route('/collections/status', methods=['GET'])
 @require_admin
+@limiter.exempt  # Exempt admin status checks from rate limiting
 def get_indexing_status():
     """Get current indexing status"""
     return jsonify(indexing_status)
+
+@admin_bp.route('/collections/reset-status', methods=['POST'])
+@require_admin
+def reset_indexing_status():
+    """Manually reset indexing status (use if stuck)"""
+    global indexing_status
+    indexing_status = {
+        'running': False,
+        'progress': 0,
+        'message': 'Ready (manually reset)',
+        'started_at': None,
+        'completed_at': None,
+        'error': None,
+        'logs': ['Status manually reset by admin']
+    }
+    return jsonify({'message': 'Indexing status reset successfully', 'status': indexing_status})
 
 @admin_bp.route('/system/clear-cache', methods=['POST'])
 @require_admin
@@ -1067,9 +1088,24 @@ def index_all_folders():
     global indexing_status
     
     if indexing_status['running']:
-        return jsonify({'error': 'Indexing already in progress'}), 409
+        return jsonify({
+            'error': 'Indexing already in progress',
+            'current_progress': indexing_status.get('progress', 0),
+            'current_message': indexing_status.get('message', 'Unknown')
+        }), 409
     
     try:
+        # Reset status before starting
+        indexing_status = {
+            'running': False,
+            'progress': 0,
+            'message': 'Ready',
+            'started_at': None,
+            'completed_at': None,
+            'error': None,
+            'logs': []
+        }
+        
         # Start background indexing
         thread = threading.Thread(target=run_full_indexing_process)
         thread.daemon = True
@@ -1171,14 +1207,17 @@ def run_reindex_process(create_backup=True):
             })
 
 def run_full_indexing_process():
-    """Background process to index all folders from 7MM Resources shared drive"""
+    """Background process to index all folders from 7MM Resources shared drive using Google services"""
     global indexing_status
     from datetime import datetime
     
     try:
         from googleapiclient.discovery import build
-        from document_loader import GoogleDriveLoader
-        from rag_system import EnhancedRAGSystem
+        from document_loader import GoogleDriveLoader, chunk_text, extract_text
+        from vector_store import VectorStore
+        from vertex_embeddings import VertexEmbedder
+        from embeddings import LocalEmbedder
+        from config import USE_VERTEX_EMBEDDINGS, CHUNK_SIZE, CHUNK_OVERLAP
         import pickle
         import os
         import json
@@ -1187,17 +1226,17 @@ def run_full_indexing_process():
         update_status(
             running=True,
             progress=0,
-            message='Starting full indexing...',
+            message='Starting full Google Drive indexing...',
             started_at=datetime.now().isoformat(),
             error=None,
-            logs=['Full indexing started']
+            logs=['🚀 Full Google Drive indexing started']
         )
         
         # Load Google Drive credentials
         update_status(
             progress=5,
-            message='Connecting to Google Drive...',
-            logs=indexing_status['logs'] + ['Loading credentials...']
+            message='🔐 Connecting to Google Drive...',
+            logs=indexing_status['logs'] + ['Loading Google credentials...']
         )
         
         if not os.path.exists(TOKEN_FILE):
@@ -1213,187 +1252,377 @@ def run_full_indexing_process():
         drive_service = build('drive', 'v3', credentials=creds)
         
         update_status(
-            logs=indexing_status['logs'] + ['Connected to Google Drive']
+            logs=indexing_status['logs'] + ['✅ Connected to Google Drive API']
         )
         
-        # Get all folders from shared drive
+        # Initialize embedder (Google Vertex AI or local)
+        update_status(
+            progress=8,
+            message='🤖 Initializing embedding service...',
+            logs=indexing_status['logs'] + ['Configuring embeddings...']
+        )
+        
+        embedder = VertexEmbedder() if USE_VERTEX_EMBEDDINGS else LocalEmbedder()
+        embedder_name = "Google Vertex AI (768-dim)" if USE_VERTEX_EMBEDDINGS else "Local (384-dim)"
+        
+        update_status(
+            logs=indexing_status['logs'] + [f'✅ Using {embedder_name}']
+        )
+        
+        # Get ONLY ROOT folders from shared drive (not subfolders)
         update_status(
             progress=10,
-            message='Discovering folders in shared drive...',
-            logs=indexing_status['logs'] + ['Scanning shared drive...']
+            message='📁 Discovering ROOT folders in 7MM Resources...',
+            logs=indexing_status['logs'] + ['Scanning for root-level folders only...']
         )
         
         SHARED_DRIVE_ID = '0AMjLFg-ngmOAUk9PVA'  # 7MM Resources
         
-        response = drive_service.files().list(
-            q=f"'{SHARED_DRIVE_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
-            driveId=SHARED_DRIVE_ID,
-            corpora='drive',
-            supportsAllDrives=True,
-            includeItemsFromAllDrives=True,
-            fields='files(id, name)'
-        ).execute()
+        def get_root_folders_only():
+            """Get ONLY the root folders directly under 7MM Resources (not subfolders)"""
+            # Query for folders that have 7MM Resources as direct parent
+            query = f"'{SHARED_DRIVE_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            
+            update_status(
+                logs=indexing_status['logs'] + ['🎯 Fetching only ROOT folders (no subfolders)...']
+            )
+            
+            response = drive_service.files().list(
+                q=query,
+                driveId=SHARED_DRIVE_ID,
+                corpora='drive',
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True,
+                fields='files(id, name)',
+                pageSize=100
+            ).execute()
+            
+            root_folders = response.get('files', [])
+            
+            # Add path (which is just the name for root folders)
+            for folder in root_folders:
+                folder['path'] = folder['name']
+            
+            return root_folders
         
-        folders = response.get('files', [])
+        # Get root folders only (should be ~14 collections)
+        folders = get_root_folders_only()
         total_folders = len(folders)
         
         update_status(
-            logs=indexing_status['logs'] + [f'Found {total_folders} folders to index']
+            logs=indexing_status['logs'] + [f'✅ Found {total_folders} folders (including all subfolders)']
         )
         
         if total_folders == 0:
             raise Exception('No folders found in shared drive')
         
-        # Index each folder
-        indexed_folders = {}
+        # Initialize Google Drive loader
         loader = GoogleDriveLoader(drive_service)
         
+        update_status(
+            logs=indexing_status['logs'] + [f'✅ Google Drive loader initialized (OCR: {"Document AI" if loader.ocr_service else "disabled"})']
+        )
+        
+        # Index each folder
+        indexed_folders = {}
+        total_files_processed = 0
+        total_chunks_created = 0
+        
         for idx, folder in enumerate(folders, 1):
-            folder_name = folder['name']
+            folder_name = folder.get('path', folder['name'])  # Use full path if available
             folder_id = folder['id']
             
             progress = 10 + int((idx / total_folders) * 85)
             update_status(
                 progress=progress,
-                message=f'Indexing {folder_name} ({idx}/{total_folders})...',
-                logs=indexing_status['logs'] + [f'[{idx}/{total_folders}] Processing: {folder_name}']
+                message=f'📂 Indexing {folder_name} ({idx}/{total_folders})...',
+                logs=indexing_status['logs'] + [f'\n[{idx}/{total_folders}] 📂 {folder_name}']
             )
             
             try:
-                # Initialize vector store for this folder (not RAG system - that's for querying)
+                # Create collection for this folder
                 collection_id = f'folder_{folder_id}'
-                from vector_store import VectorStore
-                from embeddings import LocalEmbedder
-                from vertex_embeddings import VertexEmbedder
-                from document_loader import chunk_text
-                from config import USE_VERTEX_EMBEDDINGS, CHUNK_SIZE, CHUNK_OVERLAP
-                import uuid
-                
-                # Use same embedder as configured
-                embedder = VertexEmbedder() if USE_VERTEX_EMBEDDINGS else LocalEmbedder()
                 vector_store = VectorStore(collection_name=collection_id)
                 
-                # Get files in folder (limit to prevent timeout)
-                files_response = drive_service.files().list(
-                    q=f"'{folder_id}' in parents and trashed=false",
-                    supportsAllDrives=True,
-                    includeItemsFromAllDrives=True,
-                    pageSize=100,  # Limit for initial indexing
-                    fields='files(id, name, mimeType)'
-                ).execute()
+                update_status(
+                    logs=indexing_status['logs'] + [f'  📊 Collection: {collection_id}']
+                )
                 
-                files = files_response.get('files', [])
+                # Get ALL files recursively from this root folder and all subfolders
+                update_status(
+                    logs=indexing_status['logs'] + [f'  🔍 Listing files (including subfolders)...']
+                )
                 
-                # Process files
-                for file in files[:50]:  # Limit to first 50 files per folder
-                    try:
-                        file_mime = file['mimeType']
-                        file_name = file['name']
+                def get_all_files_recursive(folder_id):
+                    """Recursively get all files from folder and subfolders"""
+                    all_files = []
+                    
+                    # Query for ALL items (files and folders) in this folder
+                    query = f"'{folder_id}' in parents and trashed=false"
+                    page_token = None
+                    
+                    while True:
+                        response = drive_service.files().list(
+                            q=query,
+                            supportsAllDrives=True,
+                            includeItemsFromAllDrives=True,
+                            pageSize=1000,
+                            pageToken=page_token,
+                            fields='files(id, name, mimeType), nextPageToken'
+                        ).execute()
                         
-                        # Handle Google Workspace files (need export, not download)
+                        items = response.get('files', [])
+                        
+                        for item in items:
+                            if item['mimeType'] == 'application/vnd.google-apps.folder':
+                                # Recursively get files from subfolder
+                                subfolder_files = get_all_files_recursive(item['id'])
+                                all_files.extend(subfolder_files)
+                            else:
+                                # It's a file, add it
+                                all_files.append(item)
+                        
+                        page_token = response.get('nextPageToken')
+                        if not page_token:
+                            break
+                    
+                    return all_files
+                
+                files = get_all_files_recursive(folder_id)
+                folder_file_count = len(files)
+                
+                update_status(
+                    logs=indexing_status['logs'] + [f'  📄 Found {folder_file_count} files']
+                )
+                
+                if folder_file_count == 0:
+                    update_status(
+                        logs=indexing_status['logs'] + [f'  ⚠️ Skipping empty folder']
+                    )
+                    continue
+                
+                # Process each file (OPTIMIZED - batch processing, reduced logging)
+                folder_chunks = 0
+                files_succeeded = 0
+                files_failed = 0
+                files_skipped = 0
+                
+                # Batch processing buffers
+                BATCH_SIZE = 5  # Process files in batches
+                batch_chunks = []
+                batch_metadatas = []
+                batch_ids = []
+                
+                # Track last log time to reduce spam
+                last_log_time = 0
+                LOG_INTERVAL = 2  # seconds between progress logs
+                
+                for file_idx, file in enumerate(files, 1):
+                    try:
+                        file_name = file['name']
+                        file_id = file['id']
+                        file_mime = file.get('mimeType', '')
+                        
+                        # Only log every 10 files or every LOG_INTERVAL seconds
+                        current_time = time.time()
+                        should_log = (file_idx % 10 == 0 or 
+                                     file_idx == 1 or 
+                                     file_idx == folder_file_count or
+                                     (current_time - last_log_time) > LOG_INTERVAL)
+                        
+                        if should_log:
+                            update_status(
+                                logs=indexing_status['logs'] + [f'  [{file_idx}/{folder_file_count}] Processing: {file_name[:50]}...']
+                            )
+                            last_log_time = current_time
+                        
+                        text = None
+                        
+                        # Handle different file types using Google APIs
                         if file_mime == 'application/vnd.google-apps.document':
-                            text = loader.export_google_doc(file['id'])
+                            # Google Docs - export as plain text
+                            text = loader.export_google_doc(file_id)
+                            
                         elif file_mime == 'application/vnd.google-apps.spreadsheet':
-                            text = loader.export_google_sheets(file['id'])
+                            # Google Sheets - export as CSV
+                            text = loader.export_google_sheets(file_id)
+                            
                         elif file_mime == 'application/vnd.google-apps.presentation':
-                            text = loader.export_google_slides(file['id'])
-                        elif file_mime.startswith('application/vnd.google-apps'):
-                            # Skip other Google Apps files (forms, drawings, etc.)
+                            # Google Slides - export as text
+                            text = loader.export_google_slides(file_id)
+                        
+                        elif file_mime in [
+                            'application/vnd.google-apps.folder',
+                            'application/vnd.google-apps.shortcut',
+                            'application/vnd.google-apps.form',
+                            'application/vnd.google-apps.drawing',
+                            'application/vnd.google-apps.map',
+                            'application/vnd.google-apps.site'
+                        ]:
+                            # Skip folders (already filtered), shortcuts, and non-textual Google types
+                            files_skipped += 1
                             continue
+                            
+                        elif file_mime.startswith('application/vnd.google-apps'):
+                            # Unknown Google Apps file
+                            files_skipped += 1
+                            continue
+                            
                         else:
                             # Regular files - download and extract
-                            file_content = loader.download_file(file['id'])
+                            file_content = loader.download_file(file_id)
+                            
                             if file_content:
-                                from document_loader import extract_text
                                 text = extract_text(file_content, file_mime, file_name, loader.ocr_service)
                             else:
-                                text = None
-                        
-                        if text and text.strip():
-                            # Chunk the text using built-in function
-                            chunks = chunk_text(text)
-                            update_status(message=f"📝 Split into {len(chunks)} chunks")
-                            
-                            if not chunks:
-                                update_status(message=f"⚠️ No chunks generated for {file_name}")
+                                files_failed += 1
                                 continue
-                            
-                            # Generate unique IDs for each chunk
-                            chunk_ids = [f"{file['id']}_chunk_{i}" for i in range(len(chunks))]
-                            
-                            # Generate embeddings for all chunks
-                            chunk_embeddings = [embedder.embed(chunk) for chunk in chunks]
-                            
-                            # Create metadata for each chunk
-                            chunk_metadatas = [{
+                        
+                        # Check if we got text
+                        if not text or not text.strip():
+                            files_failed += 1
+                            continue
+                        
+                        text_length = len(text)
+                        
+                        # Chunk the text
+                        chunks = chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP)
+                        
+                        if not chunks or len(chunks) == 0:
+                            files_failed += 1
+                            continue
+                        
+                        chunk_count = len(chunks)
+                        
+                        # Prepare chunks for batch processing
+                        for i, chunk in enumerate(chunks):
+                            batch_chunks.append(chunk)
+                            batch_metadatas.append({
                                 'filename': file_name,
                                 'source': folder_name,
-                                'file_id': file['id'],
+                                'file_id': file_id,
+                                'mime_type': file_mime,
                                 'chunk_index': i,
-                                'total_chunks': len(chunks)
-                            } for i in range(len(chunks))]
+                                'total_chunks': chunk_count,
+                                'text_length': len(chunk)
+                            })
+                            batch_ids.append(f"{file_id}_chunk_{i}")
+                        
+                        # Process batch when it reaches BATCH_SIZE or at end of folder
+                        if len(batch_chunks) >= BATCH_SIZE or file_idx == folder_file_count:
+                            # Generate embeddings for entire batch
+                            batch_embeddings = embedder.embed_documents(batch_chunks)
                             
-                            # Add all chunks to vector store in one call (batching handled automatically)
+                            # Convert numpy array to list if needed
+                            if hasattr(batch_embeddings, 'tolist'):
+                                batch_embeddings = batch_embeddings.tolist()
+                            
+                            # Add batch to vector store
                             vector_store.add_documents(
-                                documents=chunks,
-                                embeddings=chunk_embeddings,
-                                metadatas=chunk_metadatas,
-                                ids=chunk_ids
+                                documents=batch_chunks,
+                                embeddings=batch_embeddings,
+                                metadatas=batch_metadatas,
+                                ids=batch_ids
                             )
                             
-                            update_status(
-                                message=f"✅ Added {len(chunks)} chunks from {file_name}",
-                                progress=int((file_count / total_files) * 100)
-                            )
+                            folder_chunks += len(batch_chunks)
                             
+                            # Clear batch buffers
+                            batch_chunks = []
+                            batch_metadatas = []
+                            batch_ids = []
+                        
+                        files_succeeded += 1
+                        
                     except Exception as file_error:
-                        update_status(
-                            logs=indexing_status['logs'] + [f'  ⚠️ Error with file {file["name"]}: {str(file_error)}']
-                        )
+                        files_failed += 1
+                        # Only log errors for important files or periodically
+                        if file_idx % 20 == 0 or files_failed < 5:
+                            update_status(
+                                logs=indexing_status['logs'] + [f'      ❌ Error: {str(file_error)[:100]}']
+                            )
                         continue
                 
-                # Save folder info
+                # Save folder info with collection_name for compatibility with chat_api.py
                 indexed_folders[folder_id] = {
+                    'collection_name': collection_id,  # Required by chat_api.py
                     'name': folder_name,
-                    'file_count': len(files),
+                    'path': folder.get('path', folder_name),
+                    'location': folder.get('path', folder_name),  # For backward compatibility
+                    'file_count': folder_file_count,
+                    'files_processed': files_succeeded,
+                    'files_failed': files_failed,
+                    'files_skipped': files_skipped,
+                    'chunks_created': folder_chunks,
                     'indexed_at': datetime.now().isoformat()
                 }
                 
+                total_files_processed += files_succeeded
+                total_chunks_created += folder_chunks
+                
+                # Process any remaining chunks in batch
+                if batch_chunks:
+                    batch_embeddings = embedder.embed_documents(batch_chunks)
+                    if hasattr(batch_embeddings, 'tolist'):
+                        batch_embeddings = batch_embeddings.tolist()
+                    vector_store.add_documents(
+                        documents=batch_chunks,
+                        embeddings=batch_embeddings,
+                        metadatas=batch_metadatas,
+                        ids=batch_ids
+                    )
+                    folder_chunks += len(batch_chunks)
+                
                 update_status(
-                    logs=indexing_status['logs'] + [f'  ✓ Indexed {len(files)} files from {folder_name}']
+                    logs=indexing_status['logs'] + [f'  ✅ Complete: {files_succeeded} success, {files_failed} failed, {files_skipped} skipped → {folder_chunks} chunks']
                 )
+                
+                # Memory cleanup
+                import gc
+                gc.collect()
                 
             except Exception as folder_error:
                 update_status(
-                    logs=indexing_status['logs'] + [f'  ✗ Failed to index {folder_name}: {str(folder_error)}']
+                    logs=indexing_status['logs'] + [f'  ❌ Folder failed: {str(folder_error)}']
                 )
                 continue
         
-        # Save indexed folders
+        # Save indexed folders info
         with open('indexed_folders.json', 'w') as f:
             json.dump(indexed_folders, f, indent=2)
+        
+        update_status(
+            logs=indexing_status['logs'] + [f'💾 Saved folder metadata to indexed_folders.json']
+        )
         
         # Complete
         update_status(
             running=False,
             progress=100,
-            message=f'Indexing complete! Indexed {len(indexed_folders)}/{total_folders} folders.',
+            message=f'✅ Indexing complete!',
             completed_at=datetime.now().isoformat(),
             logs=indexing_status['logs'] + [
-                f'✓ Successfully indexed {len(indexed_folders)} folders',
-                f'✓ Total collections created: {len(indexed_folders)}',
-                '✓ Restart server to use new collections'
+                f'\n{"="*60}',
+                f'🎉 INDEXING COMPLETE',
+                f'{"="*60}',
+                f'📁 Folders indexed: {len(indexed_folders)}/{total_folders}',
+                f'📄 Files processed: {total_files_processed}',
+                f'📝 Chunks created: {total_chunks_created:,}',
+                f'🤖 Embedder: {embedder_name}',
+                f'✅ All data stored in ChromaDB',
+                f'{"="*60}'
             ]
         )
         
     except Exception as e:
+        from datetime import datetime
         update_status(
             running=False,
             progress=0,
-            message='Indexing failed',
+            message=f'❌ Indexing failed: {str(e)}',
             error=str(e),
             completed_at=datetime.now().isoformat(),
-            logs=indexing_status['logs'] + [f'✗ Error: {str(e)}']
+            logs=indexing_status['logs'] + [f'❌ Fatal error: {str(e)}']
         )
 
 def run_collection_update():
