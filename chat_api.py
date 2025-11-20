@@ -55,17 +55,18 @@ try:
     from google_drive_oauth import gdrive_oauth_bp
     app.register_blueprint(gdrive_oauth_bp)
 except ImportError as e:
-    print(f"Warning: Could not load Google Drive OAuth routes: {e}")
+    app.logger.warning(f"Could not load Google Drive OAuth routes: {e}")
 
 # Register admin blueprint
 try:
     from admin_routes import admin_bp
     app.register_blueprint(admin_bp)
 except ImportError as e:
-    print(f"Warning: Could not load admin routes: {e}")
+    app.logger.warning(f"Could not load admin routes: {e}")
 
 # Health monitoring integrated into main app
 # Production Logging
+os.makedirs('logs', exist_ok=True)
 if not app.debug:
     file_handler = RotatingFileHandler('logs/rag_system.log', maxBytes=10240000, backupCount=10)
     file_handler.setFormatter(logging.Formatter(
@@ -75,6 +76,15 @@ if not app.debug:
     app.logger.addHandler(file_handler)
     app.logger.setLevel(logging.INFO)
     app.logger.info('RAG System startup')
+else:
+    # Development logging to console
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s'
+    ))
+    console_handler.setLevel(logging.DEBUG)
+    app.logger.addHandler(console_handler)
+    app.logger.setLevel(logging.DEBUG)
 
 def analyze_file_with_workspace(file_id: str, user_question: str):
     """
@@ -97,7 +107,7 @@ def analyze_file_with_workspace(file_id: str, user_question: str):
         mime_type = file_metadata.get('mimeType', '')
         web_link = file_metadata.get('webViewLink', '')
         
-        print(f"  📋 Analyzing file directly: {file_name} (type: {mime_type})")
+        app.logger.info(f"Analyzing file directly: {file_name} (type: {mime_type})")
         
         # Download and analyze the file content directly (no grounding - it doesn't work for Drive)
         file_content = download_and_process_file(file_id, file_name, mime_type)
@@ -119,9 +129,7 @@ def analyze_file_with_workspace(file_id: str, user_question: str):
         }
         
     except Exception as e:
-        print(f"  ❌ Error in workspace analysis: {e}")
-        import traceback
-        traceback.print_exc()
+        app.logger.error(f"Error in workspace analysis: {e}", exc_info=True)
         return None
 
 def download_and_process_file(file_id: str, file_name: str, mime_type: str):
@@ -159,7 +167,7 @@ def download_and_process_file(file_id: str, file_name: str, mime_type: str):
             return f"Text File: {file_name}\n\n{content[:500000]}"
             
         elif 'application/pdf' in mime_type:
-            print(f"  📄 PDF detected - checking file size first...")
+            app.logger.info(f"PDF detected - checking file size first...")
             try:
                 # Check file size before downloading (with shared drive support)
                 file_metadata = drive_service.files().get(
@@ -172,11 +180,11 @@ def download_and_process_file(file_id: str, file_name: str, mime_type: str):
                 # Limit PDF size to 20MB to allow larger documents
                 MAX_PDF_SIZE = 20 * 1024 * 1024  # 20MB
                 if file_size > MAX_PDF_SIZE:
-                    print(f"  ⚠️ PDF too large ({file_size / 1024 / 1024:.1f}MB), skipping OCR")
+                    app.logger.warning(f"PDF too large ({file_size / 1024 / 1024:.1f}MB), skipping OCR")
                     return f"PDF Document: {file_name}\n\nNote: This PDF is {file_size / 1024 / 1024:.1f}MB. For large PDFs, please ask specific questions and I'll help you locate the information."
                 
                 # Stream PDF to memory buffer (not disk)
-                print(f"  📥 Streaming PDF ({file_size / 1024:.1f}KB)...")
+                app.logger.info(f"Streaming PDF ({file_size / 1024:.1f}KB)...")
                 request = drive_service.files().get_media(fileId=file_id)
                 pdf_content = io.BytesIO(request.execute())
                 
@@ -190,22 +198,22 @@ def download_and_process_file(file_id: str, file_name: str, mime_type: str):
                         # Allow up to 500KB for better analysis quality
                         return f"PDF Document: {file_name}\n\n{text[:500000]}"
                     else:
-                        print(f"  ⚠️ No text extracted from PDF")
+                        app.logger.warning(f"No text extracted from PDF")
                         return None
                 else:
-                    print(f"  ⚠️ OCR service not available for PDF processing")
+                    app.logger.warning(f"OCR service not available for PDF processing")
                     return None
             except Exception as pdf_error:
-                print(f"  ❌ Error processing PDF: {pdf_error}")
+                app.logger.error(f"Error processing PDF: {pdf_error}", exc_info=True)
                 return None
             
         else:
-            print(f"  ⚠️ Unsupported file type: {mime_type}")
-            print(f"    Supported: Google Docs, Sheets, CSV, Text, JSON, PDF (<5MB)")
+            app.logger.warning(f"Unsupported file type: {mime_type}")
+            app.logger.info(f"Supported: Google Docs, Sheets, CSV, Text, JSON, PDF (<5MB)")
             return None
             
     except Exception as e:
-        print(f"  ❌ Error downloading file: {e}")
+        app.logger.error(f"Error downloading file: {e}", exc_info=True)
         return None
 
 
@@ -259,9 +267,7 @@ Answer:"""
             return response.text
             
     except Exception as e:
-        print(f"  ❌ Error in Gemini analysis: {e}")
-        import traceback
-        traceback.print_exc()
+        app.logger.error(f"Error in Gemini analysis: {e}", exc_info=True)
         return f"I was able to access the document '{file_name}' but encountered an error during analysis: {str(e)}. You can try asking a different question or use the regular chat mode."
 
 # Global variables to hold the RAG system
@@ -305,17 +311,17 @@ def safe_drive_request(request_func, max_retries=3, base_delay=1):
         except (ssl.SSLError, socket.error, ConnectionError) as e:
             if attempt < max_retries:
                 delay = base_delay * (2 ** attempt)  # Exponential backoff
-                    # print(f"SSL/Network error on attempt {attempt + 1}: {str(e)}. Retrying in {delay}s...")  # Disabled for production
+                    # app.logger.debug(f"SSL/Network error on attempt {attempt + 1}: {str(e)}. Retrying in {delay}s...")  # Disabled for production
                 time.sleep(min(delay, 0.5))  # Reduce delay for faster retries
                 continue
             else:
-                    # print(f"SSL/Network error after {max_retries + 1} attempts: {str(e)}")  # Disabled for production
+                    # app.logger.debug(f"SSL/Network error after {max_retries + 1} attempts: {str(e)}")  # Disabled for production
                 return None
         except HttpError as e:
-                # print(f"Google API HTTP error: {str(e)}")  # Disabled for production
+                # app.logger.debug(f"Google API HTTP error: {str(e)}")  # Disabled for production
             return None
         except Exception as e:
-                # print(f"Unexpected error: {str(e)}")  # Disabled for production
+                # app.logger.debug(f"Unexpected error: {str(e)}")  # Disabled for production
             return None
     
     return None
@@ -332,14 +338,10 @@ def compress_response(data):
             }
         return {'compressed': False, 'data': data}
     except Exception as e:
-            # print(f"Compression error: {e}")  # Disabled for production
+            # app.logger.debug(f"Compression error: {e}")  # Disabled for production
         return {'compressed': False, 'data': data}
 
 def get_cache_key(parent_id, query=None):
-    """Generate cache key for folder requests"""
-    if query:
-        return f"search:{query}:{parent_id}"
-    return f"folder:{parent_id}"
     """Generate cache key for folder requests"""
     if query:
         return f"search:{query}:{parent_id}"
@@ -386,7 +388,7 @@ def preload_folder_structure():
     """
     Enhanced preload with deeper folder structure caching
     """
-    # print("Starting enhanced folder structure preload...")  # Disabled for production
+    # app.logger.debug("Starting enhanced folder structure preload...")  # Disabled for production
     
     try:
         # Step 1: Start with root folders
@@ -408,7 +410,7 @@ def preload_folder_structure():
         if response and 'files' in response:
             root_files = response['files']
             update_cache(cache_key, root_files)
-            # print(f"Preloaded {len(root_files)} root folders")  # Disabled for production
+            # app.logger.debug(f"Preloaded {len(root_files)} root folders")  # Disabled for production
             
             # Step 2: Preload first level of top 8 folders (most likely to be accessed)
             priority_folders = root_files[:8]  # Reduced from 10 to avoid overwhelming API
@@ -433,17 +435,17 @@ def preload_folder_structure():
                     if subfolder_response and 'files' in subfolder_response:
                         subitems = subfolder_response['files']
                         update_cache(subfolder_cache_key, subitems)
-                        # print(f"  → Preloaded {len(subitems)} items in '{folder['name'][:25]}...'")  # Disabled for production
+                        # app.logger.debug(f"  → Preloaded {len(subitems)} items in '{folder['name'][:25]}...'")  # Disabled for production
                         
                     # Small delay to be respectful to API rate limits
                     time.sleep(0.01)  # Minimize delay for API friendliness
                     
                 except Exception as subfolder_error:
-                    # print(f"  → Failed to preload '{folder['name']}': {subfolder_error}")  # Disabled for production
+                    # app.logger.debug(f"  → Failed to preload '{folder['name']}': {subfolder_error}")  # Disabled for production
                     continue
         
     except Exception as e:
-        # print(f"Error in enhanced preload: {str(e)}")  # Disabled for production
+        # app.logger.debug(f"Error in enhanced preload: {str(e)}")  # Disabled for production
         pass
 
 def start_background_cache_refresh():
@@ -465,16 +467,16 @@ def start_background_cache_refresh():
                     for key in keys_to_remove:
                         del memory_cache[key]
                     
-                    # print(f"Cache refresh completed. Memory cache: {len(memory_cache)} items")  # Disabled for production
+                    # app.logger.debug(f"Cache refresh completed. Memory cache: {len(memory_cache)} items")  # Disabled for production
                 
                 time.sleep(3600)  # Refresh every hour (back to stable interval)
             except Exception as e:
-                # print(f"Error in cache refresh: {str(e)}")  # Disabled for production
+                # app.logger.debug(f"Error in cache refresh: {str(e)}")  # Disabled for production
                 time.sleep(600)  # Wait 10 minutes before retry on error
     
     refresh_thread = Thread(target=refresh_loop, daemon=True)
     refresh_thread.start()
-    # print("Background cache refresh started")  # Disabled for production
+    # app.logger.debug("Background cache refresh started")  # Disabled for production
 
 def initialize_rag_system():
     """Initialize the RAG system and load available collections"""
@@ -482,31 +484,31 @@ def initialize_rag_system():
     
     # Prevent double initialization
     if _rag_initialized:
-        print("[!] RAG system already initialized, skipping...")
+        app.logger.info("RAG system already initialized, skipping...")
         return
     
     _rag_initialized = True
     
     try:
-        # print("[+] Initializing Google Drive authentication...")  # Disabled for production
+        # app.logger.debug("[+] Initializing Google Drive authentication...")  # Disabled for production
         try:
             # Use non-interactive mode during server startup
             drive_service = authenticate_google_drive(interactive=False)
             if drive_service:
-                # print("✅ Google Drive authentication successful!")  # Disabled for production
+                # app.logger.debug("✅ Google Drive authentication successful!")  # Disabled for production
                 pass
             else:
-                # print("⚠️  Google Drive credentials not found - run 'python auth.py' to set up")  # Disabled for production
+                # app.logger.debug("⚠️  Google Drive credentials not found - run 'python auth.py' to set up")  # Disabled for production
                 drive_service = None
         except Exception as drive_error:
-            # print(f"❌ Google Drive authentication failed: {drive_error}")  # Disabled for production
-            # print("    Please run: python auth.py to set up Google Drive credentials")  # Disabled for production
-            # print("    Continuing without Google Drive (folders will be unavailable)")  # Disabled for production
+            # app.logger.debug(f"❌ Google Drive authentication failed: {drive_error}")  # Disabled for production
+            # app.logger.debug("    Please run: python auth.py to set up Google Drive credentials")  # Disabled for production
+            # app.logger.debug("    Continuing without Google Drive (folders will be unavailable)")  # Disabled for production
             drive_service = None
         
         # Load available collections from indexed_folders.json (if exists)
         indexed_folders_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'indexed_folders.json')
-        # print(f"Looking for indexed folders at: {indexed_folders_file}")  # Disabled for production
+        # app.logger.debug(f"Looking for indexed folders at: {indexed_folders_file}")  # Disabled for production
         
         if os.path.exists(indexed_folders_file):
             with open(indexed_folders_file, 'r') as f:
@@ -521,16 +523,16 @@ def initialize_rag_system():
                     'indexed_at': folder_info.get('indexed_at', '')
                 }
         else:
-            # print(f"⚠️  indexed_folders.json not found at {indexed_folders_file}")  # Disabled for production
-            # print("⚠️  Collections will be empty until Google Drive is set up")  # Disabled for production
+            # app.logger.debug(f"⚠️  indexed_folders.json not found at {indexed_folders_file}")  # Disabled for production
+            # app.logger.debug("⚠️  Collections will be empty until Google Drive is set up")  # Disabled for production
             pass
         
-        # print(f"[+] Found {len(available_collections)} available collections")  # Disabled for production
+        # app.logger.debug(f"[+] Found {len(available_collections)} available collections")  # Disabled for production
         
         # Initialize RAG systems for the available collections
         if available_collections:
             try:
-                # print("[+] Initializing RAG systems...")  # Disabled for production
+                # app.logger.debug("[+] Initializing RAG systems...")  # Disabled for production
                 pass
                 
                 # Initialize individual collection RAG systems
@@ -541,12 +543,12 @@ def initialize_rag_system():
                                 drive_service=drive_service, 
                                 collection_name=collection_name
                             )
-                            # print(f"    ✓ Initialized RAG for collection: {collection_name}")  # Disabled for production
+                            # app.logger.debug(f"    ✓ Initialized RAG for collection: {collection_name}")  # Disabled for production
                             # Use the first available collection as default if rag_system is None
                             if rag_system is None:
                                 rag_system = temp_rag
                         except Exception as e:
-                            # print(f"    ⚠️  Failed to initialize RAG for {collection_name}: {e}")  # Disabled for production
+                            # app.logger.debug(f"    ⚠️  Failed to initialize RAG for {collection_name}: {e}")  # Disabled for production
                             pass
                 
                 # Initialize multi-collection RAG if multiple collections available
@@ -559,15 +561,15 @@ def initialize_rag_system():
                             drive_service=drive_service,
                             available_collections=collections_dict
                         )
-                        # print(f"    ✓ Initialized multi-collection RAG for {len(collection_names)} collections")  # Disabled for production
+                        # app.logger.debug(f"    ✓ Initialized multi-collection RAG for {len(collection_names)} collections")  # Disabled for production
                     except Exception as e:
-                        # print(f"    ⚠️  Failed to initialize multi-collection RAG: {e}")  # Disabled for production
+                        # app.logger.debug(f"    ⚠️  Failed to initialize multi-collection RAG: {e}")  # Disabled for production
                         import traceback
                         traceback.print_exc()
                         
-                # print("✅ RAG system initialization completed")  # Disabled for production
+                # app.logger.debug("✅ RAG system initialization completed")  # Disabled for production
             except Exception as e:
-                # print(f"❌ Error during RAG initialization: {e}")  # Disabled for production
+                # app.logger.debug(f"❌ Error during RAG initialization: {e}")  # Disabled for production
                 pass
         
         # Add special "ALL_COLLECTIONS" entry
@@ -579,15 +581,15 @@ def initialize_rag_system():
                 'indexed_at': 'Combined',
                 'is_combined': True
             }
-            # print(f"[+] Added combined collection mode with {available_collections['ALL_COLLECTIONS']['files_processed']} total documents")  # Disabled for production
+            # app.logger.debug(f"[+] Added combined collection mode with {available_collections['ALL_COLLECTIONS']['files_processed']} total documents")  # Disabled for production
         
         if rag_system is not None:
-            pass  # print("✅ RAG system fully initialized and ready for chat")
+            pass  # app.logger.debug("✅ RAG system fully initialized and ready for chat")
         else:
-            pass  # print("⚠️  RAG system not initialized - chat will be unavailable")
+            pass  # app.logger.debug("⚠️  RAG system not initialized - chat will be unavailable")
         
     except Exception as e:
-        # print(f"[!] Error initializing RAG system: {e}")  # Disabled for production
+        # app.logger.debug(f"[!] Error initializing RAG system: {e}")  # Disabled for production
         raise e
 
 def extract_document_links(response_text):
@@ -660,24 +662,42 @@ def chat():
     global rag_system, multi_collection_rag
     
     try:
-        print(f"[DEBUG] Chat endpoint called")
-        print(f"[DEBUG] rag_system: {rag_system is not None}")
-        print(f"[DEBUG] multi_collection_rag: {multi_collection_rag is not None}")
+        app.logger.debug("Chat endpoint called")
+        app.logger.debug(f"rag_system initialized: {rag_system is not None}")
+        app.logger.debug(f"multi_collection_rag initialized: {multi_collection_rag is not None}")
         
         data = request.get_json()
-        print(f"[DEBUG] Request data: {data}")
+        app.logger.debug(f"Request data received: message='{data.get('message', '')[:50]}...', collection={data.get('collection')}, file_id={data.get('file_id')}")
         
+        # Input validation
         if not data or 'message' not in data:
             return jsonify({'error': 'Message is required'}), 400
         
         message = data['message']
+        
+        # Validate message length
+        if not message or len(message.strip()) == 0:
+            return jsonify({'error': 'Message cannot be empty'}), 400
+        
+        if len(message) > 10000:  # Max 10k characters
+            return jsonify({'error': 'Message too long (max 10000 characters)'}), 400
+        
         collection = data.get('collection')
         file_id = data.get('file_id')  # Extract file_id for targeted queries
-        print(f"[DEBUG] Message: {message}, Collection: {collection}, File ID: {file_id}")
+        
+        # Validate collection name if provided
+        if collection and not isinstance(collection, str):
+            return jsonify({'error': 'Invalid collection format'}), 400
+        
+        # Validate file_id if provided
+        if file_id and (not isinstance(file_id, str) or len(file_id) > 200):
+            return jsonify({'error': 'Invalid file_id format'}), 400
+        
+        app.logger.info(f"Chat request: message_len={len(message)}, collection={collection}, file_id={file_id}")
         
         # PRIORITY: Handle direct document queries FIRST (before any RAG logic)
         if file_id:
-            print(f"  📄 WORKSPACE QUERY: Analyzing specific file: {file_id}")
+            app.logger.info(f"WORKSPACE QUERY: Analyzing specific file: {file_id}")
             
             # Try workspace query first (downloads up to 500KB)
             try:
@@ -685,7 +705,7 @@ def chat():
                 
                 # If workspace query succeeded, return it
                 if workspace_response:
-                    print(f"  ✅ Workspace analysis completed successfully")
+                    app.logger.info("Workspace analysis completed successfully")
                     return jsonify({
                         'answer': workspace_response['answer'],
                         'documents': workspace_response.get('documents', []),
@@ -695,20 +715,20 @@ def chat():
                     })
                 
                 # If workspace query failed, try RAG fallback (for large files)
-                print(f"  ⚠️ Workspace analysis incomplete, trying RAG fallback for full data...")
+                app.logger.warning("Workspace analysis incomplete, trying RAG fallback for full data...")
                 
                 # Try to find the file in RAG collections (for CSVs and large files)
                 if collection and collection != "ALL_COLLECTIONS":
                     try:
                         # Query specific collection with file reference
-                        print(f"  🔍 Searching RAG collection '{collection}' for file data...")
+                        app.logger.info(f"Searching RAG collection '{collection}' for file data...")
                         
                         # Enhance query with file ID context
                         rag_query = f"{message} [File ID: {file_id}]"
                         rag_result = rag_system.query(rag_query, collection_id=collection)
                         
                         if rag_result and rag_result.get('answer'):
-                            print(f"  ✅ RAG fallback successful - found full data!")
+                            app.logger.info("RAG fallback successful - found full data!")
                             return jsonify({
                                 'answer': rag_result['answer'],
                                 'documents': rag_result.get('documents', []),
@@ -717,19 +737,17 @@ def chat():
                                 'analysis_method': 'rag_full_data'
                             })
                     except Exception as rag_error:
-                        print(f"  ⚠️ RAG fallback failed: {rag_error}")
+                        app.logger.warning(f"RAG fallback failed: {rag_error}")
                 
                 # Both methods failed
-                print(f"  ❌ All analysis methods failed")
+                app.logger.error("All analysis methods failed")
                 return jsonify({
                     'error': 'Failed to analyze the selected file. The file may be too large or unsupported.',
                     'file_id': file_id
                 }), 400
                 
             except Exception as workspace_error:
-                print(f"  ❌ Workspace query error: {workspace_error}")
-                import traceback
-                traceback.print_exc()
+                app.logger.error(f"Workspace query error: {workspace_error}", exc_info=True)
                 return jsonify({
                     'error': f'Error analyzing file: {str(workspace_error)}',
                     'file_id': file_id
@@ -737,7 +755,7 @@ def chat():
         
         # Check if RAG system is initialized (only needed for RAG queries)
         if not rag_system:
-            print(f"[DEBUG] RAG system not initialized, returning 503")
+            app.logger.warning("RAG system not initialized, returning 503")
             return jsonify({
                 'error': 'RAG system is still initializing. Please wait a moment and try again.',
                 'code': 'SYSTEM_INITIALIZING'
@@ -745,12 +763,12 @@ def chat():
         
         # Handle ALL_COLLECTIONS mode (RAG queries only)
         if collection == "ALL_COLLECTIONS":
-            print(f"[DEBUG] ALL_COLLECTIONS requested, multi_collection_rag available: {multi_collection_rag is not None}")
+            app.logger.debug(f"ALL_COLLECTIONS requested, multi_collection_rag available: {multi_collection_rag is not None}")
             if not multi_collection_rag:
-                print(f"[DEBUG] Multi-collection not available, returning error")
+                app.logger.warning("Multi-collection not available, returning error")
                 return jsonify({'error': 'Multi-collection system not available. Please select a specific collection.'}), 400
             
-            print(f"🔍 Multi-collection RAG query: {message}")
+            app.logger.info(f"Multi-collection RAG query: {message[:100]}")
             response = multi_collection_rag.process_chat(message)
             
             # Extract documents/sources from multi-collection response
@@ -783,12 +801,12 @@ def chat():
         if collection and collection != rag_system.collection_name:
             if collection in available_collections and collection != "ALL_COLLECTIONS":
                 rag_system = EnhancedRAGSystem(drive_service, collection)
-                print(f"Switched to collection: {collection}")
+                app.logger.info(f"Switched to collection: {collection}")
             else:
                 return jsonify({'error': f'Collection {collection} not found'}), 400
         
         # Use RAG system for collection queries (no specific file selected)
-        print(f"Processing RAG query: {message}")
+        app.logger.info(f"Processing RAG query: {message[:100]}")
         response = rag_system.query(message)
         
         # Extract answer and documents
@@ -808,10 +826,14 @@ def chat():
             'query_type': response.get('query_type', 'agent')
         })
         
+    except ValueError as ve:
+        app.logger.warning(f"Validation error in chat: {ve}")
+        return jsonify({'error': 'Invalid input data'}), 400
     except Exception as e:
-        print(f"[!] Error processing chat message: {e}")
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Error processing chat message: {e}", exc_info=True)
+        # Sanitize error message for production
+        error_msg = str(e) if app.debug else 'An error occurred processing your request'
+        return jsonify({'error': error_msg}), 500
 
 @app.route('/switch-collection', methods=['POST'])
 @require_auth
@@ -852,8 +874,7 @@ def switch_collection():
         })
         
     except Exception as e:
-        print(f"[!] Error switching collection: {e}")
-        traceback.print_exc()
+        app.logger.error(f"Error switching collection: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/folders', methods=['GET'])
@@ -865,11 +886,11 @@ def get_folders():
         
         # Check if Google Drive service is available, try to reinitialize if not
         if drive_service is None:
-            print("[!] Drive service not available, attempting to reinitialize...")
+            app.logger.warning("Drive service not available, attempting to reinitialize...")
             try:
                 drive_service = authenticate_google_drive(interactive=False)
             except Exception as e:
-                print(f"[!] Drive service reinit failed: {e}")
+                app.logger.error(f"Drive service reinit failed: {e}")
             
         # If still not available, return unavailable response    
         if drive_service is None:
@@ -883,14 +904,14 @@ def get_folders():
         
         parent_id = request.args.get('parent_id', '')
         
-        print(f"[F] Loading folder contents for parent_id: {parent_id}")
+        app.logger.debug(f"Loading folder contents for parent_id: {parent_id}")
         
         # Check cache first
         cache_key = get_cache_key(parent_id)
         cached_data = get_cached_data(cache_key)
         
         if cached_data is not None:
-            print(f"[C] Returning cached data for {parent_id}")
+            app.logger.debug(f"Returning cached data for {parent_id}")
             # Format cached data for response
             formatted_items = []
             for item in cached_data:
@@ -918,7 +939,7 @@ def get_folders():
         
         # If no parent_id is specified, return the root folders from 7MM Resources shared drive
         if not parent_id or parent_id == '':
-            print(f"[F] Loading root folders from 7MM Resources shared drive ({SHARED_DRIVE_ID})")
+            app.logger.debug(f"Loading root folders from 7MM Resources shared drive ({SHARED_DRIVE_ID})")
             
             # Query for root-level folders in the shared drive
             query = f"'{SHARED_DRIVE_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
@@ -960,7 +981,7 @@ def get_folders():
             # Sort alphabetically
             formatted_items.sort(key=lambda x: x['name'].lower())
             
-            print(f"[+] Found {len(formatted_items)} root folders in 7MM Resources shared drive")
+            app.logger.info(f"Found {len(formatted_items)} root folders in 7MM Resources shared drive")
             
             return jsonify({
                 'items': formatted_items,
@@ -971,7 +992,7 @@ def get_folders():
             })
         
         # For specific folder requests, use Google Drive API with retry logic
-        print(f"[F] Loading contents of specific folder: {parent_id}")
+        app.logger.debug(f"Loading contents of specific folder: {parent_id}")
         
         query = f"'{parent_id}' in parents and trashed=false"
         
@@ -1012,7 +1033,7 @@ def get_folders():
         # Sort: folders first, then files, both alphabetically
         formatted_items.sort(key=lambda x: (x['type'] == 'file', x['name'].lower()))
         
-        print(f"[+] Found {len(formatted_items)} items in folder {parent_id}")
+        app.logger.info(f"Found {len(formatted_items)} items in folder {parent_id}")
         
         return jsonify({
             'items': formatted_items,
@@ -1021,8 +1042,7 @@ def get_folders():
         })
         
     except Exception as e:
-        print(f"[!] Error loading folders: {e}")
-        traceback.print_exc()
+        app.logger.error(f"Error loading folders: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/folders/search', methods=['GET'])
@@ -1035,14 +1055,14 @@ def search_folders():
         if not search_term or len(search_term) < 2:
             return jsonify({'error': 'Search term must be at least 2 characters'}), 400
         
-        print(f"[?] Searching 7MM Resources for: {search_term}")
+        app.logger.debug(f"Searching 7MM Resources for: {search_term}")
         
         # Check cache first
         cache_key = get_cache_key('search', search_term)
         cached_data = get_cached_data(cache_key)
         
         if cached_data is not None:
-            print(f"[C] Returning cached search results for '{search_term}'")
+            app.logger.debug(f"Returning cached search results for '{search_term}'")
             return jsonify({
                 'items': cached_data,
                 'search_term': search_term,
@@ -1097,7 +1117,7 @@ def search_folders():
         # Cache the search results
         update_cache(cache_key, formatted_items)
         
-        print(f"[+] Found {len(formatted_items)} search results in 7MM Resources")
+        app.logger.info(f"Found {len(formatted_items)} search results in 7MM Resources")
         
         return jsonify({
             'items': formatted_items,
@@ -1108,8 +1128,7 @@ def search_folders():
         })
         
     except Exception as e:
-        print(f"[!] Error searching in 7MM Resources: {e}")
-        traceback.print_exc()
+        app.logger.error(f"Error searching in 7MM Resources: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/auth/drive-reinit', methods=['POST'])
@@ -1125,13 +1144,13 @@ def reinitialize_drive():
         from googleapiclient.discovery import build
         
         if os.path.exists(TOKEN_FILE):
-            print("Loading Google Drive credentials from web auth...")
+            app.logger.info("Loading Google Drive credentials from web auth...")
             with open(TOKEN_FILE, 'rb') as token:
                 creds = pickle.load(token)
                 
             if creds and creds.valid:
                 drive_service = build('drive', 'v3', credentials=creds)
-                print("✅ Google Drive service initialized from web auth credentials!")
+                app.logger.info("Google Drive service initialized from web auth credentials!")
                 return jsonify({
                     'success': True,
                     'message': 'Google Drive service initialized successfully!'
@@ -1148,7 +1167,7 @@ def reinitialize_drive():
             }), 400
             
     except Exception as e:
-        print(f"Error reinitializing Google Drive: {str(e)}")
+        app.logger.error(f"Error reinitializing Google Drive: {str(e)}", exc_info=True)
         return jsonify({'error': f'Failed to initialize Google Drive: {str(e)}'}), 500
 
 @app.route('/drive/status', methods=['GET'])
@@ -1232,7 +1251,7 @@ def download_drive_file(file_id):
         )
         
     except Exception as e:
-        print(f"Error downloading file {file_id}: {str(e)}")
+        app.logger.error(f"Error downloading file {file_id}: {str(e)}", exc_info=True)
         return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
 
 @app.route('/test/workspace', methods=['POST'])
@@ -1302,7 +1321,7 @@ def drive_auth_setup():
         })
         
     except Exception as e:
-        print(f"Error setting up Google Drive auth: {str(e)}")
+        app.logger.error(f"Error setting up Google Drive auth: {str(e)}", exc_info=True)
         return jsonify({'error': f'Failed to setup Google Drive auth: {str(e)}'}), 500
 
 @app.route('/auth/drive-complete', methods=['POST'])
@@ -1336,7 +1355,7 @@ def drive_auth_complete():
         from googleapiclient.discovery import build
         drive_service = build('drive', 'v3', credentials=creds)
         
-        print("✅ Google Drive authentication completed via web interface!")
+        app.logger.info("Google Drive authentication completed via web interface!")
         
         return jsonify({
             'success': True,
@@ -1344,7 +1363,7 @@ def drive_auth_complete():
         })
         
     except Exception as e:
-        print(f"Error completing Google Drive auth: {str(e)}")
+        app.logger.error(f"Error completing Google Drive auth: {str(e)}", exc_info=True)
         return jsonify({'error': f'Failed to complete Google Drive auth: {str(e)}'}), 500
 
 @app.route('/cache/status', methods=['GET'])
@@ -1508,8 +1527,8 @@ def create_app():
     try:
         initialize_rag_system()
     except Exception as e:
-        print(f"[!] Warning: RAG system initialization failed: {e}")
-        print("[!] Server will start with limited functionality")
+        app.logger.warning(f"RAG system initialization failed: {e}")
+        app.logger.info("Server will start with limited functionality")
     return app
 
 if __name__ == '__main__':
@@ -1519,33 +1538,33 @@ if __name__ == '__main__':
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
     args = parser.parse_args()
     
-    print("[*] Starting RAG Chat API Server...")
-    print("="*50)
+    app.logger.info("Starting RAG Chat API Server...")
+    app.logger.info("="*50)
     
     # Initialize the RAG system
     try:
         initialize_rag_system()
     except Exception as e:
-        print(f"[!] Warning: RAG system initialization failed: {e}")
-        print("[!] Server will start with limited functionality - admin panel will still work")
-        print("[!] You can set up Google Drive authentication later")
+        app.logger.warning(f"RAG system initialization failed: {e}")
+        app.logger.info("Server will start with limited functionality - admin panel will still work")
+        app.logger.info("You can set up Google Drive authentication later")
     
-    print("="*50)
+    app.logger.info("="*50)
     if args.production:
-        print(f"[>] Production server starting on {args.host}:{args.port}")
-        print("[!] Debug mode: OFF")
+        app.logger.info(f"Production server starting on {args.host}:{args.port}")
+        app.logger.info("Debug mode: OFF")
     else:
-        print(f"[>] Development server starting on http://localhost:{args.port}")
-        print("[D] Debug mode: ON")
+        app.logger.info(f"Development server starting on http://localhost:{args.port}")
+        app.logger.info("Debug mode: ON")
     
-    print("[?] Available endpoints:")
-    print("  GET  /health - Health check")
-    print("  GET  /collections - List available collections") 
-    print("  POST /chat - Send chat messages")
-    print("  POST /switch-collection - Switch collections")
-    print("  GET  /folders - Lazy-load folders (parent_id, type params)")
-    print("  GET  /folders/search - Search folders/files (q, type params)")
-    print("="*50)
+    app.logger.info("Available endpoints:")
+    app.logger.info("  GET  /health - Health check")
+    app.logger.info("  GET  /collections - List available collections") 
+    app.logger.info("  POST /chat - Send chat messages")
+    app.logger.info("  POST /switch-collection - Switch collections")
+    app.logger.info("  GET  /folders - Lazy-load folders (parent_id, type params)")
+    app.logger.info("  GET  /folders/search - Search folders/files (q, type params)")
+    app.logger.info("="*50)
     
     # Run the Flask app
     app.run(

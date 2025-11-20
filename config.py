@@ -1,10 +1,38 @@
 # config.py - Configuration settings
 
 import os
+import sys
 
 # Google Cloud Settings - CHANGE THIS!
 PROJECT_ID = "rag-chatbot-475316"  # ⚠️ Replace with your actual project ID
 LOCATION = "us-central1"
+
+# Validate critical environment variables in production
+def validate_config():
+    """Validate critical configuration settings"""
+    errors = []
+    warnings = []
+    
+    # Check API key if not using Vertex AI
+    if not USE_VERTEX_AI and not GOOGLE_API_KEY:
+        errors.append("GOOGLE_API_KEY environment variable not set and USE_VERTEX_AI is False")
+    
+    # Warn about default project ID
+    if PROJECT_ID == "rag-chatbot-475316":
+        warnings.append("Using default PROJECT_ID - please update config.py with your actual project ID")
+    
+    if errors:
+        sys.stderr.write("Configuration Errors:\n")
+        for error in errors:
+            sys.stderr.write(f"  - {error}\n")
+        sys.stderr.write("\nPlease fix these errors before running in production.\n")
+    
+    if warnings:
+        sys.stderr.write("Configuration Warnings:\n")
+        for warning in warnings:
+            sys.stderr.write(f"  - {warning}\n")
+    
+    return len(errors) == 0
 
 # API Settings
 USE_VERTEX_AI = True  # Use Vertex AI (Google Cloud credits) instead of consumer API
