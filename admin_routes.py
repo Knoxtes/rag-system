@@ -692,16 +692,26 @@ def run_collection_update(clear_existing=False):
             add_log("Scanning Google Drive for folders...")
             
             try:
-                # Get folders from shared drives
-                results = drive_service.files().list(
-                    q="mimeType='application/vnd.google-apps.folder' and trashed=false",
-                    pageSize=100,
-                    fields="files(id, name, parents, mimeType)",
-                    supportsAllDrives=True,
-                    includeItemsFromAllDrives=True
-                ).execute()
+                # Get folders from shared drives with pagination
+                folders = []
+                page_token = None
                 
-                folders = results.get('files', [])
+                while True:
+                    results = drive_service.files().list(
+                        q="mimeType='application/vnd.google-apps.folder' and trashed=false",
+                        pageSize=100,
+                        pageToken=page_token,
+                        fields="nextPageToken, files(id, name, parents, mimeType)",
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True
+                    ).execute()
+                    
+                    folders.extend(results.get('files', []))
+                    page_token = results.get('nextPageToken')
+                    
+                    if not page_token:
+                        break
+                
                 add_log(f"✓ Found {len(folders)} folders to scan")
                 
             except Exception as e:
@@ -727,17 +737,27 @@ def run_collection_update(clear_existing=False):
                 add_log(f"\n--- Processing folder: {folder_name} ---")
                 
                 try:
-                    # Get files in this folder
+                    # Get files in this folder with pagination
+                    files = []
+                    page_token = None
                     file_query = f"'{folder_id}' in parents and trashed=false"
-                    file_results = drive_service.files().list(
-                        q=file_query,
-                        pageSize=100,
-                        fields="files(id, name, mimeType, parents)",
-                        supportsAllDrives=True,
-                        includeItemsFromAllDrives=True
-                    ).execute()
                     
-                    files = file_results.get('files', [])
+                    while True:
+                        file_results = drive_service.files().list(
+                            q=file_query,
+                            pageSize=100,
+                            pageToken=page_token,
+                            fields="nextPageToken, files(id, name, mimeType, parents)",
+                            supportsAllDrives=True,
+                            includeItemsFromAllDrives=True
+                        ).execute()
+                        
+                        files.extend(file_results.get('files', []))
+                        page_token = file_results.get('nextPageToken')
+                        
+                        if not page_token or len(files) >= MAX_FILES_PER_FOLDER:
+                            break
+                    
                     add_log(f"  Found {len(files)} files in folder")
                     
                     # Filter files by supported mime types and limit count
