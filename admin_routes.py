@@ -13,9 +13,12 @@ import time
 from datetime import datetime
 import traceback
 from vector_store import VectorStore
-from config import INDEXED_FOLDERS_FILE
+from config import INDEXED_FOLDERS_FILE, COLLECTION_NAME
 from google_auth_oauthlib.flow import Flow
 import pickle
+from document_loader import GoogleDriveLoader, extract_text, chunk_text
+from embeddings import LocalEmbedder
+from auth import authenticate_google_drive
 
 # Create admin blueprint
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -592,8 +595,15 @@ def clear_cache():
         return jsonify({'error': str(e)}), 500
 
 def run_collection_update():
-    """Background collection update process"""
+    """Background collection update process - scans and indexes Google Drive documents"""
     global indexing_status
+    
+    def add_log(message):
+        """Helper to add timestamped log messages"""
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        log_entry = f"[{timestamp}] {message}"
+        indexing_status['logs'].append(log_entry)
+        print(log_entry)
     
     with indexing_lock:
         try:
@@ -606,28 +616,230 @@ def run_collection_update():
                 'error': None,
                 'logs': []
             })
+            add_log("Initializing indexing process...")
             
-            # Simulate update process (replace with actual logic)
-            indexing_status.update({
-                'progress': 50,
-                'message': 'Collection update temporarily disabled due to package compatibility issues.'
-            })
+            # Step 1: Authenticate with Google Drive
+            indexing_status['progress'] = 5
+            indexing_status['message'] = 'Authenticating with Google Drive...'
+            add_log("Authenticating with Google Drive...")
             
-            time.sleep(2)  # Simulate work
+            try:
+                drive_service = authenticate_google_drive()
+                add_log("✓ Google Drive authentication successful")
+            except Exception as e:
+                raise Exception(f"Google Drive authentication failed: {str(e)}")
+            
+            # Step 2: Initialize components
+            indexing_status['progress'] = 10
+            indexing_status['message'] = 'Initializing embedder and vector store...'
+            add_log("Initializing embedder...")
+            
+            embedder = LocalEmbedder()
+            add_log("✓ Embedder initialized")
+            
+            add_log("Initializing vector store...")
+            vector_store = VectorStore(collection_name=COLLECTION_NAME)
+            add_log(f"✓ Vector store initialized - Current documents: {vector_store.get_stats()['total_documents']}")
+            
+            add_log("Initializing Google Drive loader...")
+            loader = GoogleDriveLoader(drive_service)
+            add_log("✓ Google Drive loader initialized")
+            
+            # Step 3: Get list of folders to index from Google Drive
+            indexing_status['progress'] = 15
+            indexing_status['message'] = 'Scanning Google Drive for folders...'
+            add_log("Scanning Google Drive for folders...")
+            
+            try:
+                # Get folders from shared drives
+                results = drive_service.files().list(
+                    q="mimeType='application/vnd.google-apps.folder' and trashed=false",
+                    pageSize=100,
+                    fields="files(id, name, parents, mimeType)",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True
+                ).execute()
+                
+                folders = results.get('files', [])
+                add_log(f"✓ Found {len(folders)} folders to scan")
+                
+            except Exception as e:
+                raise Exception(f"Failed to list folders: {str(e)}")
+            
+            if not folders:
+                add_log("⚠ No folders found - checking for files in root...")
+                # Try to get files from root if no folders found
+                folders = [{'id': 'root', 'name': 'Root'}]
+            
+            # Step 4: Process each folder
+            total_files_processed = 0
+            total_chunks_added = 0
+            errors = []
+            
+            for idx, folder in enumerate(folders):
+                folder_id = folder['id']
+                folder_name = folder['name']
+                
+                progress = 15 + int((idx / len(folders)) * 75)  # 15% to 90%
+                indexing_status['progress'] = progress
+                indexing_status['message'] = f'Processing folder: {folder_name} ({idx+1}/{len(folders)})'
+                add_log(f"\n--- Processing folder: {folder_name} ---")
+                
+                try:
+                    # Get files in this folder
+                    file_query = f"'{folder_id}' in parents and trashed=false"
+                    file_results = drive_service.files().list(
+                        q=file_query,
+                        pageSize=100,
+                        fields="files(id, name, mimeType, parents)",
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True
+                    ).execute()
+                    
+                    files = file_results.get('files', [])
+                    add_log(f"  Found {len(files)} files in folder")
+                    
+                    # Process each file
+                    for file_idx, file in enumerate(files):
+                        file_id = file['id']
+                        file_name = file['name']
+                        mime_type = file.get('mimeType', '')
+                        
+                        # Skip folders
+                        if mime_type == 'application/vnd.google-apps.folder':
+                            continue
+                        
+                        add_log(f"  Processing file {file_idx+1}/{len(files)}: {file_name}")
+                        
+                        try:
+                            # Download and extract text
+                            file_content = None
+                            text = ""
+                            
+                            # Handle Google Workspace files
+                            if mime_type.startswith('application/vnd.google-apps.'):
+                                if 'document' in mime_type:
+                                    text = loader.export_google_doc(file_id) or ""
+                                elif 'spreadsheet' in mime_type:
+                                    text = loader.export_google_sheets(file_id) or ""
+                                elif 'presentation' in mime_type:
+                                    text = loader.export_google_slides(file_id) or ""
+                                else:
+                                    add_log(f"    ⚠ Unsupported Google Workspace type: {mime_type}")
+                                    continue
+                            else:
+                                # Download regular files
+                                file_content = loader.download_file(file_id)
+                                if file_content:
+                                    text = extract_text(file_content, mime_type, file_name, loader.ocr_service) or ""
+                            
+                            if not text or len(text.strip()) < 10:
+                                add_log(f"    ⚠ No text extracted from {file_name}")
+                                continue
+                            
+                            # Chunk the text
+                            chunks = chunk_text(text)
+                            if not chunks:
+                                add_log(f"    ⚠ No chunks created from {file_name}")
+                                continue
+                            
+                            add_log(f"    ✓ Extracted text and created {len(chunks)} chunks")
+                            
+                            # Generate embeddings
+                            embeddings = embedder.embed_documents(chunks)
+                            
+                            # Prepare metadata
+                            metadatas = []
+                            ids = []
+                            for chunk_idx, chunk in enumerate(chunks):
+                                chunk_id = f"{file_id}_{chunk_idx}"
+                                metadata = {
+                                    'file_id': file_id,
+                                    'file_name': file_name,
+                                    'mime_type': mime_type,
+                                    'folder_id': folder_id,
+                                    'folder_name': folder_name,
+                                    'file_path': f"{folder_name}/",
+                                    'chunk_index': chunk_idx,
+                                    'total_chunks': len(chunks),
+                                    'google_drive_link': f"https://drive.google.com/file/d/{file_id}/view"
+                                }
+                                metadatas.append(metadata)
+                                ids.append(chunk_id)
+                            
+                            # Add to vector store
+                            vector_store.add_documents(chunks, embeddings, metadatas, ids)
+                            add_log(f"    ✓ Added {len(chunks)} chunks to vector store")
+                            
+                            total_files_processed += 1
+                            total_chunks_added += len(chunks)
+                            
+                        except Exception as e:
+                            error_msg = f"Error processing file {file_name}: {str(e)}"
+                            add_log(f"    ✗ {error_msg}")
+                            errors.append(error_msg)
+                            continue
+                    
+                except Exception as e:
+                    error_msg = f"Error processing folder {folder_name}: {str(e)}"
+                    add_log(f"  ✗ {error_msg}")
+                    errors.append(error_msg)
+                    continue
+            
+            # Step 5: Update indexed folders log
+            indexing_status['progress'] = 95
+            indexing_status['message'] = 'Updating indexed folders log...'
+            add_log("\nUpdating indexed folders log...")
+            
+            try:
+                indexed_data = {}
+                if os.path.exists(INDEXED_FOLDERS_FILE):
+                    with open(INDEXED_FOLDERS_FILE, 'r') as f:
+                        indexed_data = json.load(f)
+                
+                # Update with current scan
+                for folder in folders:
+                    indexed_data[folder['id']] = {
+                        'name': folder['name'],
+                        'last_indexed': datetime.now().isoformat(),
+                        'files_count': sum(1 for f in folder.get('files', []))
+                    }
+                
+                with open(INDEXED_FOLDERS_FILE, 'w') as f:
+                    json.dump(indexed_data, f, indent=2)
+                
+                add_log("✓ Indexed folders log updated")
+            except Exception as e:
+                add_log(f"⚠ Failed to update indexed folders log: {str(e)}")
             
             # Complete
+            indexing_status['progress'] = 100
+            success_message = f'Indexing complete! Processed {total_files_processed} files, added {total_chunks_added} chunks'
+            indexing_status['message'] = success_message
+            add_log(f"\n{success_message}")
+            
+            if errors:
+                add_log(f"\n⚠ Encountered {len(errors)} errors during processing")
+            
             indexing_status.update({
                 'running': False,
-                'progress': 100,
-                'message': 'Collection update feature temporarily disabled.',
-                'completed_at': datetime.now().isoformat()
+                'completed_at': datetime.now().isoformat(),
+                'stats': {
+                    'files_processed': total_files_processed,
+                    'chunks_added': total_chunks_added,
+                    'errors': len(errors)
+                }
             })
             
         except Exception as e:
+            error_msg = f'Indexing failed: {str(e)}'
+            add_log(f"\n✗ {error_msg}")
+            add_log(f"Traceback: {traceback.format_exc()}")
+            
             indexing_status.update({
                 'running': False,
                 'progress': 0,
-                'message': 'Collection update failed',
+                'message': error_msg,
                 'error': str(e),
                 'completed_at': datetime.now().isoformat()
             })
