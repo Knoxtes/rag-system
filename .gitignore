@@ -24,6 +24,9 @@ venv/
 ENV/
 env/
 
+# Node.js
+node_modules/
+
 # Credentials and API Keys - NEVER COMMIT THESE!
 credentials.json
 token.pickle
