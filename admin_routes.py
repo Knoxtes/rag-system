@@ -27,6 +27,27 @@ admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 TOKEN_FILE = 'token.pickle'
 
+# Indexing Configuration
+MAX_FILES_PER_FOLDER = 1000  # Limit files per folder to prevent memory issues
+SUPPORTED_MIME_TYPES = {
+    # Google Workspace
+    'application/vnd.google-apps.document',
+    'application/vnd.google-apps.spreadsheet',
+    'application/vnd.google-apps.presentation',
+    # Microsoft Office
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # .docx
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # .xlsx
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',  # .pptx
+    'application/vnd.ms-excel',  # .xls
+    'application/msword',  # .doc
+    # Text files
+    'text/plain',
+    'text/csv',
+    'text/html',
+    'text/markdown',
+}
+
 # Global variables for background tasks
 indexing_status = {
     'running': False,
@@ -568,12 +589,18 @@ def update_collections():
         return jsonify({'error': 'Collection update already in progress'}), 409
     
     try:
+        # Get optional parameters
+        clear_existing = request.json.get('clear_existing', False) if request.is_json else False
+        
         # Start background indexing
-        thread = threading.Thread(target=run_collection_update)
+        thread = threading.Thread(target=run_collection_update, args=(clear_existing,))
         thread.daemon = True
         thread.start()
         
-        return jsonify({'message': 'Collection update started'})
+        return jsonify({
+            'message': 'Collection update started',
+            'clear_existing': clear_existing
+        })
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -594,8 +621,12 @@ def clear_cache():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def run_collection_update():
-    """Background collection update process - scans and indexes Google Drive documents"""
+def run_collection_update(clear_existing=False):
+    """Background collection update process - scans and indexes Google Drive documents
+    
+    Args:
+        clear_existing: If True, clears the collection before re-indexing
+    """
     global indexing_status
     
     def add_log(message):
@@ -618,6 +649,9 @@ def run_collection_update():
             })
             add_log("Initializing indexing process...")
             
+            if clear_existing:
+                add_log("⚠️  Clear existing mode enabled - will remove all documents first")
+            
             # Step 1: Authenticate with Google Drive
             indexing_status['progress'] = 5
             indexing_status['message'] = 'Authenticating with Google Drive...'
@@ -639,7 +673,14 @@ def run_collection_update():
             
             add_log("Initializing vector store...")
             vector_store = VectorStore(collection_name=COLLECTION_NAME)
-            add_log(f"✓ Vector store initialized - Current documents: {vector_store.get_stats()['total_documents']}")
+            current_doc_count = vector_store.get_stats()['total_documents']
+            add_log(f"✓ Vector store initialized - Current documents: {current_doc_count}")
+            
+            # Clear existing documents if requested
+            if clear_existing and current_doc_count > 0:
+                add_log("Clearing existing documents from collection...")
+                vector_store.clear_collection()
+                add_log("✓ Collection cleared")
             
             add_log("Initializing Google Drive loader...")
             loader = GoogleDriveLoader(drive_service)
@@ -699,8 +740,19 @@ def run_collection_update():
                     files = file_results.get('files', [])
                     add_log(f"  Found {len(files)} files in folder")
                     
+                    # Filter files by supported mime types and limit count
+                    supported_files = [f for f in files if f.get('mimeType') in SUPPORTED_MIME_TYPES or f.get('mimeType', '').startswith('application/vnd.google-apps.')]
+                    
+                    if len(supported_files) < len(files):
+                        skipped = len(files) - len(supported_files)
+                        add_log(f"  ⚠️  Skipped {skipped} unsupported file types")
+                    
+                    if len(supported_files) > MAX_FILES_PER_FOLDER:
+                        add_log(f"  ⚠️  Limiting to first {MAX_FILES_PER_FOLDER} files (folder has {len(supported_files)})")
+                        supported_files = supported_files[:MAX_FILES_PER_FOLDER]
+                    
                     # Process each file
-                    for file_idx, file in enumerate(files):
+                    for file_idx, file in enumerate(supported_files):
                         file_id = file['id']
                         file_name = file['name']
                         mime_type = file.get('mimeType', '')
