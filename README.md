@@ -6,11 +6,11 @@ A modern React-based chat interface powered by a RAG (Retrieval-Augmented Genera
 
 - **Modern React UI**: Dark theme with smooth animations
 - **RAG Integration**: AI-powered responses using your documents
+- **Cloud Agent Delegation**: Intelligent delegation to Google Cloud Vertex AI for scalable AI operations
 - **Multi-Collection Support**: Switch between different document collections or search all collections simultaneously  
 - **All Collections Mode**: NEW unified search across all indexed collections with smart result synthesis
 - **Google Drive Browser**: High-speed lazy-loading with intelligent caching
 - **Real-time Chat**: Instant responses with streaming support
-- **Multi-Collection Support**: Switch between different document collections
 - **Performance Optimized**: Multi-layer caching, compression, and concurrent requests
 - **Production Ready**: Optimized for deployment on Plesk and other hosting platforms
 
@@ -144,6 +144,7 @@ GOOGLE_DRIVE_FOLDER_ID=your_shared_drive_id
 ## 🎯 API Endpoints
 
 - `GET /health` - Health check
+- `GET /cloud-agent/status` - Check cloud agent delegation status
 - `POST /chat` - Send chat messages
 - `GET /collections` - List available collections
 - `POST /switch-collection` - Switch document collections

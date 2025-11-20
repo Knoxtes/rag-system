@@ -19,6 +19,7 @@ except ImportError:
 from embeddings import LocalEmbedder, LocalReranker, HybridSearcher
 from vector_store import VectorStore
 from answer_logger import AnswerLogger
+from cloud_agent import delegate_to_cloud_agent, get_cloud_agent
 from config import (
     TOP_K_RESULTS, GOOGLE_API_KEY, MAX_CONTEXT_CHARACTERS, 
     INDEXED_FOLDERS_FILE, MAX_AGENT_ITERATIONS, AGENT_TEMPERATURE,
@@ -269,6 +270,8 @@ def _get_generative_model(model_name=None):
     """
     Get a generative model (Vertex AI or consumer API based on config).
     
+    This function delegates to the cloud agent for model initialization.
+    
     Args:
         model_name: Model identifier (defaults to GEMINI_MODEL from config)
     
@@ -280,31 +283,8 @@ def _get_generative_model(model_name=None):
         from config import GEMINI_MODEL
         model_name = GEMINI_MODEL
     
-    if USE_VERTEX_AI:
-        if not VERTEX_AI_AVAILABLE:
-            print("⚠️  Vertex AI not available, falling back to consumer API")
-            genai.configure(api_key=GOOGLE_API_KEY)
-            return genai.GenerativeModel(model_name)
-        
-        # Initialize Vertex AI
-        vertexai.init(project=PROJECT_ID, location=LOCATION)
-        print(f"  ☁️  Using Vertex AI with Google Cloud project: {PROJECT_ID}")
-        
-        # Map consumer model names to Vertex AI model names
-        vertex_model_map = {
-            'gemini-2.5-flash': 'gemini-2.5-flash',  # Flash 2.5 (cheapest)
-            'gemini-2.0-flash-exp': 'gemini-2.0-flash-exp',
-            'gemini-1.5-flash': 'gemini-1.5-flash',
-            'gemini-1.5-pro': 'gemini-1.5-pro'
-        }
-        
-        vertex_model_name = vertex_model_map.get(model_name, 'gemini-2.5-flash')
-        print(f"  📦 Using Vertex AI model: {vertex_model_name}")
-        return VertexGenerativeModel(vertex_model_name)
-    else:
-        # Use consumer API
-        genai.configure(api_key=GOOGLE_API_KEY)
-        return genai.GenerativeModel(model_name)
+    # Delegate to cloud agent for model initialization
+    return delegate_to_cloud_agent(model_name)
 
 
 class MultiCollectionRAGSystem:

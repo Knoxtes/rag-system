@@ -28,6 +28,7 @@ from oauth_config import require_auth, oauth_config
 from auth_routes import auth_bp
 from config import SCOPES, CREDENTIALS_FILE, TOKEN_FILE, USE_VERTEX_AI
 from rate_limiter import limiter
+from cloud_agent import get_cloud_agent
 import re
 
 app = Flask(__name__)
@@ -636,6 +637,23 @@ def health_check():
         'auth_required': True,
         'allowed_domains': oauth_config.allowed_domains if oauth_config.allowed_domains else ['all']
     })
+
+@app.route('/cloud-agent/status', methods=['GET'])
+def cloud_agent_status():
+    """Get cloud agent delegation status"""
+    try:
+        agent = get_cloud_agent()
+        info = agent.get_delegation_info()
+        return jsonify({
+            'status': 'success',
+            'cloud_agent': info
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 
 @app.route('/collections', methods=['GET'])
 @require_auth
