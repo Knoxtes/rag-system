@@ -6,6 +6,27 @@
 echo "🚀 Starting RAG System Deployment..."
 echo "=================================="
 
+# Check for uncommitted changes
+if command -v git &> /dev/null; then
+    if [ -d .git ]; then
+        if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+            echo "⚠️  Uncommitted changes detected"
+            echo ""
+            echo "You have uncommitted changes in your repository."
+            echo "It's recommended to commit or stash your changes before deploying."
+            echo ""
+            read -p "Do you want to proceed anyway? (y/N): " -n 1 -r
+            echo ""
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo "❌ Deployment cancelled."
+                exit 1
+            fi
+            echo "✅ Proceeding with deployment..."
+            echo ""
+        fi
+    fi
+fi
+
 # Check if Node.js is available
 if ! command -v node &> /dev/null; then
     echo "❌ Node.js is not installed. Please install Node.js 14+ first."

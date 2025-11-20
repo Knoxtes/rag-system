@@ -1,9 +1,32 @@
 @echo off
+setlocal enabledelayedexpansion
 REM RAG System Deployment Script for Windows/Plesk
 REM This script sets up and starts the RAG system in a production environment
 
 echo 🚀 Starting RAG System Deployment...
 echo ==================================
+
+REM Check for uncommitted changes
+git --version >nul 2>&1
+if %errorlevel% equ 0 (
+    if exist .git (
+        git diff-index --quiet HEAD -- >nul 2>&1
+        if errorlevel 1 (
+            echo ⚠️  Uncommitted changes detected
+            echo.
+            echo You have uncommitted changes in your repository.
+            echo It's recommended to commit or stash your changes before deploying.
+            echo.
+            set /p PROCEED="Do you want to proceed anyway? (y/N): "
+            if /i not "!PROCEED!"=="y" (
+                echo ❌ Deployment cancelled.
+                exit /b 1
+            )
+            echo ✅ Proceeding with deployment...
+            echo.
+        )
+    )
+)
 
 REM Check if Node.js is available
 node --version >nul 2>&1
