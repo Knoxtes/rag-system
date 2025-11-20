@@ -15,9 +15,10 @@ logging.getLogger('google.cloud').setLevel(logging.WARNING)
 # Add the application directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Load environment variables from .env.production
+# Load environment variables (tries .env.production, then .env)
 from dotenv import load_dotenv
-load_dotenv('.env.production')
+load_dotenv('.env.production')  # Production environment
+load_dotenv()  # Fallback to .env if .env.production doesn't exist
 
 # Configure production logging
 logging.basicConfig(
