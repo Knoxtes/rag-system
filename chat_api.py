@@ -340,10 +340,6 @@ def get_cache_key(parent_id, query=None):
     if query:
         return f"search:{query}:{parent_id}"
     return f"folder:{parent_id}"
-    """Generate cache key for folder requests"""
-    if query:
-        return f"search:{query}:{parent_id}"
-    return f"folder:{parent_id}"
 
 def is_cache_expired(cache_entry):
     """Check if cache entry has expired"""

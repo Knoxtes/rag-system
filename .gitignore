@@ -28,15 +28,22 @@ env/
 credentials.json
 token.pickle
 .env
+.env.production
 *.pem
 *.key
 
 # ChromaDB
 chroma_db/
+chroma_db_backups/
 *.sqlite3
 
 # Indexed folders metadata
 indexed_folders.json
+
+# Cache directories
+embedding_cache/
+csv_cache/
+answer_log.json
 
 # IDE
 .vscode/
@@ -63,3 +70,10 @@ docs/_build/
 
 # OS
 Thumbs.db
+
+# Node.js
+node_modules/
+package-lock.json
+
+# React build
+chat-app/build/
