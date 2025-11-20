@@ -629,15 +629,36 @@ def extract_document_links(response_text):
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'rag_initialized': rag_system is not None,
-        'multi_collection_available': multi_collection_rag is not None,
-        'collections_available': len(available_collections),
-        'auth_required': True,
-        'allowed_domains': oauth_config.allowed_domains if oauth_config.allowed_domains else ['all']
-    })
+    """Enhanced health check endpoint with system diagnostics"""
+    try:
+        from health_monitor import perform_health_check
+        
+        # Get detailed health status
+        health_status = perform_health_check()
+        
+        # Add RAG system status
+        health_status['rag_system'] = {
+            'initialized': rag_system is not None,
+            'multi_collection_available': multi_collection_rag is not None,
+            'collections_count': len(available_collections),
+            'drive_service_available': drive_service is not None
+        }
+        
+        # Add authentication status
+        health_status['authentication'] = {
+            'enabled': True,
+            'allowed_domains': oauth_config.allowed_domains if oauth_config.allowed_domains else ['all']
+        }
+        
+        return jsonify(health_status), 200 if health_status['status'] == 'healthy' else 503
+        
+    except Exception as e:
+        app.logger.error(f"Health check failed: {e}", exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'error': 'Health check failed',
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @app.route('/collections', methods=['GET'])
 @require_auth
