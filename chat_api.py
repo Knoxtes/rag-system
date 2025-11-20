@@ -37,6 +37,7 @@ from oauth_config import require_auth, oauth_config
 from auth_routes import auth_bp
 from config import SCOPES, CREDENTIALS_FILE, TOKEN_FILE, USE_VERTEX_AI
 from rate_limiter import limiter
+from input_validation import InputValidator, ValidationError, handle_validation_error
 import re
 
 app = Flask(__name__)
@@ -669,24 +670,27 @@ def chat():
     global rag_system, multi_collection_rag
     
     try:
-        print(f"[DEBUG] Chat endpoint called")
-        print(f"[DEBUG] rag_system: {rag_system is not None}")
-        print(f"[DEBUG] multi_collection_rag: {multi_collection_rag is not None}")
+        logger.debug("Chat endpoint called")
+        logger.debug(f"rag_system initialized: {rag_system is not None}")
+        logger.debug(f"multi_collection_rag initialized: {multi_collection_rag is not None}")
         
         data = request.get_json()
-        print(f"[DEBUG] Request data: {data}")
+        if not data:
+            return jsonify({'error': 'Request body is required', 'code': 'MISSING_BODY'}), 400
         
-        if not data or 'message' not in data:
-            return jsonify({'error': 'Message is required'}), 400
+        # Validate inputs
+        try:
+            message = InputValidator.validate_message(data.get('message'))
+            collection = InputValidator.validate_collection_name(data.get('collection'))
+            file_id = InputValidator.validate_file_id(data.get('file_id'))
+        except ValidationError as e:
+            return handle_validation_error(e)
         
-        message = data['message']
-        collection = data.get('collection')
-        file_id = data.get('file_id')  # Extract file_id for targeted queries
-        print(f"[DEBUG] Message: {message}, Collection: {collection}, File ID: {file_id}")
+        logger.debug(f"Message length: {len(message)}, Collection: {collection}, File ID: {file_id}")
         
         # PRIORITY: Handle direct document queries FIRST (before any RAG logic)
         if file_id:
-            print(f"  📄 WORKSPACE QUERY: Analyzing specific file: {file_id}")
+            logger.info(f"WORKSPACE QUERY: Analyzing specific file: {file_id}")
             
             # Try workspace query first (downloads up to 500KB)
             try:
@@ -874,11 +878,11 @@ def get_folders():
         
         # Check if Google Drive service is available, try to reinitialize if not
         if drive_service is None:
-            print("[!] Drive service not available, attempting to reinitialize...")
+            logger.warning("Drive service not available, attempting to reinitialize...")
             try:
                 drive_service = authenticate_google_drive(interactive=False)
             except Exception as e:
-                print(f"[!] Drive service reinit failed: {e}")
+                logger.error(f"Drive service reinit failed: {e}")
             
         # If still not available, return unavailable response    
         if drive_service is None:
@@ -890,9 +894,14 @@ def get_folders():
                 'can_retry': True
             }), 503
         
+        # Validate folder ID
         parent_id = request.args.get('parent_id', '')
+        try:
+            parent_id = InputValidator.validate_folder_id(parent_id) or ''
+        except ValidationError as e:
+            return handle_validation_error(e)
         
-        print(f"[F] Loading folder contents for parent_id: {parent_id}")
+        logger.info(f"Loading folder contents for parent_id: {parent_id}")
         
         # Check cache first
         cache_key = get_cache_key(parent_id)
@@ -1041,10 +1050,13 @@ def search_folders():
     try:
         search_term = request.args.get('q', '').strip()
         
-        if not search_term or len(search_term) < 2:
-            return jsonify({'error': 'Search term must be at least 2 characters'}), 400
+        # Validate search term
+        try:
+            search_term = InputValidator.validate_search_query(search_term)
+        except ValidationError as e:
+            return handle_validation_error(e)
         
-        print(f"[?] Searching 7MM Resources for: {search_term}")
+        logger.info(f"Searching 7MM Resources for: {search_term}")
         
         # Check cache first
         cache_key = get_cache_key('search', search_term)
