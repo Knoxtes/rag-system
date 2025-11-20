@@ -37,8 +37,8 @@ This will simultaneously start:
 If you need to install dependencies separately:
 
 ```bash
-# Install all dependencies
-npm run install:all
+# Install all dependencies (recommended - production-ready)
+pip install -r requirements-unified.txt
 
 # Or install individually
 npm run install:backend  # Python dependencies
@@ -118,7 +118,7 @@ bash deploy.sh
 
 6. **Install Dependencies**:
    ```bash
-   pip install -r requirements-production.txt
+   pip install -r requirements-unified.txt
    ```
 
 7. **Restart Application** in Plesk control panel
@@ -166,7 +166,7 @@ npm run start:frontend  # React will auto-detect available port
 ### Python Dependencies
 If imports fail:
 ```bash
-pip install -r requirements-production.txt
+pip install -r requirements-unified.txt
 ```
 
 ### React Build Issues
@@ -181,11 +181,15 @@ npm run build
 ## 📋 Dependencies
 
 ### Backend (Python)
+See `requirements-unified.txt` for complete list:
 - Flask - Web framework
 - ChromaDB - Vector database  
 - Google API Client - Drive integration
 - Sentence Transformers - Embeddings
-- And 20+ more (see requirements-production.txt)
+- LangChain - AI orchestration
+- And 100+ production-ready dependencies
+
+For detailed installation, see `MULTI_USER_DEPLOYMENT.md`
 
 ### Frontend (React/TypeScript)
 - React 19 - UI framework
@@ -230,3 +234,32 @@ npm run build
 **Status**: Production Ready ✅  
 **Last Updated**: November 2025  
 **Version**: 1.0.0
+
+## 🚀 Production Ready Features
+
+### Multi-User Support
+✅ **Concurrent users**: Thread-safe operations with session isolation  
+✅ **Authentication**: OAuth 2.0 with JWT tokens  
+✅ **Rate limiting**: 200 requests/day, 50 requests/hour per IP  
+✅ **Security headers**: HSTS, XSS protection, frame denial  
+✅ **Domain restrictions**: Configurable email domain whitelist  
+
+### Performance & Scalability
+✅ **Multi-layer caching**: Folder, embedding, and query caching  
+✅ **Background tasks**: Non-blocking cache refresh  
+✅ **Batch operations**: Efficient bulk data loading  
+✅ **Resource optimization**: Memory management and LRU eviction  
+✅ **Connection pooling**: Efficient API connection management  
+
+### Monitoring & Maintenance
+✅ **Health checks**: `/health` endpoint for uptime monitoring  
+✅ **Structured logging**: Production-grade logging with rotation  
+✅ **Error tracking**: Comprehensive exception handling  
+✅ **Cost monitoring**: Built-in API cost tracking  
+
+### Documentation
+📖 **Full deployment guide**: See `MULTI_USER_DEPLOYMENT.md`  
+📖 **Optimization log**: See `OPTIMIZATION_CHANGELOG.md`  
+📖 **Configuration reference**: See `config.py`  
+
+For production deployment instructions, see **[Multi-User Deployment Guide](MULTI_USER_DEPLOYMENT.md)**
