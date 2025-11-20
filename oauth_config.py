@@ -31,7 +31,20 @@ class OAuthConfig:
         self.allowed_domains = [domain.strip() for domain in self.allowed_domains if domain.strip()]
         
         # Security Configuration
-        self.secret_key = os.getenv('JWT_SECRET_KEY', secrets.token_urlsafe(32))
+        self.secret_key = os.getenv('JWT_SECRET_KEY')
+        if not self.secret_key:
+            # In production, this should be set. For development, generate a warning.
+            is_production = os.getenv('FLASK_ENV') == 'production'
+            if is_production:
+                raise ValueError(
+                    "JWT_SECRET_KEY environment variable is required in production. "
+                    "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                )
+            else:
+                # Development only - generate a temporary key with warning
+                self.secret_key = secrets.token_urlsafe(32)
+                print("⚠️  WARNING: Using temporary JWT_SECRET_KEY. Set JWT_SECRET_KEY environment variable for production!")
+        
         self.token_expiry_hours = int(os.getenv('TOKEN_EXPIRY_HOURS', '168'))  # Default 7 days
         self.refresh_token_expiry_days = int(os.getenv('REFRESH_TOKEN_EXPIRY_DAYS', '30'))  # Default 30 days
         

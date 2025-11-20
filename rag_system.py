@@ -1804,7 +1804,8 @@ class EnhancedRAGSystem:
             # Try to get chat history if available
             try:
                 history = chat.history if 'chat' in locals() else []
-            except:
+            except (AttributeError, NameError) as e:
+                logger.debug(f"Failed to get chat history: {e}")
                 history = []
             
             error_message = f"An error occurred during processing: {e}\n\nPlease try rephrasing your question or ask something simpler."

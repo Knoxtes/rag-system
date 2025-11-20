@@ -7,9 +7,15 @@ from flask import Blueprint, request, redirect, url_for, session, jsonify
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+import google.auth.exceptions
 import os
 import pickle
 import json
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # OAuth configuration
 SCOPES = [
@@ -70,11 +76,13 @@ def get_credentials():
                 with open(TOKEN_FILE, 'wb') as token:
                     pickle.dump(creds, token)
                 return creds
-            except:
+            except (google.auth.exceptions.RefreshError, OSError, IOError) as e:
+                logger.error(f"Failed to refresh credentials: {e}")
                 return None
         
         return None
-    except:
+    except (pickle.UnpicklingError, OSError, IOError) as e:
+        logger.error(f"Failed to load credentials: {e}")
         return None
 
 
@@ -271,5 +279,6 @@ def get_drive_service():
     
     try:
         return build('drive', 'v3', credentials=creds)
-    except:
+    except Exception as e:
+        logger.error(f"Failed to build Drive service: {e}")
         return None

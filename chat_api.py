@@ -19,6 +19,15 @@ from logging.handlers import RotatingFileHandler
 from dotenv import load_dotenv
 load_dotenv()
 
+# Configure logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
 # Add the parent directory to the path to import our RAG system
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -1162,8 +1171,8 @@ def drive_status():
             # Try to initialize
             try:
                 drive_service = authenticate_google_drive(interactive=False)
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to reinitialize drive service: {e}")
                 
         if drive_service is None:
             return jsonify({

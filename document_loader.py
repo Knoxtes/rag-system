@@ -269,7 +269,7 @@ def extract_text_from_csv(file_content):
                                     row_parts.append(f"  {col_name}: ${num_val:,.2f}")
                                 else:
                                     row_parts.append(f"  {col_name}: {value}")
-                        except:
+                        except (ValueError, TypeError) as e:
                             row_parts.append(f"  {col_name}: {value}")
                 
                 if row_parts:
@@ -289,7 +289,7 @@ def extract_text_from_csv(file_content):
                             col_str = str(col)
                             if any(keyword in col_str.lower() for keyword in ['revenue', 'sales', 'amount', 'price', 'cost', 'total', 'value', '-20', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']) or '$' in col_str:
                                 summary_parts.append(f"  {col}: ${total:,.2f}")
-                except:
+                except (ValueError, TypeError, KeyError) as e:
                     pass
         
         summary_parts.append("=" * 50 + "\n")
