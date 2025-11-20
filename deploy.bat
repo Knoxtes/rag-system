@@ -10,8 +10,8 @@ REM Check for uncommitted changes
 git --version >nul 2>&1
 if %errorlevel% equ 0 (
     if exist .git (
-        git diff-index --quiet HEAD -- >nul 2>&1
-        if errorlevel 1 (
+        for /f %%i in ('git status --porcelain 2^>nul ^| find /c /v ""') do set CHANGES=%%i
+        if not "!CHANGES!"=="0" (
             echo ⚠️  Uncommitted changes detected
             echo.
             echo You have uncommitted changes in your repository.

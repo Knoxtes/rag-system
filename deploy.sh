@@ -9,7 +9,7 @@ echo "=================================="
 # Check for uncommitted changes
 if command -v git &> /dev/null; then
     if [ -d .git ]; then
-        if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
             echo "⚠️  Uncommitted changes detected"
             echo ""
             echo "You have uncommitted changes in your repository."
