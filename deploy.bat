@@ -24,6 +24,7 @@ if exist .git (
             echo The following changes are uncommitted:
             git status --short
             echo.
+            set "PROCEED="
             set /p "PROCEED=Do you want to proceed with deployment anyway? (y/N): "
             if /i not "%PROCEED%"=="y" (
                 echo ❌ Deployment cancelled. Please commit your changes first.
