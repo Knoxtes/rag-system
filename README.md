@@ -227,6 +227,17 @@ npm run build
 
 ---
 
+## 📚 Documentation
+
+- **[QUICK_START.md](QUICK_START.md)** - Fast 5-step deployment guide
+- **[PLESK_SETUP_GUIDE.md](PLESK_SETUP_GUIDE.md)** - Complete Plesk deployment guide
+- **[GIT_WORKFLOW.md](GIT_WORKFLOW.md)** - Git workflow and update procedures
+- **[.env.example](.env.example)** - Environment configuration template
+- **[docs/](docs/)** - Additional specialized documentation
+
+---
+
 **Status**: Production Ready ✅  
-**Last Updated**: November 2025  
-**Version**: 1.0.0
+**Last Updated**: November 2024  
+**Version**: 1.0.0  
+**Domain**: Ask.7MountainsMedia.com
