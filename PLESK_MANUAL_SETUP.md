@@ -1,45 +1,40 @@
 # Plesk Manual Setup Guide
 
-Since Plesk's npm terminal doesn't support `cd` commands, follow these steps:
+Since Plesk's Node.js terminal runs from `/chat-app` directory by default, follow these steps:
 
 ## 1. Install Python Dependencies (SSH Terminal)
 
 In Plesk SSH terminal:
 ```bash
-cd /var/www/vhosts/7mountainsmedia.com/chat.7mountainsmedia.com
+cd /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
 python3 -m pip install --user -r requirements-production.txt
 ```
 
-## 2. Install Root Node.js Dependencies (Plesk Node.js Terminal)
+## 2. Install Root Node.js Dependencies (SSH Terminal)
 
-In Plesk **Node.js** terminal, run this single command:
+In SSH terminal (not Node.js terminal):
 ```bash
+cd /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
 npm install
 ```
 
-## 3. Install React App Dependencies (Plesk Node.js Terminal)
+## 3. Install React Dependencies (Plesk Node.js Terminal)
 
-In Plesk **Node.js** terminal, run these commands ONE BY ONE:
+Plesk Node.js terminal already starts in `/chat-app`, so just run:
 ```bash
-npm install --prefix ./chat-app
+npm install --ignore-scripts
 ```
+
+The `--ignore-scripts` flag prevents the Node 25.x localStorage error.
 
 ## 4. Build React App (Plesk Node.js Terminal)
 
-In Plesk **Node.js** terminal:
+Still in Plesk Node.js terminal:
 ```bash
-npm run build --prefix ./chat-app
+npm run build
 ```
 
-If that fails, try:
-```bash
-cd chat-app && npm run build
-```
-
-If `cd` doesn't work, use Plesk File Manager to:
-1. Navigate to `chat-app/` directory
-2. Open Node.js terminal from there
-3. Run: `npm run build`
+If you get the localStorage error, the build wrapper should handle it automatically.
 
 ## 5. Upload Required Files (Plesk File Manager or SFTP)
 
