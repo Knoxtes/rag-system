@@ -58,7 +58,7 @@ ls -la credentials.json token.pickle .env
 ## Key Configuration Values
 
 ### Plesk Node.js Settings
-- **Node.js Version**: 22.x (recommended) or 20.x
+- **Node.js Version**: 18.x, 20.x, 22.x, or 25.x (all supported)
 - **Application Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7MountainsMedia.com`
 - **Document Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7MountainsMedia.com/chat-app/build`
 - **Startup File**: `server.js`
@@ -128,10 +128,13 @@ ps aux | grep python | grep chat_api
 - Verify CORS_ORIGINS in .env matches
 
 ### Issue: Build Fails
-**Solution**: Check Node.js version
+**Solution**: Check Node.js version and dependencies
 ```bash
 /opt/plesk/node/22/bin/node --version
-# Should be 22.x or 20.x, NOT 25.x
+# Any version 18.x, 20.x, 22.x, or 25.x is supported
+
+# If build fails, ensure node-localstorage is installed
+cd chat-app && npm install
 ```
 
 ### Issue: Module Not Found

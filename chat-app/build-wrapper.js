@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
-// Polyfill localStorage for Node.js 25.x compatibility
+// Build wrapper for Node.js 25.x compatibility
+// Handles localStorage polyfill and OpenSSL legacy provider
+
 const { LocalStorage } = require('node-localstorage');
 const os = require('os');
 const path = require('path');
@@ -12,12 +14,16 @@ if (!fs.existsSync(tmpDir)) {
   fs.mkdirSync(tmpDir, { recursive: true });
 }
 
-console.log('🔧 Setting up localStorage polyfill for Node 25.x...');
+console.log('🔧 Setting up build environment for Node.js 25.x compatibility...');
 
-// Polyfill global localStorage
+// Polyfill global localStorage for Node.js 25.x
 global.localStorage = new LocalStorage(tmpDir);
-
 console.log('✅ localStorage polyfill ready');
+
+// Set OpenSSL legacy provider for older dependencies
+process.env.NODE_OPTIONS = '--openssl-legacy-provider';
+console.log('✅ OpenSSL legacy provider enabled');
+
 console.log('🏗️  Starting React build...\n');
 
 // Now require and run react-scripts

@@ -38,8 +38,12 @@ echo "📦 Step 1: Detecting Node.js..."
 NPM_CMD=""
 NODE_CMD=""
 
-# Check for Plesk Node.js installations (prefer 22.x)
-if [ -f "/opt/plesk/node/22/bin/npm" ]; then
+# Check for Plesk Node.js installations (prefer latest available)
+if [ -f "/opt/plesk/node/25/bin/npm" ]; then
+    NPM_CMD="/opt/plesk/node/25/bin/npm"
+    NODE_CMD="/opt/plesk/node/25/bin/node"
+    echo "✅ Found Plesk Node.js 25.x (with compatibility wrapper)"
+elif [ -f "/opt/plesk/node/22/bin/npm" ]; then
     NPM_CMD="/opt/plesk/node/22/bin/npm"
     NODE_CMD="/opt/plesk/node/22/bin/node"
     echo "✅ Found Plesk Node.js 22.x"
@@ -157,8 +161,10 @@ if [ $? -eq 0 ]; then
 else
     echo "❌ Failed to build React app"
     echo ""
-    echo "If you see localStorage errors, this is a Node.js 25.x bug."
-    echo "Solution: Use Node.js 22.x or 20.x in Plesk Node.js settings."
+    echo "Troubleshooting:"
+    echo "  1. Check that all dependencies are installed: npm install"
+    echo "  2. Verify Node.js version: $NODE_CMD --version"
+    echo "  3. All versions 18.x, 20.x, 22.x, and 25.x are supported"
     exit 1
 fi
 echo ""

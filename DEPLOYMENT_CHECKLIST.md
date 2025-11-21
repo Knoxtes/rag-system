@@ -258,9 +258,10 @@ ps aux | grep -E "node|python"
 - Verify credentials: `ls -la credentials.json`
 - Check logs: `tail -f logs/*.log`
 
-**localStorage Error:**
-- Switch to Node.js 22.x or 20.x (not 25.x)
-- Rebuild React: `cd chat-app && npm run build`
+**Build Dependencies Missing:**
+- Install dependencies: `cd chat-app && npm install`
+- Rebuild React: `npm run build`
+- Node.js 25.x is fully supported with automatic compatibility wrapper
 
 **OAuth Redirect Fails:**
 - Verify redirect URI in Google Cloud Console

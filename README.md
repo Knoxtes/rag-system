@@ -19,7 +19,7 @@ A modern React-based chat interface powered by a RAG (Retrieval-Augmented Genera
 ### Prerequisites
 
 - **Python 3.8+** (3.9+ recommended for AlmaLinux 9.7)
-- **Node.js 18+** (22.x recommended, avoid 25.x)
+- **Node.js 18+** (18.x, 20.x, 22.x, or 25.x supported)
 - **npm**
 
 ### Development Mode

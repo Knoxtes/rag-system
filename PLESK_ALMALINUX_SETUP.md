@@ -112,7 +112,7 @@ cd /var/www/vhosts/7mountainsmedia.com/Ask.7MountainsMedia.com/chat-app
 
 **Expected output**: `chat-app/build/` directory with compiled React app
 
-**Note**: If you encounter localStorage errors with Node.js 25.x, use Node.js 22.x or 20.x instead.
+**Note**: All Node.js versions (18.x, 20.x, 22.x, 25.x) are supported. The build process automatically handles Node.js 25.x compatibility with the included build-wrapper.js.
 
 ### Step 6: Create Required Directories
 
@@ -308,11 +308,18 @@ cd /var/www/vhosts/7mountainsmedia.com/Ask.7MountainsMedia.com/chat-app
 ls -la build/
 ```
 
-### Issue: localStorage Error (Node.js 25.x)
+### Issue: Build Dependencies Missing
 
-**Error:** "Failed to compile Security error cannot initialize local storage"
+**Error:** "Cannot find module 'node-localstorage'" or build failures
 
-**Solution:** Switch to Node.js 22.x or 20.x in Plesk Node.js settings. Node.js 25.x has a known localStorage bug.
+**Solution:** Install all React dependencies:
+```bash
+cd /var/www/vhosts/7mountainsmedia.com/Ask.7MountainsMedia.com/chat-app
+/opt/plesk/node/25/bin/npm install
+/opt/plesk/node/25/bin/npm run build
+```
+
+**Note:** Node.js 25.x is fully supported. The build process includes a compatibility wrapper that handles localStorage polyfills automatically.
 
 ### Issue: OAuth Redirect Fails
 
