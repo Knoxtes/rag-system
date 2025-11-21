@@ -93,6 +93,8 @@ deploy.bat
 bash deploy.sh
 ```
 
+**Note**: The deployment scripts will check for uncommitted changes before proceeding. If uncommitted changes are detected, you'll be prompted to confirm whether to proceed. This helps prevent accidental deployments of work-in-progress code.
+
 ### Manual Plesk Setup
 
 1. **Upload Files**: Upload entire project to your domain directory
