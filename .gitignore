@@ -4,9 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -23,6 +21,18 @@ MANIFEST
 venv/
 ENV/
 env/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Build directories
+build/
+dist/
+chat-app/build/
 
 # Credentials and API Keys - NEVER COMMIT THESE!
 credentials.json
