@@ -81,47 +81,41 @@ rag-system/
 
 ## 🌐 Deployment to Plesk
 
-### Automatic Deployment
+### Optimized for Plesk Obsidian 18.0.73 on AlmaLinux 9.7
 
-Run the deployment script:
+**Target Domain**: Ask.7MountainsMedia.com
+
+### Quick Deployment
 
 ```bash
-# Windows
-deploy.bat
+# Clone repository
+cd /var/www/vhosts/7mountainsmedia.com/Ask.7MountainsMedia.com
+git clone https://github.com/Knoxtes/rag-system.git .
 
-# Linux/Mac  
-bash deploy.sh
+# Run automated setup
+chmod +x setup-plesk.sh
+./setup-plesk.sh
 ```
+
+The script will:
+- ✅ Detect Plesk Node.js (22.x, 20.x, or 18.x)
+- ✅ Install Python dependencies (requirements-linux.txt)
+- ✅ Install Node.js dependencies
+- ✅ Build React production app
+- ✅ Create required directories
+- ✅ Generate secret keys
+- ✅ Provide next steps for Plesk configuration
 
 ### Manual Plesk Setup
 
-1. **Upload Files**: Upload entire project to your domain directory
+See **[PLESK_ALMALINUX_SETUP.md](PLESK_ALMALINUX_SETUP.md)** for comprehensive step-by-step instructions.
 
-2. **Python App Configuration**:
-   - Entry point: `passenger_wsgi.py`
-   - Python version: 3.8+ 
-
-3. **Static Files**:
-   - Static files directory: `chat-app/build/`
-   - Static files URL: `/`
-
-4. **Environment Variables** (in Plesk):
-   ```
-   FLASK_ENV=production
-   PYTHONPATH=/path/to/your/app
-   ```
-
-5. **Build Frontend**:
-   ```bash
-   cd chat-app && npm run build
-   ```
-
-6. **Install Dependencies**:
-   ```bash
-   pip install -r requirements-production.txt
-   ```
-
-7. **Restart Application** in Plesk control panel
+**Key Configuration**:
+- **Application Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7MountainsMedia.com`
+- **Document Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7MountainsMedia.com/chat-app/build`
+- **Application Startup File**: `server.js`
+- **Node.js Version**: 22.x (recommended) or 20.x
+- **Python Dependencies**: `requirements-linux.txt` (clean, Linux-compatible)
 
 ## 🔧 Configuration
 
