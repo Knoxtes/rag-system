@@ -6,11 +6,16 @@
   "scripts": {
     "start": "node server.js",
     "build": "cd chat-app && npm install && npm run build",
-    "install-deps": "cd chat-app && npm install && cd .. && pip install -r requirements.txt",
+    "build:frontend": "cd chat-app && npm run build",
+    "install:backend": "test -f requirements-linux.txt && pip3 install -r requirements-linux.txt || pip3 install -r requirements-production.txt",
+    "install:frontend": "cd chat-app && npm install",
+    "install:all": "npm run install:backend && npm run install:frontend",
     "dev:frontend": "cd chat-app && npm start",
-    "dev:backend": "python chat_api.py",
+    "dev:backend": "python3 chat_api.py",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "postinstall": "cd chat-app && npm install"
+    "postinstall": "cd chat-app && npm install",
+    "health": "curl http://localhost:3000/api/health",
+    "logs": "tail -f logs/rag-system.log"
   },
   "keywords": [
     "rag",

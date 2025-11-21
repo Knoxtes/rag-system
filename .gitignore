@@ -24,6 +24,22 @@ venv/
 ENV/
 env/
 
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.npm/
+.yarn/
+
+# React build artifacts
+chat-app/build/
+chat-app/.env.local
+chat-app/.env.production.local
+chat-app/.env.development.local
+chat-app/.env.test.local
+
 # Credentials and API Keys - NEVER COMMIT THESE!
 credentials.json
 token.pickle

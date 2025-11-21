@@ -919,7 +919,7 @@ const ChatApp: React.FC = () => {
     try {
       console.log(`🔄 Switching to collection: ${collections[collectionId]?.name || collectionId}`);
       
-      const response = await axios.post(`${API_BASE_URL}/switch-collection`, {
+      await axios.post(`${API_BASE_URL}/switch-collection`, {
         collection: collectionId
       }, { timeout: 30000 }); // 30 second timeout for collection switching
       
