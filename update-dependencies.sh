@@ -4,6 +4,18 @@
 
 APP_ROOT="$(dirname "$(readlink -f "$0")")"
 
+# Detect Plesk Node.js
+if [ -f "/opt/plesk/node/18/bin/npm" ]; then
+    NPM_CMD="/opt/plesk/node/18/bin/npm"
+elif [ -f "/opt/plesk/node/20/bin/npm" ]; then
+    NPM_CMD="/opt/plesk/node/20/bin/npm"
+elif command -v npm &> /dev/null; then
+    NPM_CMD="npm"
+else
+    echo "❌ npm not found"
+    exit 1
+fi
+
 echo "📦 Updating dependencies..."
 echo ""
 
@@ -14,11 +26,11 @@ echo ""
 
 # Node.js dependencies
 echo "📦 Node.js dependencies (root)..."
-npm install --prefix "$APP_ROOT"
+cd "$APP_ROOT" && $NPM_CMD install
 echo ""
 
 echo "📦 React dependencies..."
-npm install --prefix "$APP_ROOT/chat-app"
+cd "$APP_ROOT/chat-app" && $NPM_CMD install
 echo ""
 
 echo "✅ Dependencies updated"

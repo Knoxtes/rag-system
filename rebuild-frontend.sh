@@ -4,8 +4,20 @@
 
 APP_ROOT="$(dirname "$(readlink -f "$0")")"
 
+# Detect Plesk Node.js
+if [ -f "/opt/plesk/node/18/bin/npm" ]; then
+    NPM_CMD="/opt/plesk/node/18/bin/npm"
+elif [ -f "/opt/plesk/node/20/bin/npm" ]; then
+    NPM_CMD="/opt/plesk/node/20/bin/npm"
+elif command -v npm &> /dev/null; then
+    NPM_CMD="npm"
+else
+    echo "❌ npm not found"
+    exit 1
+fi
+
 echo "🏗️  Rebuilding React frontend..."
-npm run build --prefix "$APP_ROOT/chat-app"
+cd "$APP_ROOT/chat-app" && $NPM_CMD run build
 
 if [ $? -eq 0 ]; then
     echo "✅ Frontend rebuilt successfully"
