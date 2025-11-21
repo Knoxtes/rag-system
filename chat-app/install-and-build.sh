@@ -47,6 +47,11 @@ else
     exit 1
 fi
 
+# Install node-localstorage for build wrapper
+echo ""
+echo "📦 Installing node-localstorage (for Node 25.x compatibility)..."
+$NODE_PATH/npm install node-localstorage
+
 echo ""
 echo "🏗️  Building React app..."
 $NODE_PATH/npm run build
