@@ -12,6 +12,21 @@ APP_ROOT="$(dirname "$(readlink -f "$0")")"
 echo "📁 Application Root: $APP_ROOT"
 echo ""
 
+# Detect Plesk Node.js
+if [ -f "/opt/plesk/node/18/bin/npm" ]; then
+    NPM_CMD="/opt/plesk/node/18/bin/npm"
+elif [ -f "/opt/plesk/node/20/bin/npm" ]; then
+    NPM_CMD="/opt/plesk/node/20/bin/npm"
+elif command -v npm &> /dev/null; then
+    NPM_CMD="npm"
+else
+    echo "❌ npm not found. Please install Node.js or use Plesk Node.js interface."
+    echo "   Try: /opt/plesk/node/*/bin/npm"
+    exit 1
+fi
+echo "📦 Using npm: $NPM_CMD"
+echo ""
+
 # 1. Install Python dependencies
 echo "🐍 Installing Python dependencies..."
 python3 -m pip install --user -r "$APP_ROOT/requirements-production.txt"
@@ -25,7 +40,7 @@ echo ""
 
 # 2. Install root Node.js dependencies
 echo "📦 Installing Node.js dependencies (root)..."
-npm install --prefix "$APP_ROOT"
+cd "$APP_ROOT" && $NPM_CMD install
 if [ $? -eq 0 ]; then
     echo "✅ Root dependencies installed"
 else
@@ -36,7 +51,7 @@ echo ""
 
 # 3. Install React app dependencies
 echo "📦 Installing React app dependencies..."
-npm install --prefix "$APP_ROOT/chat-app"
+cd "$APP_ROOT/chat-app" && $NPM_CMD install
 if [ $? -eq 0 ]; then
     echo "✅ React dependencies installed"
 else
@@ -47,7 +62,7 @@ echo ""
 
 # 4. Build React app
 echo "🏗️  Building React production app..."
-npm run build --prefix "$APP_ROOT/chat-app"
+cd "$APP_ROOT/chat-app" && $NPM_CMD run build
 if [ $? -eq 0 ]; then
     echo "✅ React app built successfully"
 else
