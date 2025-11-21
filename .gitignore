@@ -1,9 +1,46 @@
+# ============================================================================
+# RAG System .gitignore
+# For: Ask.7MountainsMedia.com
+# ============================================================================
+
+# ============================================================================
+# SECURITY - NEVER COMMIT THESE FILES!
+# ============================================================================
+# Google Cloud credentials
+credentials.json
+token.pickle
+service-account-key.json
+*.pem
+*.key
+*.p12
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
+
+# OAuth tokens
+token.json
+token_*.json
+
+# ============================================================================
 # Python
+# ============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+virtualenv/
+
+# Distribution / packaging
 build/
 develop-eggs/
 dist/
@@ -16,56 +53,204 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
-venv/
-ENV/
-env/
 
-# Credentials and API Keys - NEVER COMMIT THESE!
-credentials.json
-token.pickle
-.env
-*.pem
-*.key
-
-# ChromaDB
-chroma_db/
-*.sqlite3
-
-# Deployment packages - too large for GitHub
-*.zip
-*.rar
-*.tar.gz
-*.7z
-
-# Indexed folders metadata
-indexed_folders.json
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Logs
-*.log
-logs/
+# PyInstaller
+*.manifest
+*.spec
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
 
 # Jupyter Notebooks
 .ipynb_checkpoints/
+*.ipynb
 
-# Documentation builds
-docs/_build/
+# ============================================================================
+# Node.js / React
+# ============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
-# OS
+# Production build
+chat-app/build/
+chat-app/dist/
+
+# Testing
+chat-app/coverage/
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ============================================================================
+# Vector Database & Caches
+# ============================================================================
+# ChromaDB database (too large for Git - 520MB+)
+chroma_db/
+*.sqlite3
+*.db
+
+# Backup databases
+chroma_db_backups/
+*_backup/
+
+# Indexed folders metadata (contains Drive IDs)
+indexed_folders.json
+
+# Cache directories
+embedding_cache/
+csv_cache/
+__embedding_cache__/
+
+# Redis dumps
+dump.rdb
+
+# ============================================================================
+# Logs & Monitoring
+# ============================================================================
+logs/
+*.log
+*.log.*
+server.log
+error.log
+access.log
+
+# Answer logs (may contain sensitive queries)
+answer_log.json
+answer_logger.json
+
+# ============================================================================
+# Archives & Backups
+# ============================================================================
+# Deployment packages
+*.zip
+*.rar
+*.tar.gz
+*.tar.bz2
+*.7z
+*.gz
+
+# Backup files
+*.bak
+*.backup
+*.old
+*~
+
+# Archives
+docs_archive/
+archive/
+
+# ============================================================================
+# IDE & Editor Files
+# ============================================================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*.swn
+.*.sw?
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# ============================================================================
+# Operating System Files
+# ============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================================================
+# Temporary Files
+# ============================================================================
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ============================================================================
+# Documentation Build
+# ============================================================================
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# ============================================================================
+# Deployment
+# ============================================================================
+# Plesk temporary files
+.plesk/
+
+# PM2 logs
+.pm2/
+
+# ============================================================================
+# Project-Specific
+# ============================================================================
+# Old/obsolete indexer scripts (if still present)
+console_indexer_old.py
+batch_indexer_old.py
+
+# Test files
+test_*.txt
+debug_*.json
+
+# Local configuration overrides
+config.local.py
+
+# ============================================================================
+# KEEP THESE FILES (explicitly tracked)
+# ============================================================================
+# !.env.example (template file - safe to commit)
+# !requirements-production.txt (dependencies list - safe to commit)
+# !README.md (documentation - safe to commit)
+# !PLESK_DEPLOYMENT_GUIDE.md (deployment docs - safe to commit)
