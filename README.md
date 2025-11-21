@@ -1,26 +1,28 @@
 # 🤖 RAG Chat System
+## 7 Mountains Media AI-Powered Document Search
 
 A modern React-based chat interface powered by a RAG (Retrieval-Augmented Generation) system with Google Drive integration.
+
+**Production Domain:** Ask.7MountainsMedia.com
 
 ## ✨ Features
 
 - **Modern React UI**: Dark theme with smooth animations
 - **RAG Integration**: AI-powered responses using your documents
 - **Multi-Collection Support**: Switch between different document collections or search all collections simultaneously  
-- **All Collections Mode**: NEW unified search across all indexed collections with smart result synthesis
+- **All Collections Mode**: Unified search across all indexed collections with smart result synthesis
 - **Google Drive Browser**: High-speed lazy-loading with intelligent caching
 - **Real-time Chat**: Instant responses with streaming support
-- **Multi-Collection Support**: Switch between different document collections
 - **Performance Optimized**: Multi-layer caching, compression, and concurrent requests
-- **Production Ready**: Optimized for deployment on Plesk and other hosting platforms
+- **Production Ready**: Optimized for deployment on Plesk Obsidian 18.0.73 on AlmaLinux 9.7
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
 - **Python 3.8+**
-- **Node.js 16+** 
-- **npm**
+- **Node.js 25.2.0+** (recommended for production)
+- **npm 10.0.0+**
 
 ### One-Command Start
 
@@ -81,47 +83,45 @@ rag-system/
 
 ## 🌐 Deployment to Plesk
 
-### Automatic Deployment
+### Target Environment
+- **Domain:** Ask.7MountainsMedia.com
+- **Server:** Plesk Obsidian 18.0.73 Update #4
+- **OS:** AlmaLinux 9.7 (Moss Jungle Cat)
+- **Node.js:** 25.2.0
 
-Run the deployment script:
+### Quick Deployment
+
+**See [PLESK_SETUP_GUIDE.md](PLESK_SETUP_GUIDE.md) for complete instructions.**
 
 ```bash
-# Windows
-deploy.bat
+# 1. Clone repository
+git clone https://github.com/Knoxtes/rag-system.git
+cd rag-system
 
-# Linux/Mac  
+# 2. Run deployment script
 bash deploy.sh
+
+# 3. Start application
+npm start
 ```
 
-### Manual Plesk Setup
+### Manual Plesk Setup (Summary)
 
-1. **Upload Files**: Upload entire project to your domain directory
-
-2. **Python App Configuration**:
-   - Entry point: `passenger_wsgi.py`
-   - Python version: 3.8+ 
-
-3. **Static Files**:
-   - Static files directory: `chat-app/build/`
-   - Static files URL: `/`
-
-4. **Environment Variables** (in Plesk):
-   ```
-   FLASK_ENV=production
-   PYTHONPATH=/path/to/your/app
-   ```
-
-5. **Build Frontend**:
+1. **Enable Node.js 25.2.0** in Plesk for Ask.7MountainsMedia.com
+2. **Install Dependencies**:
    ```bash
-   cd chat-app && npm run build
+   python3 -m pip install --user -r requirements-production.txt
+   /opt/plesk/node/25/bin/npm install
    ```
-
-6. **Install Dependencies**:
+3. **Build Frontend**:
    ```bash
-   pip install -r requirements-production.txt
+   cd chat-app && /opt/plesk/node/25/bin/npm run build
    ```
+4. **Configure Environment Variables** in Plesk
+5. **Upload Required Files**: credentials.json, token.pickle, .env
+6. **Restart Application** in Plesk
 
-7. **Restart Application** in Plesk control panel
+For detailed step-by-step instructions, see **[PLESK_SETUP_GUIDE.md](PLESK_SETUP_GUIDE.md)**
 
 ## 🔧 Configuration
 
