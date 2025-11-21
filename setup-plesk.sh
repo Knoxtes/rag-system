@@ -74,20 +74,40 @@ echo "🐍 Step 2: Installing Python dependencies..."
 PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
 echo "   Python version: $PYTHON_VERSION"
 
+# Detect if we're in a virtual environment or should use --user
+PIP_INSTALL_FLAGS=""
+if [ -z "$VIRTUAL_ENV" ]; then
+    # Not in a virtual environment, check if we can install system-wide
+    SITE_PACKAGES=$(python3 -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null)
+    if [ -n "$SITE_PACKAGES" ] && [ -w "$SITE_PACKAGES" ]; then
+        echo "   Installing system-wide (have write permissions)"
+        PIP_INSTALL_FLAGS=""
+    elif [ -w "/usr/local/lib/python3" ] 2>/dev/null; then
+        echo "   Installing system-wide (have write permissions)"
+        PIP_INSTALL_FLAGS=""
+    else
+        echo "   Installing to user directory (no system write permissions)"
+        PIP_INSTALL_FLAGS="--user"
+    fi
+else
+    echo "   Installing to virtual environment: $VIRTUAL_ENV"
+    PIP_INSTALL_FLAGS=""
+fi
+
 # Install from requirements-linux.txt (clean Linux dependencies)
 if [ -f "$APP_ROOT/requirements-linux.txt" ]; then
     echo "   Installing from requirements-linux.txt..."
-    python3 -m pip install --user -r "$APP_ROOT/requirements-linux.txt" --quiet
+    python3 -m pip install ${PIP_INSTALL_FLAGS} -r "$APP_ROOT/requirements-linux.txt" --quiet
     if [ $? -eq 0 ]; then
         echo "✅ Python dependencies installed successfully"
     else
         echo "❌ Failed to install Python dependencies"
         echo "   Trying requirements-production.txt as fallback..."
-        python3 -m pip install --user -r "$APP_ROOT/requirements-production.txt"
+        python3 -m pip install ${PIP_INSTALL_FLAGS} -r "$APP_ROOT/requirements-production.txt"
     fi
 else
     echo "   Installing from requirements-production.txt..."
-    python3 -m pip install --user -r "$APP_ROOT/requirements-production.txt"
+    python3 -m pip install ${PIP_INSTALL_FLAGS} -r "$APP_ROOT/requirements-production.txt"
     if [ $? -eq 0 ]; then
         echo "✅ Python dependencies installed successfully"
     else

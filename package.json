@@ -7,7 +7,7 @@
     "start": "node server.js",
     "build": "cd chat-app && npm install && npm run build",
     "build:frontend": "cd chat-app && npm run build",
-    "install:backend": "pip3 install -r requirements-linux.txt",
+    "install:backend": "test -f requirements-linux.txt && pip3 install -r requirements-linux.txt || pip3 install -r requirements-production.txt",
     "install:frontend": "cd chat-app && npm install",
     "install:all": "npm run install:backend && npm run install:frontend",
     "dev:frontend": "cd chat-app && npm start",
