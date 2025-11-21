@@ -54,7 +54,8 @@ $NODE_PATH/npm install node-localstorage
 
 echo ""
 echo "🏗️  Building React app..."
-$NODE_PATH/npm run build
+# Use wrapper script for Node 25.x compatibility
+$NODE_PATH/node build-wrapper.js
 
 if [ $? -eq 0 ]; then
     echo ""

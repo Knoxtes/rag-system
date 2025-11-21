@@ -16,6 +16,7 @@
     "axios": "^1.13.2",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.553.0",
+    "node-localstorage": "^3.0.5",
     "postcss": "^8.5.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -28,9 +29,11 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "cross-env NODE_OPTIONS=--openssl-legacy-provider react-scripts build",
+    "build": "cross-env NODE_OPTIONS='--no-experimental-global-customevent --max-old-space-size=4096' GENERATE_SOURCEMAP=false react-scripts build",
+    "build:wrapper": "node build-wrapper.js",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "postinstall": "echo 'Skipping core-js postinstall'"
   },
   "eslintConfig": {
     "extends": [
@@ -49,8 +52,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-    "cross-env": "^10.1.0"
   }
 }
