@@ -35,6 +35,12 @@ token.pickle
 chroma_db/
 *.sqlite3
 
+# Deployment packages - too large for GitHub
+*.zip
+*.rar
+*.tar.gz
+*.7z
+
 # Indexed folders metadata
 indexed_folders.json
 
