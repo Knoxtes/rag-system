@@ -18,31 +18,53 @@ A modern React-based chat interface powered by a RAG (Retrieval-Augmented Genera
 
 ### Prerequisites
 
-- **Python 3.8+**
-- **Node.js 16+** 
+- **Python 3.8+** (3.9+ recommended for AlmaLinux 9.7)
+- **Node.js 18+** (22.x recommended, avoid 25.x)
 - **npm**
 
-### One-Command Start
+### Development Mode
 
 ```bash
+# Install dependencies
+npm run install:all
+
+# Start unified server (Node.js proxy + Flask backend)
 npm start
 ```
 
 This will simultaneously start:
-- **Flask API** on http://localhost:3000 (unified server)
-- **React App** on http://localhost:3000 (frontend)
+- **Node.js Proxy** on http://localhost:3000
+- **Flask Backend** on http://localhost:5001
+- **React Frontend** served via proxy
 
-### Manual Installation
-
-If you need to install dependencies separately:
+### Production Build
 
 ```bash
-# Install all dependencies
-npm run install:all
+# Build React app for production
+npm run build
 
-# Or install individually
-npm run install:backend  # Python dependencies
-npm run install:frontend # Node.js dependencies
+# Start production server
+npm start
+```
+
+### Individual Scripts
+
+```bash
+# Install dependencies separately
+npm run install:backend   # Python (requirements-linux.txt)
+npm run install:frontend  # Node.js (React app)
+
+# Build only frontend
+npm run build:frontend
+
+# Development with hot reload
+npm run dev
+
+# Check health
+npm run health
+
+# View logs
+npm run logs
 ```
 
 ## 📁 Project Structure
