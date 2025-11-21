@@ -38,6 +38,8 @@ That's it! This command will:
    # On Windows
    deploy.bat
    ```
+   
+   **Note**: The deployment scripts will check for uncommitted git changes and prompt for confirmation if any are found. This safety check helps prevent deploying work-in-progress code.
 
 3. **Start the System**
    ```bash

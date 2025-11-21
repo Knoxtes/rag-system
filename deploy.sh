@@ -10,8 +10,12 @@ echo "=================================="
 if [ -d .git ]; then
     echo "🔍 Checking for uncommitted changes..."
     
+    # Check if HEAD exists (repository has commits)
+    if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+        echo "ℹ️  New repository with no commits yet"
+        echo ""
     # Check if there are any uncommitted changes
-    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+    elif ! git diff-index --quiet HEAD -- 2>/dev/null; then
         echo ""
         echo "⚠️  WARNING: Uncommitted changes detected!"
         echo ""
