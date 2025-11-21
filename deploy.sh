@@ -22,9 +22,9 @@ if [ -d .git ]; then
         echo "The following changes are uncommitted:"
         git status --short
         echo ""
-        read -p "Do you want to proceed with deployment anyway? (y/N): " -n 1 -r
+        read -p "Do you want to proceed with deployment anyway? (y/N): " -r
         echo ""
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        if [[ ! $REPLY =~ ^[Yy](es)?$ ]]; then
             echo "❌ Deployment cancelled. Please commit your changes first."
             exit 1
         fi

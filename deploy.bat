@@ -26,10 +26,11 @@ if exist .git (
             echo.
             set "PROCEED="
             set /p "PROCEED=Do you want to proceed with deployment anyway? (y/N): "
-            if /i not "%PROCEED%"=="y" (
-                echo ❌ Deployment cancelled. Please commit your changes first.
-                exit /b 1
-            )
+            if /i "%PROCEED%"=="y" goto proceed
+            if /i "%PROCEED%"=="yes" goto proceed
+            echo ❌ Deployment cancelled. Please commit your changes first.
+            exit /b 1
+            :proceed
             echo ⚠️  Proceeding with uncommitted changes...
             echo.
         ) else (
