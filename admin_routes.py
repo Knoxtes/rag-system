@@ -194,8 +194,8 @@ def admin_dashboard():
         let authCheckAttempts = 0;
         const maxAuthCheckAttempts = 3;
         
-        async function checkAuth() {
-            authCheckAttempts++;
+        async function checkAuth() {{
+            authCheckAttempts = authCheckAttempts + 1;
             const token = localStorage.getItem('authToken');
             
             // Update debug info
