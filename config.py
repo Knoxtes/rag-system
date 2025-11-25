@@ -60,42 +60,7 @@ MAX_CONTEXT_CHARACTERS = 8000  # OPTIMIZED: Reduced from 12000 to save API costs
 # Gemini Model Settings
 GEMINI_MODEL = "gemini-2.5-flash"  # Cheapest and fastest model (Flash 2.5)
 # Alternative models:
-# GEMINI_MODEL = "gemini-2.0-App.tsx:13 API_BASE_URL configured as: https://ask.7mountainsmedia.com/api
-App.tsx:14 Environment variables: {REACT_APP_API_URL: undefined, REACT_APP_API_BASE_URL: undefined, NODE_ENV: 'production'}
-Auth.tsx:27 Auth component mounted
-Auth.tsx:28 URL params check - authComplete: null fromAdmin: null
-Auth.tsx:29 Current URL: https://ask.7mountainsmedia.com/
-Auth.tsx:45 Checking auth status. Token found: false
-Auth.tsx:48 No token found in localStorage
-Auth.tsx:88 Auth check completed
-Auth.tsx:94  GET https://ask.7mountainsmedia.com/auth/login 500 (Internal Server Error)
-(anonymous) @ xhr.js:198
-xhr @ xhr.js:15
-Sm @ dispatchRequest.js:51
-Promise.then
-_request @ Axios.js:163
-request @ Axios.js:40
-Lm.<computed> @ Axios.js:211
-(anonymous) @ bind.js:12
-login @ Auth.tsx:94
-onClick @ Auth.tsx:141
-Yc @ react-dom-client.production.js:12317
-(anonymous) @ react-dom-client.production.js:12867
-zt @ react-dom-client.production.js:1498
-td @ react-dom-client.production.js:12455
-Cf @ react-dom-client.production.js:15306
-Ef @ react-dom-client.production.js:15274
-Auth.tsx:97 Login failed: iD {message: 'Request failed with status code 500', name: 'AxiosError', code: 'ERR_BAD_RESPONSE', config: {…}, request: XMLHttpRequest, …}
-login @ Auth.tsx:97
-await in login
-onClick @ Auth.tsx:141
-Yc @ react-dom-client.production.js:12317
-(anonymous) @ react-dom-client.production.js:12867
-zt @ react-dom-client.production.js:1498
-td @ react-dom-client.production.js:12455
-Cf @ react-dom-client.production.js:15306
-Ef @ react-dom-client.production.js:15274
-flash-exp"  # Flash 2.0 experimental
+# GEMINI_MODEL = "gemini-2.0-flash-exp"  # Flash 2.0 experimental
 # GEMINI_MODEL = "gemini-1.5-flash"      # Previous Flash version
 # GEMINI_MODEL = "gemini-1.5-pro"        # Pro version (more expensive but better quality)
 
