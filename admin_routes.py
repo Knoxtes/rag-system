@@ -151,12 +151,19 @@ def update_status(**kwargs):
 @admin_bp.route('/dashboard')
 def admin_dashboard():
     """Serve the admin dashboard HTML with client-side authentication"""
-    return """
+    # Add cache busting with timestamp
+    import time
+    cache_bust = int(time.time())
+    
+    return f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>RAG System Admin Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }
@@ -301,8 +308,13 @@ def admin_dashboard():
             const token = localStorage.getItem('authToken');
             
             try {
-                const response = await fetch('/admin/dashboard-content', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                // Add cache-busting timestamp
+                const cacheBust = new Date().getTime();
+                const response = await fetch(`/admin/dashboard-content?v=${cacheBust}`, {
+                    headers: { 
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache'
+                    }
                 });
                 
                 if (response.ok) {
@@ -561,13 +573,16 @@ def admin_dashboard():
     </script>
 </body>
 </html>
-    """
+    """ + f"<!-- Cache bust: {cache_bust} -->"
 
 @admin_bp.route('/dashboard-content')
 @require_admin
 def admin_dashboard_content():
     """Return the dashboard content HTML for authenticated users"""
-    return """
+    from flask import make_response
+    import time
+    
+    html_content = """
     <style>
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
         .header { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); }
@@ -1072,20 +1087,6 @@ def admin_dashboard_content():
             if (refreshInterval) clearInterval(refreshInterval);
         });
         
-        // Make functions globally accessible
-        window.refreshStats = refreshStats;
-        window.checkGDriveAuth = checkGDriveAuth;
-        window.updateCollections = updateCollections;
-        window.clearCache = clearCache;
-        window.connectGDrive = connectGDrive;
-        window.disconnectGDrive = disconnectGDrive;
-        window.checkMigrationStatus = checkMigrationStatus;
-        window.installMigrationPackages = installMigrationPackages;
-        window.startReindex = startReindex;
-        window.startFullIndexing = startFullIndexing;
-        window.loadFolderSelection = loadFolderSelection;
-        window.indexFolder = indexFolder;
-        
         // New migration functions
         async function checkMigrationStatus() {
             const token = localStorage.getItem('authToken');
@@ -1502,14 +1503,38 @@ def admin_dashboard_content():
                 window.currentIndexingPoll = null;
             }
             document.getElementById('stop-indexing-btn').style.display = 'none';
-        document.getElementById('indexing-message').textContent = 'Stopped by user';
-    }
+            document.getElementById('indexing-message').textContent = 'Stopped by user';
+        }
+        
+        // Make functions globally accessible (after all definitions)
+        window.refreshStats = refreshStats;
+        window.checkGDriveAuth = checkGDriveAuth;
+        window.updateCollections = updateCollections;
+        window.clearCache = clearCache;
+        window.connectGDrive = connectGDrive;
+        window.disconnectGDrive = disconnectGDrive;
+        window.checkMigrationStatus = checkMigrationStatus;
+        window.installMigrationPackages = installMigrationPackages;
+        window.startReindex = startReindex;
+        window.startFullIndexing = startFullIndexing;
+        window.loadFolderSelection = loadFolderSelection;
+        window.indexFolder = indexFolder;
+        window.hideFolderSelection = hideFolderSelection;
+        window.hideProgressPanel = hideProgressPanel;
+        window.stopIndexing = stopIndexing;
     
     // Call migration status on load
     setTimeout(checkMigrationStatus, 1000);
     
     </script>
-    """
+    """ + f"<!-- Generated: {int(time.time())} -->"
+    
+    # Create response with no-cache headers
+    response = make_response(html_content)
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @admin_bp.route('/stats/system')
 @require_admin
