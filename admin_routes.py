@@ -840,25 +840,24 @@ def admin_dashboard_content():
     </div>
     
     <script>
-        // Wrap everything in a function that executes immediately
-        (function() {
-            console.log('[Admin Dashboard] Script loaded and executing');
-            
-            let refreshInterval;
+        // Admin dashboard functions - defined globally
+        console.log('[Admin Dashboard] Script loaded and executing');
         
-        async function checkGDriveAuth() {
-            const token = localStorage.getItem('authToken');
-            console.log('[GDrive Auth] Checking status...');
-            try {
-                const response = await fetch('/admin/gdrive/status', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                console.log('[GDrive Auth] Response status:', response.status);
-                const data = await response.json();
-                console.log('[GDrive Auth] Data:', data);
-                
-                const statusDiv = document.getElementById('gdrive-status');
-                const actionsDiv = document.getElementById('gdrive-actions');
+        let refreshInterval;
+    
+    async function checkGDriveAuth() {
+        const token = localStorage.getItem('authToken');
+        console.log('[GDrive Auth] Checking status...');
+        try {
+            const response = await fetch('/admin/gdrive/status', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            console.log('[GDrive Auth] Response status:', response.status);
+            const data = await response.json();
+            console.log('[GDrive Auth] Data:', data);
+            
+            const statusDiv = document.getElementById('gdrive-status');
+            const actionsDiv = document.getElementById('gdrive-actions');
                 
                 if (data.authenticated) {
                     statusDiv.innerHTML = `
@@ -1503,17 +1502,14 @@ def admin_dashboard_content():
                 window.currentIndexingPoll = null;
             }
             document.getElementById('stop-indexing-btn').style.display = 'none';
-            document.getElementById('indexing-message').textContent = 'Stopped by user';
-        }
-        
-        // Call migration status on load
-        setTimeout(checkMigrationStatus, 1000);
-        
-        })(); // End of IIFE
+        document.getElementById('indexing-message').textContent = 'Stopped by user';
+    }
+    
+    // Call migration status on load
+    setTimeout(checkMigrationStatus, 1000);
+    
     </script>
-    """
-
-@admin_bp.route('/stats/system')
+    """@admin_bp.route('/stats/system')
 @require_admin
 @limiter.exempt  # Exempt admin polling endpoints
 def get_system_stats():
