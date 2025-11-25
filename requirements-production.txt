@@ -14,7 +14,7 @@ pyjwt==2.8.0
 cryptography==41.0.7
 
 # Google Services (try to use compatible versions)
-google-generativeai==0.3.0
+google-generativeai==0.5.4
 google-api-python-client==2.100.0
 google-auth==2.25.2
 google-auth-oauthlib==1.2.0
