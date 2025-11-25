@@ -168,8 +168,7 @@ def admin_dashboard():
     <style>
         body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }
         .loading-container { display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
-        .loading { width: 40px; height: 40px; border: 4px solid #334155; border-top: 4px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading { width: 40px; height: 40px; border: 4px solid #334155; border-top: 4px solid #3b82f6; border-radius: 50%; margin-bottom: 20px; }
         .auth-error { text-align: center; padding: 40px; color: #ef4444; }
         .auth-button { background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 20px; }
         .auth-button:hover { background: #2563eb; }
