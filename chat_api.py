@@ -483,6 +483,87 @@ def start_background_cache_refresh():
     refresh_thread.start()
     # print("Background cache refresh started")  # Disabled for production
 
+def auto_generate_indexed_folders():
+    """Auto-generate indexed_folders.json from ChromaDB collections if it doesn't exist"""
+    indexed_folders_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'indexed_folders.json')
+    
+    # Skip if file already exists
+    if os.path.exists(indexed_folders_file):
+        return
+    
+    print("[+] indexed_folders.json not found - auto-generating from ChromaDB collections...")
+    
+    try:
+        import chromadb
+        from config import CHROMA_PERSIST_DIR
+        from datetime import datetime
+        
+        # Connect to ChromaDB
+        client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+        collections = client.list_collections()
+        
+        print(f"[+] Found {len(collections)} collections in ChromaDB")
+        
+        indexed_folders = {}
+        
+        for collection in collections:
+            collection_name = collection.name
+            
+            # Skip non-folder collections
+            if not collection_name.startswith('folder_'):
+                continue
+            
+            # Extract folder_id from collection name
+            folder_id = collection_name.replace('folder_', '')
+            
+            # Get collection stats
+            doc_count = collection.count()
+            
+            if doc_count == 0:
+                print(f"  ⚠️  Collection {collection_name} is empty - skipping")
+                continue
+            
+            # Get sample metadata to extract folder info
+            try:
+                results = collection.get(limit=1, include=['metadatas'])
+                if results and results['metadatas'] and len(results['metadatas']) > 0:
+                    sample_metadata = results['metadatas'][0]
+                    folder_name = sample_metadata.get('file_path', 'Unknown').split('/')[0] or 'Unknown'
+                else:
+                    folder_name = f"Folder {folder_id}"
+            except Exception as e:
+                folder_name = f"Folder {folder_id}"
+            
+            # Create entry
+            indexed_folders[folder_id] = {
+                'collection_name': collection_name,
+                'name': folder_name,
+                'path': folder_name,
+                'location': folder_name,
+                'file_count': 0,
+                'files_processed': 0,
+                'files_failed': 0,
+                'files_skipped': 0,
+                'chunks_created': doc_count,
+                'indexed_at': datetime.now().isoformat(),
+                'auto_generated': True
+            }
+            
+            print(f"  ✅ Added: {folder_name} ({doc_count} chunks)")
+        
+        # Save to file
+        if indexed_folders:
+            with open(indexed_folders_file, 'w') as f:
+                json.dump(indexed_folders, f, indent=2)
+            print(f"[+] Successfully auto-generated indexed_folders.json with {len(indexed_folders)} folders")
+        else:
+            print("[!] No valid collections found - indexed_folders.json not created")
+            
+    except Exception as e:
+        print(f"[!] Error auto-generating indexed_folders.json: {e}")
+        import traceback
+        traceback.print_exc()
+
 def initialize_rag_system():
     """Initialize the RAG system and load available collections"""
     global rag_system, multi_collection_rag, drive_service, available_collections, _rag_initialized
@@ -493,6 +574,9 @@ def initialize_rag_system():
         return
     
     _rag_initialized = True
+    
+    # Auto-generate indexed_folders.json if it doesn't exist
+    auto_generate_indexed_folders()
     
     try:
         # print("[+] Initializing Google Drive authentication...")  # Disabled for production
@@ -528,8 +612,8 @@ def initialize_rag_system():
                     'indexed_at': folder_info.get('indexed_at', '')
                 }
         else:
-            # print(f"⚠️  indexed_folders.json not found at {indexed_folders_file}")  # Disabled for production
-            # print("⚠️  Collections will be empty until Google Drive is set up")  # Disabled for production
+            print(f"[!] indexed_folders.json still not found after auto-generation attempt")
+            print("[!] ChromaDB may be empty or no valid collections exist")
             pass
         
         # print(f"[+] Found {len(available_collections)} available collections")  # Disabled for production
