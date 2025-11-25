@@ -516,8 +516,12 @@ def auto_generate_indexed_folders():
             # Extract folder_id from collection name
             folder_id = collection_name.replace('folder_', '')
             
-            # Get collection stats
-            doc_count = collection.count()
+            # Get collection stats (handle corruption)
+            try:
+                doc_count = collection.count()
+            except (TypeError, AttributeError) as e:
+                print(f"  ⚠️  Collection {collection_name} appears corrupted - skipping ({e})")
+                continue
             
             if doc_count == 0:
                 print(f"  ⚠️  Collection {collection_name} is empty - skipping")
