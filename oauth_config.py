@@ -24,7 +24,7 @@ class OAuthConfig:
         # OAuth Configuration
         self.client_id = os.getenv('GOOGLE_CLIENT_ID')
         self.client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
-        self.redirect_uri = os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:3000/auth/callback')
+        self.redirect_uri = os.getenv('OAUTH_REDIRECT_URI', 'https://ask.7mountainsmedia.com/auth/callback')
         
         # Organization Configuration
         self.allowed_domains = os.getenv('ALLOWED_DOMAINS', '').split(',')
