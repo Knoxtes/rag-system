@@ -15,6 +15,13 @@ import base64
 import logging
 from logging.handlers import RotatingFileHandler
 
+# Workaround for Python 3.9 SQLite issue with chromadb
+try:
+    import pysqlite3
+    sys.modules['sqlite3'] = pysqlite3
+except ImportError:
+    pass
+
 # Load environment variables first
 from dotenv import load_dotenv
 load_dotenv()

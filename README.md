@@ -56,7 +56,7 @@ chmod +x deploy-plesk.sh
 
 **Prerequisites**:
 - Python 3.9+
-- Node.js 25.2.0+
+- Node.js 22.21.1+
 - Google Cloud credentials
 
 ```bash
@@ -79,7 +79,7 @@ Visit: http://localhost:3000
 - **OS**: Linux (AlmaLinux 9.7 recommended) / macOS / Windows
 - **RAM**: 2GB+ recommended
 - **Storage**: 1GB+ (excluding vector database)
-- **Node.js**: 25.2.0 (or 22.x)
+- **Node.js**: 22.21.1 (or 22.x)
 - **Python**: 3.9+
 
 ## 📁 Project Structure
@@ -158,7 +158,7 @@ rag-system/
    - Upload `credentials.json` and `token.pickle`
 
 3. **Configure Plesk Node.js App**
-   - Enable Node.js 25.2.0
+   - Enable Node.js 22.21.1
    - Set application root and document root
    - Add environment variables
    - Set startup file to `server.js`
@@ -170,7 +170,7 @@ rag-system/
 ### System Configuration
 
 **Plesk Settings:**
-- Node.js Version: 25.2.0
+- Node.js Version: 22.21.1
 - Application Mode: production
 - Application Root: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
 - Document Root: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
@@ -372,7 +372,7 @@ For more troubleshooting, see [PLESK_DEPLOYMENT_GUIDE.md](PLESK_DEPLOYMENT_GUIDE
 - **React Markdown** - Rich text rendering
 
 ### Infrastructure
-- **Node.js 25.2.0** - Proxy server
+- **Node.js 22.21.1** - Proxy server
 - **Express 4.18** - Node.js framework
 - **Plesk Obsidian 18.0.73** - Hosting platform
 - **AlmaLinux 9.7** - Operating system
@@ -416,4 +416,4 @@ For deployment issues or questions:
 **Status**: ✅ Production Ready  
 **Version**: 2.0.0  
 **Last Updated**: November 21, 2025  
-**Deployed On**: Plesk Obsidian 18.0.73 | AlmaLinux 9.7 | Node.js 25.2.0
+**Deployed On**: Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.21.1

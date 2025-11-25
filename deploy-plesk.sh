@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================================
 # Plesk Deployment Script for Ask.7MountainsMedia.com
-# Optimized for: Plesk Obsidian 18.0.73 | AlmaLinux 9.7 | Node.js 25.2.0
+# Optimized for: Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.21.1
 # ============================================================================
 
 set -e  # Exit on error

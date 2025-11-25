@@ -1,6 +1,6 @@
 # 🚀 RAG System - Plesk Deployment Guide
 ## Optimized for Ask.7MountainsMedia.com
-### Plesk Obsidian 18.0.73 Update #4 | AlmaLinux 9.7 | Node.js 25.2.0
+### Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.21.1
 
 ---
 
@@ -31,8 +31,8 @@ test
 
 ### System Requirements
 - **OS**: AlmaLinux 9.7 (Moss Jungle Cat)
-- **Control Panel**: Plesk Obsidian 18.0.73 Update #4 (Web Host Edition)
-- **Node.js**: 25.2.0 (managed by Plesk at `/opt/plesk/node/25/`)
+- **Control Panel**: Plesk Obsidian 18.0.74 (Web Host Edition)
+- **Node.js**: 22.21.1 (managed by Plesk at `/opt/plesk/node/22/`)
 - **Python**: 3.9+ (system Python)
 - **Memory**: 2GB+ RAM recommended
 - **Storage**: 1GB+ free space (excluding chroma_db)
@@ -48,7 +48,7 @@ test
 3. Click **Node.js** in the left sidebar
 4. Click **Enable Node.js**
 5. Configure settings:
-   - **Node.js version**: `25.2.0`
+   - **Node.js version**: `22.21.1`
    - **Application mode**: `production`
    - **Application root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
    - **Document root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
@@ -205,10 +205,10 @@ Use Plesk's managed Node.js:
 
 ```bash
 # Set Node.js path
-export PATH="/opt/plesk/node/25/bin:$PATH"
+export PATH="/opt/plesk/node/22/bin:$PATH"
 
 # Verify version
-node --version  # Should show v25.2.0
+node --version  # Should show v22.21.1
 npm --version
 
 # Install root dependencies
@@ -588,7 +588,7 @@ Logs are auto-rotated by Flask's RotatingFileHandler:
 Application Root:  /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
 React Build:       /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build
 Logs:              /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/logs
-Node.js:           /opt/plesk/node/25/bin/node
+Node.js:           /opt/plesk/node/22/bin/node
 ```
 
 ### Important URLs
