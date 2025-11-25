@@ -1,7 +1,9 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000';
+// Use relative paths by default (routes through Node.js proxy)
+// Falls back to environment variable if explicitly set for development
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 
 // Create Auth Context
 const AuthContext = createContext<{

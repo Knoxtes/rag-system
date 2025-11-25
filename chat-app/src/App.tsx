@@ -7,10 +7,12 @@ import axios from 'axios';
 import { AuthProvider, useAuth, LoginPage } from './Auth';
 import AuthPickup from './AuthPickup';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001';
+// Use relative paths by default (routes through Node.js proxy)
+// Falls back to environment variable if explicitly set for development
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 
 // Debug logging for API configuration
-console.log('API_BASE_URL configured as:', API_BASE_URL);
+console.log('API_BASE_URL configured as:', API_BASE_URL || '(relative paths - uses current domain)');
 console.log('Environment variables:', {
   REACT_APP_API_URL: process.env.REACT_APP_API_URL,
   REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
