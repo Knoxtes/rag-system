@@ -1509,7 +1509,9 @@ def admin_dashboard_content():
     setTimeout(checkMigrationStatus, 1000);
     
     </script>
-    """@admin_bp.route('/stats/system')
+    """
+
+@admin_bp.route('/stats/system')
 @require_admin
 @limiter.exempt  # Exempt admin polling endpoints
 def get_system_stats():
