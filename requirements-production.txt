@@ -22,7 +22,7 @@ google-cloud-aiplatform==1.78.0
 google-cloud-documentai==2.35.0
 
 # Vector Store & Embeddings
-chromadb==1.2.1
+chromadb==0.4.25
 sentence-transformers==3.3.1
 rank-bm25==0.2.2
 
