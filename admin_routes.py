@@ -197,8 +197,7 @@ def admin_dashboard():
         async function checkAuth() {{
             authCheckAttempts = authCheckAttempts + 1;
             const token = localStorage.getItem('authToken');
-            
-            // Update debug info
+
             const debugInfo = document.getElementById('debug-info');
             const loadingMessage = document.getElementById('loading-message');
             
@@ -210,7 +209,7 @@ def admin_dashboard():
             debugInfo.textContent = 'Attempt ' + authCheckAttempts + '/' + maxAuthCheckAttempts + ' - Token: ' + (token ? 'Found' : 'Not found');
             
             if (!token) {
-                // If we just came from OAuth, wait a bit and retry
+
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('auth_complete') === 'true' && authCheckAttempts < maxAuthCheckAttempts) {
                     console.log('Just came from OAuth, retrying auth check in 1 second...');
@@ -257,8 +256,7 @@ def admin_dashboard():
                 } else {
                     console.log('Auth failed - not valid admin:', data);
                     debugInfo.textContent = `Auth failed: ${{data.error || 'Not valid user'} (User: ${{data.user?.email || 'unknown'})`;
-                    
-                    // Update error message for non-admin users
+
                     if (data.user && !data.user.is_admin) {
                         document.getElementById('auth-error-message').textContent = 
                             `Hi ${{data.user.name || data.user.email}! This is the admin dashboard. You can access the chat interface instead.`;
@@ -269,8 +267,7 @@ def admin_dashboard():
                 }
             } catch (error) {
                 console.error('Auth check error:', error);
-                
-                // If we just came from OAuth and this is a network error, retry
+
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('auth_complete') === 'true' && authCheckAttempts < maxAuthCheckAttempts) {
                     console.log('Network error after OAuth, retrying in 2 seconds...');
@@ -307,7 +304,7 @@ def admin_dashboard():
             const token = localStorage.getItem('authToken');
             
             try {
-                // Add cache-busting timestamp
+
                 const cacheBust = new Date().getTime();
                 const response = await fetch(`/admin/dashboard-content?v=${{cacheBust}`, {
                     headers: { 
@@ -322,8 +319,7 @@ def admin_dashboard():
                     const contentDiv = document.getElementById('dashboard-content');
                     contentDiv.innerHTML = html;
                     contentDiv.style.display = 'block';
-                    
-                    // Execute scripts in the loaded content
+
                     const scripts = contentDiv.querySelectorAll('script');
                     scripts.forEach(script => {
                         try {
@@ -338,13 +334,11 @@ def admin_dashboard():
                             console.error('Script execution error:', error);
                         }
                     });
-                    
-                    // Ensure critical functions are available globally
+
                     setTimeout(() => {
                         if (!window.loadFolderSelection || window.loadFolderSelection.toString().includes('Backup')) {
                             console.log('Defining real loadFolderSelection function');
-                            
-                            // Define the actual loadFolderSelection function
+
                             window.loadFolderSelection = async function() {
                                 console.log('loadFolderSelection called');
                                 const token = localStorage.getItem('authToken');
@@ -416,8 +410,7 @@ def admin_dashboard():
                                     container.innerHTML = '';
                                 }
                             };
-                            
-                            // Define the indexFolder function
+
                             window.indexFolder = async function(folderId, folderName) {
                                 console.log(`Indexing folder: ${{folderName} (${{folderId})`);
                                 const token = localStorage.getItem('authToken');
@@ -428,7 +421,7 @@ def admin_dashboard():
                                 }
                                 
                                 try {
-                                    // Start indexing
+
                                     const response = await fetch(`/admin/folders/index/${{folderId}`, {
                                         method: 'POST',
                                         headers: {
@@ -443,12 +436,11 @@ def admin_dashboard():
                                     const data = await response.json();
                                     
                                     if (response.ok) {
-                                        // Start polling for progress
+
                                         if (statusDiv) {
                                             statusDiv.innerHTML = `<div style="color: #3b82f6;">🔄 ${{data.message}</div><div id="progress-${{folderId}" style="margin-top: 10px;"></div>`;
                                         }
-                                        
-                                        // Poll for status updates
+
                                         const progressDiv = document.getElementById(`progress-${{folderId}`);
                                         const pollStatus = async () => {
                                             try {
@@ -476,7 +468,7 @@ def admin_dashboard():
                                                 if (statusData.running) {
                                                     setTimeout(pollStatus, 2000); // Poll every 2 seconds
                                                 } else {
-                                                    // Indexing completed
+
                                                     if (statusData.error) {
                                                         if (statusDiv) {
                                                             statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${{statusData.error}</div>`;
@@ -485,7 +477,7 @@ def admin_dashboard():
                                                         if (statusDiv) {
                                                             statusDiv.innerHTML = `<div style="color: #10b981;">✅ Indexing completed successfully!</div>`;
                                                         }
-                                                        // Reload folder list after completion
+
                                                         setTimeout(() => {
                                                             loadFolderSelection();
                                                         }, 2000);
@@ -498,12 +490,11 @@ def admin_dashboard():
                                                 }
                                             }
                                         };
-                                        
-                                        // Start polling immediately
+
                                         setTimeout(pollStatus, 1000);
                                         
                                     } else if (response.status === 409) {
-                                        // Handle conflict - another indexing is in progress
+
                                         const resetButton = `<button onclick="resetIndexingStatus()" style="background: #f59e0b; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-left: 10px; font-size: 12px;">Reset</button>`;
                                         if (statusDiv) {
                                             statusDiv.innerHTML = `<div style="color: #f59e0b;">⚠️ Another indexing is in progress. ${{resetButton}<br><small>${{data.current_message || 'Unknown status'}</small></div>`;
@@ -520,8 +511,7 @@ def admin_dashboard():
                                     }
                                 }
                             };
-                            
-                            // Define the resetIndexingStatus function
+
                             window.resetIndexingStatus = async function() {
                                 const token = localStorage.getItem('authToken');
                                 try {
@@ -534,7 +524,7 @@ def admin_dashboard():
                                     
                                     if (response.ok) {
                                         alert('Indexing status reset successfully. You can now try indexing again.');
-                                        // Reload the folder list
+
                                         loadFolderSelection();
                                     } else {
                                         alert('Failed to reset indexing status.');
@@ -854,7 +844,7 @@ def admin_dashboard_content():
     </div>
     
     <script>
-        // Admin dashboard functions - defined globally
+
         console.log('[Admin Dashboard] Script loaded and executing');
         
         let refreshInterval;
@@ -913,7 +903,7 @@ def admin_dashboard_content():
         }
         
         function connectGDrive() {
-            // Open OAuth flow in current window
+
             window.location.href = '/admin/gdrive/authorize';
         }
         
@@ -1036,8 +1026,7 @@ def admin_dashboard_content():
                             <small>Refresh the page to see updated collections</small>
                         </div>
                     `;
-                    
-                    // Auto-refresh stats after 2 seconds
+
                     setTimeout(() => {
                         refreshStats();
                         window.location.reload();
@@ -1071,22 +1060,18 @@ def admin_dashboard_content():
                 alert('Error: ' + error.message);
             }
         }
-        
-        // Auto-refresh stats every 30 seconds
+
         refreshInterval = setInterval(refreshStats, 30000);
-        
-        // Initial load
+
         console.log('[Admin Dashboard] Starting initial data load...');
         refreshStats();
         checkGDriveAuth();  // Check Google Drive auth status
         console.log('[Admin Dashboard] Initial functions called');
-        
-        // Clean up on page unload
+
         window.addEventListener('beforeunload', () => {
             if (refreshInterval) clearInterval(refreshInterval);
         });
-        
-        // New migration functions
+
         async function checkMigrationStatus() {
             const token = localStorage.getItem('authToken');
             try {
@@ -1094,8 +1079,7 @@ def admin_dashboard_content():
                     headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 const data = await response.json();
-                
-                // Update Vertex AI status
+
                 const vertexDiv = document.getElementById('vertex-status');
                 if (data.vertex_embeddings.enabled) {
                     vertexDiv.innerHTML = `
@@ -1118,8 +1102,7 @@ def admin_dashboard_content():
                         </div>
                     `;
                 }
-                
-                // Update Document AI status
+
                 const docaiDiv = document.getElementById('documentai-status');
                 if (data.document_ai.enabled) {
                     docaiDiv.innerHTML = `
@@ -1142,8 +1125,7 @@ def admin_dashboard_content():
                         </div>
                     `;
                 }
-                
-                // Update database status
+
                 const dbDiv = document.getElementById('database-status');
                 if (data.database.exists) {
                     dbDiv.innerHTML = `
@@ -1162,8 +1144,7 @@ def admin_dashboard_content():
                         <p style="color: #94a3b8; font-size: 14px;">Database will be created on first query</p>
                     `;
                 }
-                
-                // Update backup status
+
                 const backupDiv = document.getElementById('backup-status');
                 if (data.backups.count > 0) {
                     backupDiv.innerHTML = `
@@ -1238,8 +1219,7 @@ def admin_dashboard_content():
                 
                 if (response.ok) {
                     statusDiv.innerHTML = '<div style="color: #10b981;">✅ Started!</div>';
-                    
-                    // Poll for status
+
                     const pollInterval = setInterval(async () => {
                         const statusResponse = await fetch('/admin/collections/status', {
                             headers: { 'Authorization': `Bearer ${{token}` }
@@ -1297,8 +1277,7 @@ def admin_dashboard_content():
                 
                 if (response.ok) {
                     statusDiv.innerHTML = '<div style="color: #10b981;">✅ Indexing started!</div>';
-                    
-                    // Poll for status
+
                     const pollInterval = setInterval(async () => {
                         const statusResponse = await fetch('/admin/collections/status', {
                             headers: { 'Authorization': `Bearer ${{token}` }
@@ -1309,7 +1288,7 @@ def admin_dashboard_content():
                             logsContent.innerHTML = status.logs.map(log => 
                                 `<div style="padding: 5px 0;">• ${{log}</div>`
                             ).join('');
-                            // Auto-scroll to bottom
+
                             logsContent.scrollTop = logsContent.scrollHeight;
                         }
                         
@@ -1332,8 +1311,7 @@ def admin_dashboard_content():
                 statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
             }
         }
-        
-        // Folder Selection Functions
+
         async function loadFolderSelection() {
             console.log('loadFolderSelection called');
             const token = localStorage.getItem('authToken');
@@ -1424,8 +1402,7 @@ def admin_dashboard_content():
             const logs = document.getElementById('indexing-logs');
             const stopBtn = document.getElementById('stop-indexing-btn');
             const hideBtn = document.getElementById('hide-progress-btn');
-            
-            // Show progress panel
+
             progressPanel.style.display = 'block';
             stopBtn.style.display = 'inline-block';
             
@@ -1437,20 +1414,18 @@ def admin_dashboard_content():
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Poll for progress
+
                     const pollInterval = setInterval(async () => {
                         const statusResponse = await fetch('/admin/collections/status', {
                             headers: { 'Authorization': `Bearer ${{token}` }
                         });
                         const status = await statusResponse.json();
-                        
-                        // Update progress
+
                         const progress = status.progress || 0;
                         progressBar.style.width = `${{progress}%`;
                         percentage.textContent = `${{progress}%`;
                         message.textContent = status.message || 'Processing...';
-                        
-                        // Update logs
+
                         if (status.logs) {
                             logs.textContent = status.logs.join('\\n');
                             logs.scrollTop = logs.scrollHeight;
@@ -1466,16 +1441,14 @@ def admin_dashboard_content():
                             } else {
                                 message.textContent = 'Completed successfully!';
                                 progressBar.style.background = 'linear-gradient(90deg, #10b981, #059669)';
-                                
-                                // Refresh folder list
+
                                 setTimeout(() => {
                                     loadFolderSelection();
                                 }, 2000);
                             }
                         }
                     }, 1000);
-                    
-                    // Store interval for stopping
+
                     window.currentIndexingPoll = pollInterval;
                     
                 } else {
@@ -1504,8 +1477,7 @@ def admin_dashboard_content():
             document.getElementById('stop-indexing-btn').style.display = 'none';
             document.getElementById('indexing-message').textContent = 'Stopped by user';
         }
-        
-        // Make functions globally accessible (after all definitions)
+
         window.refreshStats = refreshStats;
         window.checkGDriveAuth = checkGDriveAuth;
         window.updateCollections = updateCollections;
@@ -1521,8 +1493,7 @@ def admin_dashboard_content():
         window.hideFolderSelection = hideFolderSelection;
         window.hideProgressPanel = hideProgressPanel;
         window.stopIndexing = stopIndexing;
-    
-    // Call migration status on load
+
     setTimeout(checkMigrationStatus, 1000);
     
     </script>
