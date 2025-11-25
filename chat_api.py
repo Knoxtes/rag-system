@@ -887,11 +887,19 @@ def switch_collection():
             rag_system = EnhancedRAGSystem(drive_service, collection)
             print(f"[+] Successfully recreated collection: {collection}")
         
+        # Get document count for the collection
+        try:
+            doc_count = rag_system.vector_store.collection.count()
+        except:
+            doc_count = 0
+        
         return jsonify({
             'success': True,
             'collection': collection,
             'info': available_collections[collection],
-            'mode': 'single_collection'
+            'mode': 'single_collection',
+            'document_count': doc_count,
+            'warning': 'Collection is empty - please index documents' if doc_count == 0 else None
         })
         
     except Exception as e:

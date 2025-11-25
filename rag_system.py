@@ -862,6 +862,14 @@ class EnhancedRAGSystem:
         print(f"Connecting to vector store: '{self.collection_name}'")
         self.vector_store = VectorStore(collection_name=self.collection_name)
         
+        # Check if collection has documents
+        doc_count = self.vector_store.collection.count()
+        if doc_count == 0:
+            print(f"  ⚠️  WARNING: Collection '{self.collection_name}' is EMPTY (0 documents)")
+            print(f"  ⚠️  You need to index documents before querying this collection")
+        else:
+            print(f"  ✅ Collection has {doc_count} document chunks")
+        
         # Initialize hybrid searcher if enabled
         self.hybrid_searcher = None
         if USE_HYBRID_SEARCH:
@@ -1146,7 +1154,19 @@ class EnhancedRAGSystem:
                     all_metadatas.append(metadata)
         
         if not all_contexts:
-            return json.dumps({"error": "No documents found in the database."})
+            doc_count = self.vector_store.collection.count()
+            if doc_count == 0:
+                return json.dumps({
+                    "error": f"Collection '{self.collection_name}' is empty (0 documents). Please index documents first.",
+                    "collection": self.collection_name,
+                    "document_count": 0
+                })
+            else:
+                return json.dumps({
+                    "error": f"No relevant documents found for your query in collection '{self.collection_name}' ({doc_count} documents indexed).",
+                    "collection": self.collection_name,
+                    "document_count": doc_count
+                })
         
         safe_print(f"  📊 Multi-query search: {len(all_contexts)} unique documents retrieved")
         
