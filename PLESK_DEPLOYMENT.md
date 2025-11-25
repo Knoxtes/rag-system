@@ -2,12 +2,12 @@
 
 ## 🚀 Quick Start for Plesk
 
-This RAG (Retrieval-Augmented Generation) system is now optimized for single-command deployment on Plesk servers.
+This RAG (Retrieval-Augmented Generation) system is optimized for deployment on Plesk Obsidian 18.0.74 with AlmaLinux 9.7 and Node.js 22.21.1.
 
 ### Prerequisites
 
-- **Node.js** 14+ (for proxy server and React frontend)
-- **Python** 3.8+ (for Flask backend and AI processing)
+- **Node.js** 18+ (recommended: 22.21.1 for Plesk compatibility)
+- **Python** 3.9+ (for Flask backend and AI processing)
 - **Google Cloud credentials** (for Google Drive integration and Gemini AI)
 
 ### 🎯 One-Command Deployment

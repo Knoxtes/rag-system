@@ -1,6 +1,6 @@
 # 🚀 RAG System - Plesk Deployment Guide
 ## Optimized for Ask.7MountainsMedia.com
-### Plesk Obsidian 18.0.73 Update #4 | AlmaLinux 9.7 | Node.js 25.2.0
+### Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.21.1
 
 ---
 
@@ -30,8 +30,8 @@
 
 ### System Requirements
 - **OS**: AlmaLinux 9.7 (Moss Jungle Cat)
-- **Control Panel**: Plesk Obsidian 18.0.73 Update #4 (Web Host Edition)
-- **Node.js**: 25.2.0 (managed by Plesk at `/opt/plesk/node/25/`)
+- **Control Panel**: Plesk Obsidian 18.0.74 (Web Host Edition)
+- **Node.js**: 22.21.1 (managed by Plesk at `/opt/plesk/node/22/`)
 - **Python**: 3.9+ (system Python)
 - **Memory**: 2GB+ RAM recommended
 - **Storage**: 1GB+ free space (excluding chroma_db)
@@ -47,7 +47,7 @@
 3. Click **Node.js** in the left sidebar
 4. Click **Enable Node.js**
 5. Configure settings:
-   - **Node.js version**: `25.2.0`
+   - **Node.js version**: `22.x` (22.21.1 recommended)
    - **Application mode**: `production`
    - **Application root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
    - **Document root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
@@ -204,10 +204,10 @@ Use Plesk's managed Node.js:
 
 ```bash
 # Set Node.js path
-export PATH="/opt/plesk/node/25/bin:$PATH"
+export PATH="/opt/plesk/node/22/bin:$PATH"
 
 # Verify version
-node --version  # Should show v25.2.0
+node --version  # Should show v22.21.1
 npm --version
 
 # Install root dependencies
@@ -276,7 +276,7 @@ chmod 755 logs
 
 Verify these settings in **Node.js** section:
 
-- **Node.js Version**: `25.2.0` ✓
+- **Node.js Version**: `22.x` ✓
 - **Application mode**: `production` ✓
 - **Application Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com` ✓
 - **Document Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build` ✓
@@ -445,11 +445,11 @@ pip install --upgrade -r requirements-production.txt
 
 **Symptoms**: Build fails with localStorage reference errors
 
-**Solution**: This is handled by `build-wrapper.js`, but if it fails:
+**Solution**: This is typically a Node.js 25.x issue. The project now uses Node.js 22.x which doesn't have this problem. If you're on Node.js 25.x, switch to 22.x in Plesk.
 ```bash
 cd chat-app
-npm install --save node-localstorage --legacy-peer-deps
-npm run build:wrapper
+npm install --legacy-peer-deps
+npm run build
 cd ..
 ```
 
@@ -587,7 +587,7 @@ Logs are auto-rotated by Flask's RotatingFileHandler:
 Application Root:  /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
 React Build:       /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build
 Logs:              /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/logs
-Node.js:           /opt/plesk/node/25/bin/node
+Node.js:           /opt/plesk/node/22/bin/node
 ```
 
 ### Important URLs
@@ -622,11 +622,11 @@ Domains → Ask.7MountainsMedia.com → Node.js → Restart App
 
 - **Repository**: https://github.com/Knoxtes/rag-system
 - **Branch**: feature/easyocr-integration
-- **Node.js Version**: 25.2.0
+- **Node.js Version**: 22.21.1 (LTS recommended)
 - **Python Version**: 3.9+
 
 ---
 
-**🎉 Your RAG System is now deployed and optimized for Plesk Obsidian on AlmaLinux 9.7!**
+**🎉 Your RAG System is now deployed and optimized for Plesk Obsidian 18.0.74 on AlmaLinux 9.7!**
 
-Last Updated: November 21, 2025
+Last Updated: November 25, 2025

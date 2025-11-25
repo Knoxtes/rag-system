@@ -1,5 +1,5 @@
 # Plesk Obsidian 18.0.74 Deployment Guide
-## AlmaLinux 9.7 + Node.js Application
+## AlmaLinux 9.7 + Node.js 22.21.1 Application
 
 ## Overview
 Plesk Obsidian manages Node.js installations at `/opt/plesk/node/{version}/`. This guide uses Plesk's managed Node.js environment.
@@ -8,10 +8,10 @@ Plesk Obsidian manages Node.js installations at `/opt/plesk/node/{version}/`. Th
 
 ## Step 1: Enable Node.js in Plesk
 
-1. Go to **Domains** → **chat.7mountainsmedia.com** (or Ask.7mountainsmedia.com)
+1. Go to **Domains** → **Ask.7mountainsmedia.com**
 2. Click **Node.js**
 3. **Enable Node.js** for the domain
-4. Select **Node.js version**: 22.x or 25.x (recommended: 22.x for stability)
+4. Select **Node.js version**: 22.x (recommended for stability)
 5. Set **Application mode**: production
 6. **Document Root**: Leave default for now (we'll set it after build)
 7. **Application Startup File**: `server.js`
@@ -49,8 +49,6 @@ python3 -m pip install --user -r requirements-production.txt
 
 ```bash
 /opt/plesk/node/22/bin/npm install
-# Or if using Node 25:
-/opt/plesk/node/25/bin/npm install
 ```
 
 ---
@@ -111,7 +109,7 @@ LOCATION=...
 Go back to Plesk → Domains → Node.js settings:
 
 **Application Settings:**
-- **Node.js Version**: 22.x (or 25.x if you used that)
+- **Node.js Version**: 22.x
 - **Application Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
 - **Document Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
 - **Application Startup File**: `server.js`
@@ -128,8 +126,8 @@ JWT_SECRET_KEY=[from .env]
 GOOGLE_API_KEY=[from .env]
 PROJECT_ID=[from .env]
 LOCATION=[from .env]
-CORS_ORIGINS=https://chat.7mountainsmedia.com
-OAUTH_REDIRECT_URI=https://chat.7mountainsmedia.com/auth/callback
+CORS_ORIGINS=https://Ask.7MountainsMedia.com
+OAUTH_REDIRECT_URI=https://Ask.7MountainsMedia.com/auth/callback
 ```
 
 Click **Apply** and then **Restart Application**
@@ -148,7 +146,7 @@ chmod 755 logs
 
 ## Step 10: Verify Deployment
 
-1. **Health Check**: Visit `https://chat.7mountainsmedia.com/api/health`
+1. **Health Check**: Visit `https://Ask.7MountainsMedia.com/api/health`
    
    Expected response:
    ```json
@@ -160,7 +158,7 @@ chmod 755 logs
    }
    ```
 
-2. **Frontend**: Visit `https://chat.7mountainsmedia.com`
+2. **Frontend**: Visit `https://Ask.7MountainsMedia.com`
    - Should load React chat interface
 
 3. **Authentication**: Click "Login with Google"
@@ -172,8 +170,8 @@ chmod 755 logs
 ## Troubleshooting
 
 ### Build fails with localStorage error
-- **Cause**: Node.js 25.x has a localStorage bug
-- **Solution**: The `build-wrapper.js` should handle this. If not, switch to Node 22.x in Plesk
+- **Cause**: Node.js 25.x has a localStorage issue with react-scripts
+- **Solution**: Use Node.js 22.x which is now the recommended version for this project
 
 ### "npm: command not found" in SSH
 - **Solution**: Use full path: `/opt/plesk/node/22/bin/npm`
@@ -227,7 +225,7 @@ python3 -m pip install --user -r requirements-production.txt
 
 ## 5. Upload Required Files (Plesk File Manager or SFTP)
 
-Upload these to `/var/www/vhosts/7mountainsmedia.com/chat.7mountainsmedia.com/`:
+Upload these to `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/`:
 - `credentials.json`
 - `token.pickle`
 - `.env` (with production URLs)
@@ -236,9 +234,9 @@ Upload these to `/var/www/vhosts/7mountainsmedia.com/chat.7mountainsmedia.com/`:
 ## 6. Configure Plesk Node.js Application
 
 **Node.js Settings:**
-- **Node.js Version:** 18.x or 20.x (NOT 25.x!)
-- **Application Root:** `/var/www/vhosts/7mountainsmedia.com/chat.7mountainsmedia.com`
-- **Document Root:** `/var/www/vhosts/7mountainsmedia.com/chat.7mountainsmedia.com/chat-app/build`
+- **Node.js Version:** 22.x (recommended for stability)
+- **Application Root:** `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
+- **Document Root:** `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
 - **Application Mode:** production
 - **Application Startup File:** `server.js`
 
@@ -290,8 +288,8 @@ Should return:
 - Try running from Plesk's Node.js interface instead of terminal
 
 **If build fails with localStorage error:**
-- Check Node.js version is 18.x or 20.x (NOT 25.x)
-- Downgrade in Plesk if needed
+- Use Node.js 22.x (recommended version for this project)
+- Node.js 25.x has known issues with react-scripts
 
 **If server won't start:**
 - Check Plesk logs: Domains → chat.7mountainsmedia.com → Logs

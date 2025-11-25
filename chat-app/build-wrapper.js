@@ -1,25 +1,40 @@
 #!/usr/bin/env node
+/**
+ * Build wrapper for React application
+ * Compatible with Node.js 18.x, 20.x, 22.x
+ * For Plesk Obsidian 18.0.74 | AlmaLinux 9.7
+ */
 
-// Polyfill localStorage for Node.js 25.x compatibility
-const { LocalStorage } = require('node-localstorage');
-const os = require('os');
+const { spawn } = require('child_process');
 const path = require('path');
-const fs = require('fs');
 
-// Create a temporary directory for localStorage
-const tmpDir = path.join(os.tmpdir(), 'react-build-storage-' + Date.now());
-if (!fs.existsSync(tmpDir)) {
-  fs.mkdirSync(tmpDir, { recursive: true });
-}
-
-console.log('🔧 Setting up localStorage polyfill for Node 25.x...');
-
-// Polyfill global localStorage
-global.localStorage = new LocalStorage(tmpDir);
-
-console.log('✅ localStorage polyfill ready');
 console.log('🏗️  Starting React build...\n');
 
-// Now require and run react-scripts
-process.argv = ['node', require.resolve('react-scripts/bin/react-scripts.js'), 'build'];
-require('react-scripts/bin/react-scripts.js');
+// Set environment variables for build
+const env = {
+  ...process.env,
+  GENERATE_SOURCEMAP: 'false',
+  NODE_OPTIONS: '--max-old-space-size=4096'
+};
+
+// Run react-scripts build
+const buildProcess = spawn('npx', ['react-scripts', 'build'], {
+  cwd: __dirname,
+  env: env,
+  stdio: 'inherit',
+  shell: true
+});
+
+buildProcess.on('close', (code) => {
+  if (code === 0) {
+    console.log('\n✅ Build completed successfully!');
+  } else {
+    console.error(`\n❌ Build failed with code ${code}`);
+    process.exit(code);
+  }
+});
+
+buildProcess.on('error', (err) => {
+  console.error('❌ Build process error:', err);
+  process.exit(1);
+});
