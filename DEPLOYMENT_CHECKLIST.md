@@ -1,5 +1,5 @@
 # 🚀 Deployment Checklist
-## For: Ask.7MountainsMedia.com
+## For: ask.7mountainsmedia.com
 ## Plesk Obsidian 18.0.73 | AlmaLinux 9.7 | Node.js 25.2.0
 
 ---
@@ -15,7 +15,7 @@
 - [ ] Service Account created
 - [ ] **credentials.json** downloaded
 - [ ] OAuth 2.0 Client ID created
-- [ ] OAuth redirect URI added: `https://Ask.7MountainsMedia.com/auth/callback`
+- [ ] OAuth redirect URI added: `https://ask.7mountainsmedia.com/auth/callback`
 - [ ] Google API key generated
 
 ### ☐ Required Files Prepared
@@ -47,18 +47,18 @@
 
 ```bash
 ssh user@7mountainsmedia.com
-cd /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
+cd /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com
 git clone https://github.com/Knoxtes/rag-system.git .
 ```
 
 ### ☐ 2. Node.js Configuration in Plesk
 
-- [ ] Navigated to: Domains → Ask.7MountainsMedia.com → Node.js
+- [ ] Navigated to: Domains → ask.7mountainsmedia.com → Node.js
 - [ ] Clicked "Enable Node.js"
 - [ ] Selected Node.js version: **25.2.0**
 - [ ] Set Application mode: **production**
-- [ ] Set Application root: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
-- [ ] Set Document root: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
+- [ ] Set Application root: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com`
+- [ ] Set Document root: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/chat-app/build`
 - [ ] Set Application startup file: **server.js**
 - [ ] Clicked "Apply" (don't start yet)
 
@@ -95,7 +95,7 @@ chmod +x deploy-plesk.sh
 
 ### ☐ 6. Configure Environment Variables in Plesk
 
-Navigated to: Domains → Ask.7MountainsMedia.com → Node.js → Environment Variables
+Navigated to: Domains → ask.7mountainsmedia.com → Node.js → Environment Variables
 
 Added all variables (click "+ Add Variable" for each):
 
@@ -112,8 +112,8 @@ Added all variables (click "+ Add Variable" for each):
 - [ ] `GOOGLE_CLIENT_SECRET` = `<your-client-secret>`
 - [ ] `PROJECT_ID` = `rag-chatbot-475316`
 - [ ] `LOCATION` = `us-central1`
-- [ ] `CORS_ORIGINS` = `https://Ask.7MountainsMedia.com`
-- [ ] `OAUTH_REDIRECT_URI` = `https://Ask.7MountainsMedia.com/auth/callback`
+- [ ] `CORS_ORIGINS` = `https://ask.7mountainsmedia.com`
+- [ ] `OAUTH_REDIRECT_URI` = `https://ask.7mountainsmedia.com/auth/callback`
 - [ ] `ALLOWED_DOMAINS` = `7mountainsmedia.com`
 - [ ] Clicked "Apply"
 
@@ -129,7 +129,7 @@ Added all variables (click "+ Add Variable" for each):
 
 ### ☐ 8. Health Check
 
-- [ ] Visited: https://Ask.7MountainsMedia.com/api/health
+- [ ] Visited: https://ask.7mountainsmedia.com/api/health
 - [ ] Received response with `"status": "healthy"`
 - [ ] Confirmed `"node_server": "running"`
 - [ ] Confirmed `"flask_backend": "healthy"`
@@ -150,7 +150,7 @@ Added all variables (click "+ Add Variable" for each):
 
 ### ☐ 9. Frontend Access
 
-- [ ] Visited: https://Ask.7MountainsMedia.com
+- [ ] Visited: https://ask.7mountainsmedia.com
 - [ ] Chat interface loaded successfully
 - [ ] No console errors in browser developer tools
 - [ ] Dark theme displayed correctly
@@ -162,7 +162,7 @@ Added all variables (click "+ Add Variable" for each):
 - [ ] Redirected to Google OAuth consent screen
 - [ ] Selected @7mountainsmedia.com account
 - [ ] Granted permissions
-- [ ] Redirected back to Ask.7MountainsMedia.com
+- [ ] Redirected back to ask.7mountainsmedia.com
 - [ ] Successfully authenticated
 - [ ] User info displayed in UI
 
@@ -185,7 +185,7 @@ SSH into server and check logs:
 - [ ] No critical errors in logs
 - [ ] Flask backend startup messages present
 - [ ] Node.js server startup messages present
-- [ ] Checked Plesk logs: Domains → Ask.7MountainsMedia.com → Logs
+- [ ] Checked Plesk logs: Domains → ask.7mountainsmedia.com → Logs
 - [ ] No 502 or 500 errors
 
 ---
@@ -194,7 +194,7 @@ SSH into server and check logs:
 
 ### ☐ 13. Performance Monitoring
 
-- [ ] Visited: https://Ask.7MountainsMedia.com/api/stats
+- [ ] Visited: https://ask.7mountainsmedia.com/api/stats
 - [ ] Cache hit rates visible
 - [ ] System statistics displaying correctly
 
@@ -321,7 +321,7 @@ All checks must pass:
 
 ## Deployment Complete! 🎉
 
-**Your RAG System is now live at**: https://Ask.7MountainsMedia.com
+**Your RAG System is now live at**: https://ask.7mountainsmedia.com
 
 **System Version**: 2.0.0  
 **Deployment Date**: November 21, 2025  

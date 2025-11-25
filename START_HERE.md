@@ -181,7 +181,7 @@ In Plesk, configure your domain to proxy to the Node.js app:
 2. Add to **Additional nginx directives**:
    ```nginx
    location / {
-       proxy_pass http://localhost:3000;
+       proxy_pass http://ask.7mountainsmedia.com;
        proxy_http_version 1.1;
        proxy_set_header Upgrade $http_upgrade;
        proxy_set_header Connection 'upgrade';

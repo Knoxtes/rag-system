@@ -269,7 +269,7 @@ Run `python verify_production.py` - Should see:
 | `pip install -r requirements-production.txt` | Install Python dependencies |
 | `npm run build` | Build React frontend |
 | `npm start` | Start production server |
-| `curl http://localhost:3000/api/health` | Test health endpoint |
+| `curl http://ask.7mountainsmedia.com/api/health` | Test health endpoint |
 
 ---
 

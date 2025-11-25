@@ -245,7 +245,7 @@ def admin_dashboard():
                     debugInfo.textContent = `Welcome ${data.user.name || data.user.email}! You're not an admin user.`;
                     
                     setTimeout(() => {
-                        window.location.href = 'http://localhost:3000/?from_admin=true';
+                        window.location.href = '/?from_admin=true';
                     }, 2000);
                     return false;
                 } else {
@@ -294,7 +294,7 @@ def admin_dashboard():
         }
         
         function redirectToChat() {
-            window.location.href = 'http://localhost:3000/';
+            window.location.href = '/';
         }
         
         async function loadDashboard() {
@@ -2774,10 +2774,13 @@ def gdrive_status():
 def gdrive_authorize():
     """Start Google OAuth flow"""
     try:
+        # Get redirect URI from environment or use production default
+        redirect_uri = os.getenv('GDRIVE_REDIRECT_URI', 'https://ask.7mountainsmedia.com/admin/gdrive/callback')
+        
         flow = Flow.from_client_secrets_file(
             'credentials.json',
             scopes=SCOPES,
-            redirect_uri='http://localhost:5001/admin/gdrive/callback'
+            redirect_uri=redirect_uri
         )
         
         # Generate authorization URL with offline access for refresh token
@@ -2809,7 +2812,7 @@ def gdrive_callback():
             'credentials.json',
             scopes=SCOPES,
             state=state,
-            redirect_uri='http://localhost:5001/admin/gdrive/callback'
+            redirect_uri=os.getenv('GDRIVE_REDIRECT_URI', 'https://ask.7mountainsmedia.com/admin/gdrive/callback')
         )
         
         # Exchange authorization code for credentials

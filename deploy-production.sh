@@ -93,7 +93,7 @@ echo "[7] Verifying deployment..."
 sleep 2
 
 # Test health endpoint
-HEALTH_RESPONSE=$(curl -s http://localhost:3000/api/health || echo '{}')
+HEALTH_RESPONSE=$(curl -s http://ask.7mountainsmedia.com/api/health || echo '{}')
 if echo "$HEALTH_RESPONSE" | grep -q "healthy\|flask_backend"; then
   echo "✓ Health check passed"
   echo "  Response: $HEALTH_RESPONSE"
@@ -107,14 +107,14 @@ echo "✓ DEPLOYMENT COMPLETE"
 echo "=========================================="
 echo ""
 echo "Services running:"
-echo "  - Node.js (Port 3000): http://localhost:3000"
+echo "  - Node.js (Port 3000): http://ask.7mountainsmedia.com"
 echo "  - Flask (Port 5001): http://localhost:5001"
 echo "  - Frontend URL: https://ask.7mountainsmedia.com"
 echo ""
 echo "Test commands:"
-echo "  curl http://localhost:3000/api/health"
-echo "  curl http://localhost:3000"
-echo "  curl http://localhost:3000/auth/login"
+echo "  curl http://ask.7mountainsmedia.com/api/health"
+echo "  curl http://ask.7mountainsmedia.com"
+echo "  curl http://ask.7mountainsmedia.com/auth/login"
 echo ""
 echo "View logs:"
 echo "  tail -f nohup.out"

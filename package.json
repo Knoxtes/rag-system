@@ -1,7 +1,7 @@
 {
   "name": "rag-system",
   "version": "2.0.0",
-  "description": "7 Mountains Media RAG System - AI-powered document search and chat system for Ask.7MountainsMedia.com",
+  "description": "7 Mountains Media RAG System - AI-powered document search and chat system for ask.7mountainsmedia.com",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -14,7 +14,7 @@
     "dev:frontend": "cd chat-app && npm start",
     "dev:backend": "python chat_api.py",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "health": "curl http://localhost:3000/api/health",
+    "health": "curl /api/health",
     "logs": "tail -f logs/rag_system.log",
     "postinstall": "echo 'Run npm run build:frontend to build React app'"
   },
@@ -31,7 +31,7 @@
   ],
   "author": "7 Mountains Media",
   "license": "MIT",
-  "homepage": "https://Ask.7MountainsMedia.com",
+  "homepage": "https://ask.7mountainsmedia.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/Knoxtes/rag-system.git"
@@ -44,7 +44,7 @@
     "concurrently": "^7.6.0"
   },
   "engines": {
-    "node": ">=25.2.0",
+    "node": ">=22.0.0",
     "npm": ">=10.0.0",
     "python": ">=3.9.0"
   }

@@ -48,7 +48,7 @@ app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
 # CORS Configuration
-cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+cors_origins = os.getenv('CORS_ORIGINS', 'https://ask.7mountainsmedia.com').split(',')
 CORS(app, origins=cors_origins, supports_credentials=True)
 
 # Initialize Rate Limiting

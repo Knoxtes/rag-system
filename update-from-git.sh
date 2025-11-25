@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# Quick Update Script for Ask.7MountainsMedia.com
+# Quick Update Script for ask.7mountainsmedia.com
 # Use this script to quickly pull and deploy updates from Git
 # ============================================================================
 

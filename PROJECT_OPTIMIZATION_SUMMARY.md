@@ -1,7 +1,7 @@
 # 🎉 Project Optimization Complete!
 ## RAG System - Ready for Plesk Deployment
 
-### Optimized for: Ask.7MountainsMedia.com
+### Optimized for: ask.7mountainsmedia.com
 ### Platform: Plesk Obsidian 18.0.73 | AlmaLinux 9.7 | Node.js 25.2.0
 
 ---
@@ -88,7 +88,7 @@
 **Updated for production deployment:**
 
 - ✅ **.env.example** - Comprehensive template
-  - Updated for Ask.7MountainsMedia.com
+  - Updated for ask.7mountainsmedia.com
   - Clear security instructions
   - Generate secret keys guidance
   - OAuth configuration
@@ -226,7 +226,7 @@ Update with your production values.
 ### 5. Commit & Push Changes
 ```bash
 git add .
-git commit -m "Optimize for Plesk deployment - Node 25.2.0, Ask.7MountainsMedia.com"
+git commit -m "Optimize for Plesk deployment - Node 25.2.0, ask.7mountainsmedia.com"
 git push origin feature/easyocr-integration
 ```
 
@@ -241,7 +241,7 @@ Follow [PLESK_DEPLOYMENT_GUIDE.md](PLESK_DEPLOYMENT_GUIDE.md) step-by-step.
 
 ```bash
 # 1. Clone repository
-cd /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
+cd /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com
 git clone https://github.com/Knoxtes/rag-system.git .
 
 # 2. Run deployment
@@ -260,7 +260,7 @@ chmod +x deploy-plesk.sh
 # - Restart application
 
 # 5. Verify
-curl https://Ask.7MountainsMedia.com/api/health
+curl https://ask.7mountainsmedia.com/api/health
 ```
 
 ---
@@ -279,7 +279,7 @@ curl https://Ask.7MountainsMedia.com/api/health
 ### Files Updated
 1. ✅ README.md (complete rewrite for production)
 2. ✅ package.json (optimized for Node 25.2.0)
-3. ✅ .env.example (updated for Ask.7MountainsMedia.com)
+3. ✅ .env.example (updated for ask.7mountainsmedia.com)
 4. ✅ .gitignore (enhanced security)
 
 ### Files to Archive (30+)
@@ -334,7 +334,7 @@ curl https://Ask.7MountainsMedia.com/api/health
 ### Primary Goals
 ✅ **Optimize for Plesk Obsidian 18.0.73** - Complete
 ✅ **Support Node.js 25.2.0** - Complete
-✅ **Configure for Ask.7MountainsMedia.com** - Complete
+✅ **Configure for ask.7mountainsmedia.com** - Complete
 ✅ **AlmaLinux 9.7 compatibility** - Complete
 ✅ **Git-based deployment** - Complete
 
@@ -413,7 +413,7 @@ curl https://Ask.7MountainsMedia.com/api/health
 - Python 3.9+
 
 ### Domain
-**Ask.7MountainsMedia.com**
+**ask.7mountainsmedia.com**
 
 ### Deployment Method
 **Git-based automated deployment**
@@ -428,7 +428,7 @@ curl https://Ask.7MountainsMedia.com/api/health
 - **Cleanup**: 30+ obsolete files identified ✅
 - **Git Integration**: Full workflow support ✅
 - **Plesk Optimization**: Node 25.2.0 ready ✅
-- **Domain Configuration**: Ask.7MountainsMedia.com ✅
+- **Domain Configuration**: ask.7mountainsmedia.com ✅
 - **Testing**: Complete checklist provided ✅
 
 ---
@@ -440,5 +440,5 @@ curl https://Ask.7MountainsMedia.com/api/health
 ---
 
 *Project optimized on: November 21, 2025*  
-*Target deployment: Ask.7MountainsMedia.com*  
+*Target deployment: ask.7mountainsmedia.com*  
 *Platform: Plesk Obsidian 18.0.73 | AlmaLinux 9.7 | Node.js 25.2.0*

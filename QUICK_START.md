@@ -1,7 +1,7 @@
 # ⚡ Quick Start Guide
 ## Deploy RAG System to Plesk in 15 Minutes
 
-### For: Ask.7MountainsMedia.com | Node.js 25.2.0
+### For: ask.7mountainsmedia.com | Node.js 22.25.1
 
 ---
 
@@ -30,7 +30,7 @@ Save these keys - you'll need them in step 3.
 SSH into your server:
 ```bash
 ssh user@7mountainsmedia.com
-cd /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
+cd /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com
 git clone https://github.com/Knoxtes/rag-system.git .
 chmod +x deploy-plesk.sh
 ./deploy-plesk.sh
@@ -54,8 +54,8 @@ JWT_SECRET_KEY=<paste-your-generated-key>
 GOOGLE_CLIENT_ID=<your-client-id>
 GOOGLE_CLIENT_SECRET=<your-client-secret>
 GOOGLE_API_KEY=<your-api-key>
-OAUTH_REDIRECT_URI=https://Ask.7MountainsMedia.com/auth/callback
-CORS_ORIGINS=https://Ask.7MountainsMedia.com
+OAUTH_REDIRECT_URI=https://ask.7mountainsmedia.com/auth/callback
+CORS_ORIGINS=https://ask.7mountainsmedia.com
 ```
 
 Save and exit (Ctrl+X, Y, Enter).
@@ -64,14 +64,14 @@ Save and exit (Ctrl+X, Y, Enter).
 
 ### Step 3: Enable Node.js in Plesk (3 min)
 
-1. Open Plesk → **Domains** → **Ask.7MountainsMedia.com**
+1. Open Plesk → **Domains** → **ask.7mountainsmedia.com**
 2. Click **Node.js** in sidebar
 3. Click **Enable Node.js**
 4. Configure:
-   - Node.js version: `25.2.0`
+   - Node.js version: `22.25.1`
    - Application mode: `production`
-   - Application root: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
-   - Document root: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
+   - Application root: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com`
+   - Document root: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/chat-app/build`
    - Startup file: `server.js`
 5. Click **Apply**
 
@@ -92,8 +92,8 @@ JWT_SECRET_KEY=<your-key>
 GOOGLE_API_KEY=<your-key>
 PROJECT_ID=rag-chatbot-475316
 LOCATION=us-central1
-CORS_ORIGINS=https://Ask.7MountainsMedia.com
-OAUTH_REDIRECT_URI=https://Ask.7MountainsMedia.com/auth/callback
+CORS_ORIGINS=https://ask.7mountainsmedia.com
+OAUTH_REDIRECT_URI=https://ask.7mountainsmedia.com/auth/callback
 ```
 
 Click **Apply**.
@@ -111,7 +111,7 @@ In Plesk Node.js settings:
 ## Verify (2 minutes)
 
 ### 1. Health Check
-Visit: https://Ask.7MountainsMedia.com/api/health
+Visit: https://ask.7mountainsmedia.com/api/health
 
 Should see:
 ```json
@@ -123,7 +123,7 @@ Should see:
 ```
 
 ### 2. Frontend
-Visit: https://Ask.7MountainsMedia.com
+Visit: https://ask.7mountainsmedia.com
 
 Should see the chat interface.
 
@@ -154,7 +154,7 @@ Click "Login with Google" → Complete OAuth → Should be authenticated.
 
 **OAuth fails?**
 - Verify redirect URI in Google Cloud Console
-- Must be: `https://Ask.7MountainsMedia.com/auth/callback`
+- Must be: `https://ask.7mountainsmedia.com/auth/callback`
 
 **Frontend not loading?**
 - Check if build directory exists: `ls chat-app/build/`
@@ -172,7 +172,7 @@ Click "Login with Google" → Complete OAuth → Should be authenticated.
 tail -f logs/rag_system.log
 
 # Check health
-curl https://Ask.7MountainsMedia.com/api/health
+curl https://ask.7mountainsmedia.com/api/health
 
 # Rebuild frontend
 cd chat-app && ./install-and-build.sh

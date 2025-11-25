@@ -119,7 +119,7 @@ npm run build
 npm start
 
 # Health check
-curl http://localhost:3000/api/health
+curl http://ask.7mountainsmedia.com/api/health
 ```
 
 ## 📈 Features Implemented

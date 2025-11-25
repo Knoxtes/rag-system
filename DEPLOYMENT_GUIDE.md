@@ -74,13 +74,13 @@ Complete npm rebuild from scratch (only if npm is broken)
 
 ### 1. Check Health Endpoint
 ```bash
-curl http://localhost:3000/api/health
+curl http://ask.7mountainsmedia.com/api/health
 ```
 Should return: `{"status":"healthy",...}`
 
 ### 2. Check Frontend
 ```bash
-curl http://localhost:3000
+curl http://ask.7mountainsmedia.com
 ```
 Should return HTML starting with `<!doctype html>`
 

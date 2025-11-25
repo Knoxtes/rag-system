@@ -23,8 +23,9 @@ TOKEN_FILE = 'token.pickle'
 # Create blueprint
 gdrive_oauth_bp = Blueprint('gdrive_oauth', __name__, url_prefix='/admin/gdrive')
 
-# Allow insecure transport for localhost
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+# Allow insecure transport for development only (not needed for production HTTPS)
+if os.getenv('FLASK_ENV') != 'production':
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 
 def get_flow():
@@ -36,8 +37,8 @@ def get_flow():
     client_config = creds_data.get('installed') or creds_data.get('web')
     redirect_uris = client_config.get('redirect_uris', [])
     
-    # Use the first redirect URI or default
-    redirect_uri = redirect_uris[0] if redirect_uris else 'http://localhost:3000/admin/gdrive/callback'
+    # Use environment variable, or first redirect URI from credentials, or production default
+    redirect_uri = os.getenv('GDRIVE_REDIRECT_URI') or (redirect_uris[0] if redirect_uris else 'https://ask.7mountainsmedia.com/admin/gdrive/callback')
     
     flow = Flow.from_client_secrets_file(
         CREDENTIALS_FILE,
@@ -147,7 +148,7 @@ def authorize():
             <ol>
                 <li>Go to <a href="https://console.cloud.google.com/apis/credentials?project=rag-chat-system" style="color: #3b82f6;">Google Cloud Console</a></li>
                 <li>Edit your OAuth client ID: <code>632169698669-n5sttmpaes91rj6v8qe17dcqlmr0fggr</code></li>
-                <li>Under "Authorized redirect URIs", add: <code>http://localhost:3000/admin/gdrive/callback</code></li>
+                <li>Under "Authorized redirect URIs", add: <code>https://ask.7mountainsmedia.com/admin/gdrive/callback</code></li>
                 <li>Click SAVE and wait 1-2 minutes</li>
                 <li><a href="/admin/dashboard" style="color: #3b82f6;">Return to Admin Dashboard</a></li>
             </ol>

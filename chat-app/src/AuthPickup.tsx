@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000';
+// Use relative URL - works with any domain, no localhost hardcoding
+const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || '';
 
 const AuthPickup: React.FC = () => {
   useEffect(() => {

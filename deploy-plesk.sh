@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================================
-# Plesk Deployment Script for Ask.7MountainsMedia.com
-# Optimized for: Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.21.1
+# Plesk Deployment Script for ask.7mountainsmedia.com
+# Optimized for: Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.25.1 | Python 3.9
 # ============================================================================
 
 set -e  # Exit on error
@@ -17,16 +17,20 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Detect Plesk Node.js path
-PLESK_NODE_25="/opt/plesk/node/25/bin"
+# Detect Plesk Node.js path - prioritize 22.x for this deployment
 PLESK_NODE_22="/opt/plesk/node/22/bin"
+PLESK_NODE_20="/opt/plesk/node/20/bin"
+PLESK_NODE_18="/opt/plesk/node/18/bin"
 
-if [ -d "$PLESK_NODE_25" ]; then
-    NODE_PATH="$PLESK_NODE_25"
-    NODE_VERSION="25.x"
-elif [ -d "$PLESK_NODE_22" ]; then
+if [ -d "$PLESK_NODE_22" ]; then
     NODE_PATH="$PLESK_NODE_22"
     NODE_VERSION="22.x"
+elif [ -d "$PLESK_NODE_20" ]; then
+    NODE_PATH="$PLESK_NODE_20"
+    NODE_VERSION="20.x"
+elif [ -d "$PLESK_NODE_18" ]; then
+    NODE_PATH="$PLESK_NODE_18"
+    NODE_VERSION="18.x"
 else
     NODE_PATH=$(dirname $(which node) 2>/dev/null || echo "")
     NODE_VERSION=$(node --version 2>/dev/null || echo "unknown")
@@ -195,10 +199,10 @@ if [ -f ".env" ]; then
         print_status "Environment configuration looks good"
     fi
     
-    if grep -q "Ask.7MountainsMedia.com" .env; then
+    if grep -q "ask.7mountainsmedia.com" .env; then
         print_status "Production domain configured"
     else
-        print_warning "OAUTH_REDIRECT_URI may need updating to Ask.7MountainsMedia.com"
+        print_warning "OAUTH_REDIRECT_URI may need updating to ask.7mountainsmedia.com"
     fi
 else
     print_warning ".env file not found - copy from .env.example"
@@ -214,12 +218,12 @@ print_info "Next steps:"
 echo "   1. Upload missing files (if any listed above)"
 echo "   2. Update .env with production values"
 echo "   3. Set environment variables in Plesk:"
-echo "      Domains → Ask.7MountainsMedia.com → Node.js → Environment Variables"
+echo "      Domains → ask.7mountainsmedia.com → Node.js → Environment Variables"
 echo "   4. Restart application in Plesk:"
-echo "      Domains → Ask.7MountainsMedia.com → Node.js → Restart App"
+echo "      Domains → ask.7mountainsmedia.com → Node.js → Restart App"
 echo ""
 echo "   5. Verify deployment:"
-echo "      https://Ask.7MountainsMedia.com/api/health"
+echo "      https://ask.7mountainsmedia.com/api/health"
 echo ""
 print_status "Deployment script completed successfully!"
 echo ""

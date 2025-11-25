@@ -8,7 +8,7 @@ Plesk Obsidian manages Node.js installations at `/opt/plesk/node/{version}/`. Th
 
 ## Step 1: Enable Node.js in Plesk
 
-1. Go to **Domains** → **chat.7mountainsmedia.com** (or Ask.7mountainsmedia.com)
+1. Go to **Domains** → **chat.7mountainsmedia.com** (or ask.7mountainsmedia.com)
 2. Click **Node.js**
 3. **Enable Node.js** for the domain
 4. Select **Node.js version**: 22.x or 25.x (recommended: 22.x for stability)
@@ -24,7 +24,7 @@ Plesk Obsidian manages Node.js installations at `/opt/plesk/node/{version}/`. Th
 SSH into your server:
 ```bash
 ssh user@your-server.com
-cd /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
+cd /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com
 ```
 
 Clone the repository:
@@ -68,13 +68,13 @@ This script will:
 - Install all React dependencies with `--ignore-scripts` (avoids postinstall errors)
 - Build the production React app
 
-Expected output: `Build output: /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build/`
+Expected output: `Build output: /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/chat-app/build/`
 
 ---
 
 ## Step 6: Upload Required Files
 
-Via SFTP (FileZilla) or Plesk File Manager, upload to `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/`:
+Via SFTP (FileZilla) or Plesk File Manager, upload to `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/`:
 
 **Required files:**
 - `credentials.json` (Google Cloud credentials)
@@ -112,8 +112,8 @@ Go back to Plesk → Domains → Node.js settings:
 
 **Application Settings:**
 - **Node.js Version**: 22.x (or 25.x if you used that)
-- **Application Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
-- **Document Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
+- **Application Root**: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com`
+- **Document Root**: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/chat-app/build`
 - **Application Startup File**: `server.js`
 - **Application Mode**: production
 
@@ -140,7 +140,7 @@ Click **Apply** and then **Restart Application**
 
 In SSH:
 ```bash
-mkdir -p /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/logs
+mkdir -p /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/logs
 chmod 755 logs
 ```
 
@@ -203,7 +203,7 @@ chmod 755 logs
 To update after pushing changes to GitHub:
 
 ```bash
-cd /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
+cd /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com
 git pull origin feature/easyocr-integration
 
 # If frontend changed:

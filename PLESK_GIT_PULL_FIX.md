@@ -45,7 +45,7 @@ You can now use the **Plesk Git Pull GUI** without errors.
 
 3. **Step 3: Verify It Works**
    ```bash
-   curl http://localhost:3000/api/health
+   curl http://ask.7mountainsmedia.com/api/health
    ```
 
    Then visit: https://ask.7mountainsmedia.com
@@ -104,7 +104,7 @@ Google Drive API
 
 1. **Health Check:**
    ```bash
-   curl http://localhost:3000/api/health
+   curl http://ask.7mountainsmedia.com/api/health
    ```
 
 2. **Frontend Access:**

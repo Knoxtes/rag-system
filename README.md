@@ -3,7 +3,7 @@
 
 A production-ready React + Flask application powered by RAG (Retrieval-Augmented Generation) with Google Drive integration, Vertex AI embeddings, and Document AI OCR.
 
-**Live at**: [Ask.7MountainsMedia.com](https://Ask.7MountainsMedia.com)
+**Live at**: [ask.7mountainsmedia.com](https://ask.7mountainsmedia.com)
 
 ---
 
@@ -56,7 +56,7 @@ chmod +x deploy-plesk.sh
 
 **Prerequisites**:
 - Python 3.9+
-- Node.js 22.21.1+
+- Node.js 22.25.1+
 - Google Cloud credentials
 
 ```bash
@@ -72,14 +72,14 @@ cd chat-app && npm run build && cd ..
 npm start
 ```
 
-Visit: http://localhost:3000
+Visit: https://ask.7mountainsmedia.com
 
 ### System Requirements
 
 - **OS**: Linux (AlmaLinux 9.7 recommended) / macOS / Windows
 - **RAM**: 2GB+ recommended
 - **Storage**: 1GB+ (excluding vector database)
-- **Node.js**: 22.21.1 (or 22.x)
+- **Node.js**: 22.25.1 (or 22.x)
 - **Python**: 3.9+
 
 ## 📁 Project Structure
@@ -107,7 +107,7 @@ rag-system/
 │   │   └── types/               # TypeScript types
 │   ├── build/                   # Production build (generated)
 │   ├── package.json             # React dependencies
-│   └── install-and-build.sh     # Build script for Node 25.x
+│   └── install-and-build.sh     # Build script for Node 22.x
 ├── chroma_db/                   # Vector database (not in git)
 ├── logs/                        # Application logs (not in git)
 └── docs/                        # Additional documentation
@@ -154,26 +154,26 @@ rag-system/
 2. **Configure Environment**
    - Copy `.env.example` to `.env`
    - Generate secret keys: `python3 -c "import secrets; print(secrets.token_hex(32))"`
-   - Update domain to: `Ask.7MountainsMedia.com`
+   - Update domain to: `ask.7mountainsmedia.com`
    - Upload `credentials.json` and `token.pickle`
 
 3. **Configure Plesk Node.js App**
-   - Enable Node.js 22.21.1
+   - Enable Node.js 22.25.1
    - Set application root and document root
    - Add environment variables
    - Set startup file to `server.js`
 
 4. **Verify Deployment**
-   - Visit: https://Ask.7MountainsMedia.com/api/health
+   - Visit: https://ask.7mountainsmedia.com/api/health
    - Should return: `{"status": "healthy"}`
 
 ### System Configuration
 
 **Plesk Settings:**
-- Node.js Version: 22.21.1
+- Node.js Version: 22.25.1
 - Application Mode: production
-- Application Root: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
-- Document Root: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
+- Application Root: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com`
+- Document Root: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/chat-app/build`
 - Startup File: `server.js`
 
 **Environment Variables** (Set in Plesk):
@@ -207,7 +207,7 @@ FLASK_SECRET_KEY=<generate-with-secrets-module>
 JWT_SECRET_KEY=<generate-with-secrets-module>
 
 # OAuth
-OAUTH_REDIRECT_URI=https://Ask.7MountainsMedia.com/auth/callback
+OAUTH_REDIRECT_URI=https://ask.7mountainsmedia.com/auth/callback
 ALLOWED_DOMAINS=7mountainsmedia.com
 
 # Google Cloud
@@ -217,7 +217,7 @@ GOOGLE_API_KEY=<your-api-key>
 # Production settings
 FLASK_ENV=production
 DEBUG=False
-CORS_ORIGINS=https://Ask.7MountainsMedia.com
+CORS_ORIGINS=https://ask.7mountainsmedia.com
 ```
 
 ### Google Cloud Setup
@@ -283,7 +283,7 @@ tail -f logs/chat_api.log
 **Error**: "redirect_uri_mismatch"
 
 **Solutions:**
-1. Verify `.env`: `OAUTH_REDIRECT_URI=https://Ask.7MountainsMedia.com/auth/callback`
+1. Verify `.env`: `OAUTH_REDIRECT_URI=https://ask.7mountainsmedia.com/auth/callback`
 2. Check Google Cloud Console: Authorized redirect URIs must match exactly
 3. Must use HTTPS, no trailing slash
 
@@ -372,7 +372,7 @@ For more troubleshooting, see [PLESK_DEPLOYMENT_GUIDE.md](PLESK_DEPLOYMENT_GUIDE
 - **React Markdown** - Rich text rendering
 
 ### Infrastructure
-- **Node.js 22.21.1** - Proxy server
+- **Node.js 22.25.1** - Proxy server
 - **Express 4.18** - Node.js framework
 - **Plesk Obsidian 18.0.73** - Hosting platform
 - **AlmaLinux 9.7** - Operating system
@@ -390,7 +390,7 @@ For more troubleshooting, see [PLESK_DEPLOYMENT_GUIDE.md](PLESK_DEPLOYMENT_GUIDE
 
 ## 🔗 Links
 
-- **Live Site**: https://Ask.7MountainsMedia.com
+- **Live Site**: https://ask.7mountainsmedia.com
 - **Repository**: https://github.com/Knoxtes/rag-system
 - **Branch**: feature/easyocr-integration
 - **Organization**: 7 Mountains Media
@@ -416,4 +416,4 @@ For deployment issues or questions:
 **Status**: ✅ Production Ready  
 **Version**: 2.0.0  
 **Last Updated**: November 21, 2025  
-**Deployed On**: Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.21.1
+**Deployed On**: Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.25.1

@@ -251,9 +251,9 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log('🚀 RAG System starting...');
   console.log('=' .repeat(50));
-  console.log(`🌐 Frontend: http://localhost:${PORT}`);
-  console.log(`🐍 Backend:  http://localhost:${FLASK_PORT}`);
-  console.log(`📊 Health:   http://localhost:${PORT}/api/health`);
+  console.log(`🌐 Server running on port ${PORT}`);
+  console.log(`🐍 Backend running on port ${FLASK_PORT}`);
+  console.log(`📊 Health endpoint: /api/health`);
   console.log('=' .repeat(50));
   console.log('✅ Server is ready!');
 });

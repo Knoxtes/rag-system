@@ -122,8 +122,8 @@ else
 fi
 
 # Check Node.js
-if curl -s http://localhost:3000 > /dev/null 2>&1; then
-    echo "✓ Node.js Server:   http://localhost:3000"
+if curl -s http://ask.7mountainsmedia.com > /dev/null 2>&1; then
+    echo "✓ Node.js Server:   http://ask.7mountainsmedia.com"
 else
     echo "✗ Node.js Server:   Not responding"
 fi

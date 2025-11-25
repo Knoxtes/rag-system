@@ -177,7 +177,7 @@ def callback():
             print(f"Stored auth data in session for {user_info['email']}")
             print(f"Redirecting to React app...")
             
-            return redirect('http://localhost:3000/auth-pickup')
+            return redirect('/auth-pickup')
     except Exception as e:
         logging.error(f"OAuth callback error: {str(e)}")
         import traceback

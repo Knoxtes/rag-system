@@ -73,7 +73,7 @@ echo "[6] Verifying deployment..."
 sleep 2
 
 # Test health endpoint
-HEALTH_RESPONSE=$(curl -s http://localhost:3000/api/health || echo '{}')
+HEALTH_RESPONSE=$(curl -s http://ask.7mountainsmedia.com/api/health || echo '{}')
 if echo "$HEALTH_RESPONSE" | grep -q "healthy"; then
   echo "✓ Health check passed"
 else
@@ -81,7 +81,7 @@ else
 fi
 
 # Check if build was served
-BUILD_CHECK=$(curl -s http://localhost:3000/ | grep -c "main\." || echo "0")
+BUILD_CHECK=$(curl -s http://ask.7mountainsmedia.com/ | grep -c "main\." || echo "0")
 if [ "$BUILD_CHECK" -gt 0 ]; then
   echo "✓ React build is being served"
 else
@@ -94,9 +94,9 @@ echo "✓ REBUILD COMPLETE"
 echo "=========================================="
 echo ""
 echo "Frontend has been rebuilt and redeployed."
-echo "Server: http://localhost:3000"
+echo "Server: http://ask.7mountainsmedia.com"
 echo ""
 echo "Test endpoints:"
-echo "  curl http://localhost:3000/api/health"
-echo "  curl http://localhost:3000"
+echo "  curl http://ask.7mountainsmedia.com/api/health"
+echo "  curl http://ask.7mountainsmedia.com"
 echo ""

@@ -1,6 +1,6 @@
 # 🚀 RAG System - Plesk Deployment Guide
-## Optimized for Ask.7MountainsMedia.com
-### Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.21.1
+## Optimized for ask.7mountainsmedia.com
+### Plesk Obsidian 18.0.74 | AlmaLinux 9.7 | Node.js 22.25.1
 
 ---
 
@@ -32,7 +32,7 @@ test
 ### System Requirements
 - **OS**: AlmaLinux 9.7 (Moss Jungle Cat)
 - **Control Panel**: Plesk Obsidian 18.0.74 (Web Host Edition)
-- **Node.js**: 22.21.1 (managed by Plesk at `/opt/plesk/node/22/`)
+- **Node.js**: 22.25.1 (managed by Plesk at `/opt/plesk/node/22/`)
 - **Python**: 3.9+ (system Python)
 - **Memory**: 2GB+ RAM recommended
 - **Storage**: 1GB+ free space (excluding chroma_db)
@@ -44,14 +44,14 @@ test
 ### Step 1: Enable Node.js in Plesk
 
 1. Log into **Plesk Control Panel**
-2. Navigate to **Domains** → **Ask.7MountainsMedia.com**
+2. Navigate to **Domains** → **ask.7mountainsmedia.com**
 3. Click **Node.js** in the left sidebar
 4. Click **Enable Node.js**
 5. Configure settings:
-   - **Node.js version**: `22.21.1`
+   - **Node.js version**: `22.25.1`
    - **Application mode**: `production`
-   - **Application root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com`
-   - **Document root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build`
+   - **Application root**: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com`
+   - **Document root**: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/chat-app/build`
    - **Application startup file**: `server.js`
 6. Click **Apply** (don't start yet)
 
@@ -59,7 +59,7 @@ test
 
 ```bash
 ssh your-username@7mountainsmedia.com
-cd /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
+cd /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com
 ```
 
 ---
@@ -121,7 +121,7 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 ALLOWED_DOMAINS=7mountainsmedia.com
 
 # OAuth Redirect URI - CRITICAL: Must match exactly!
-OAUTH_REDIRECT_URI=https://Ask.7MountainsMedia.com/auth/callback
+OAUTH_REDIRECT_URI=https://ask.7mountainsmedia.com/auth/callback
 
 # Flask Security - Generate new keys!
 # Run: python3 -c "import secrets; print(secrets.token_hex(32))"
@@ -138,7 +138,7 @@ DEBUG=False
 LOG_LEVEL=INFO
 
 # CORS Origins
-CORS_ORIGINS=https://Ask.7MountainsMedia.com
+CORS_ORIGINS=https://ask.7mountainsmedia.com
 
 # Google Cloud Settings (from your config.py)
 GOOGLE_API_KEY=your-api-key
@@ -168,7 +168,7 @@ Upload these files via SFTP or Plesk File Manager:
 2. **token.pickle** - Google OAuth token (if you have it)
 3. **chroma_db/** folder - Vector database (520MB via SFTP)
 
-Place all files in: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/`
+Place all files in: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/`
 
 ### Step 7: Update Google Cloud OAuth Settings
 
@@ -176,7 +176,7 @@ Place all files in: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
 2. Select your OAuth 2.0 Client ID
 3. Under **Authorized redirect URIs**, add:
    ```
-   https://Ask.7MountainsMedia.com/auth/callback
+   https://ask.7mountainsmedia.com/auth/callback
    ```
 4. Save changes
 
@@ -208,7 +208,7 @@ Use Plesk's managed Node.js:
 export PATH="/opt/plesk/node/22/bin:$PATH"
 
 # Verify version
-node --version  # Should show v22.21.1
+node --version  # Should show v22.25.1
 npm --version
 
 # Install root dependencies
@@ -236,7 +236,7 @@ cd ..
 
 Expected output:
 ```
-✅ Build completed: /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build/
+✅ Build completed: /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/chat-app/build/
 ```
 
 ### Step 11: Create Logs Directory
@@ -252,7 +252,7 @@ chmod 755 logs
 
 ### Step 12: Configure Environment Variables in Plesk
 
-1. Go to **Plesk** → **Domains** → **Ask.7MountainsMedia.com** → **Node.js**
+1. Go to **Plesk** → **Domains** → **ask.7mountainsmedia.com** → **Node.js**
 2. Click **Environment Variables**
 3. Add these variables (click "+ Add Variable" for each):
 
@@ -268,8 +268,8 @@ chmod 755 logs
 | `GOOGLE_API_KEY` | `<your-api-key>` |
 | `PROJECT_ID` | `rag-chatbot-475316` |
 | `LOCATION` | `us-central1` |
-| `CORS_ORIGINS` | `https://Ask.7MountainsMedia.com` |
-| `OAUTH_REDIRECT_URI` | `https://Ask.7MountainsMedia.com/auth/callback` |
+| `CORS_ORIGINS` | `https://ask.7mountainsmedia.com` |
+| `OAUTH_REDIRECT_URI` | `https://ask.7mountainsmedia.com/auth/callback` |
 
 4. Click **Apply**
 
@@ -277,10 +277,10 @@ chmod 755 logs
 
 Verify these settings in **Node.js** section:
 
-- **Node.js Version**: `25.2.0` ✓
+- **Node.js Version**: `22.25.1` ✓
 - **Application mode**: `production` ✓
-- **Application Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com` ✓
-- **Document Root**: `/var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build` ✓
+- **Application Root**: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com` ✓
+- **Document Root**: `/var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/chat-app/build` ✓
 - **Application Startup File**: `server.js` ✓
 - **Environment Variables**: All set ✓
 
@@ -296,7 +296,7 @@ Verify these settings in **Node.js** section:
 
 ### Step 15: Health Check
 
-Visit: https://Ask.7MountainsMedia.com/api/health
+Visit: https://ask.7mountainsmedia.com/api/health
 
 Expected response:
 ```json
@@ -313,7 +313,7 @@ Expected response:
 
 ### Step 16: Frontend Access
 
-1. Visit: https://Ask.7MountainsMedia.com
+1. Visit: https://ask.7mountainsmedia.com
 2. You should see the chat interface
 3. Click **"Login with Google"**
 4. Complete OAuth flow
@@ -336,7 +336,7 @@ tail -f logs/rag_system.log
 tail -f logs/chat_api.log
 
 # Check Plesk logs
-# Go to Plesk → Domains → Ask.7MountainsMedia.com → Logs
+# Go to Plesk → Domains → ask.7mountainsmedia.com → Logs
 ```
 
 ---
@@ -373,7 +373,7 @@ tail -50 logs/rag_system.log
    ```bash
    grep OAUTH_REDIRECT_URI .env
    ```
-   Must be: `https://Ask.7MountainsMedia.com/auth/callback`
+   Must be: `https://ask.7mountainsmedia.com/auth/callback`
 
 2. Verify in Google Cloud Console:
    - APIs & Services → Credentials
@@ -464,7 +464,7 @@ When you push changes to GitHub:
 
 ```bash
 # SSH into server
-cd /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
+cd /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com
 
 # Run deployment update script
 ./deploy-update.sh
@@ -478,7 +478,7 @@ cd ..
 pip install -r requirements-production.txt
 
 # Restart application in Plesk
-# Go to: Plesk → Domains → Ask.7MountainsMedia.com → Node.js → Restart App
+# Go to: Plesk → Domains → ask.7mountainsmedia.com → Node.js → Restart App
 ```
 
 ### Automated Update Script
@@ -528,7 +528,7 @@ cp token.pickle token.pickle.backup 2>/dev/null || true
 
 Check cache performance:
 ```bash
-curl https://Ask.7MountainsMedia.com/api/stats
+curl https://ask.7mountainsmedia.com/api/stats
 ```
 
 ### Log Rotation
@@ -585,18 +585,18 @@ Logs are auto-rotated by Flask's RotatingFileHandler:
 
 ### Important Paths
 ```
-Application Root:  /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com
-React Build:       /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/chat-app/build
-Logs:              /var/www/vhosts/7mountainsmedia.com/Ask.7mountainsmedia.com/logs
+Application Root:  /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com
+React Build:       /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/chat-app/build
+Logs:              /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com/logs
 Node.js:           /opt/plesk/node/22/bin/node
 ```
 
 ### Important URLs
 ```
-Frontend:     https://Ask.7MountainsMedia.com
-Health:       https://Ask.7MountainsMedia.com/api/health
-OAuth:        https://Ask.7MountainsMedia.com/auth/login
-Callback:     https://Ask.7MountainsMedia.com/auth/callback
+Frontend:     https://ask.7mountainsmedia.com
+Health:       https://ask.7mountainsmedia.com/api/health
+OAuth:        https://ask.7mountainsmedia.com/auth/login
+Callback:     https://ask.7mountainsmedia.com/auth/callback
 ```
 
 ### Important Commands
@@ -614,7 +614,7 @@ tail -f logs/rag_system.log
 ps aux | grep -E "node|python.*chat_api"
 
 # Restart (in Plesk)
-Domains → Ask.7MountainsMedia.com → Node.js → Restart App
+Domains → ask.7mountainsmedia.com → Node.js → Restart App
 ```
 
 ---
@@ -623,7 +623,7 @@ Domains → Ask.7MountainsMedia.com → Node.js → Restart App
 
 - **Repository**: https://github.com/Knoxtes/rag-system
 - **Branch**: feature/easyocr-integration
-- **Node.js Version**: 25.2.0
+- **Node.js Version**: 22.25.1
 - **Python Version**: 3.9+
 
 ---
