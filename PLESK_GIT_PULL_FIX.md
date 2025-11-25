@@ -1,37 +1,35 @@
 # RAG System - Plesk Git Pull Solution
 
-## Issue
+## Issue Fixed ✅
 Plesk Git Pull GUI was failing with permission errors on `node_modules` files.
 
 ## Root Cause
-`node_modules` directory was accidentally committed to git, causing permission conflicts when Plesk tried to update files from different systems (Linux → Windows).
+`node_modules` directory was accidentally committed to git, causing permission conflicts when Plesk tried to update files from different systems.
 
 ## Solution Applied ✅
-Removed `node_modules` from git tracking completely. The `.gitignore` already had it excluded, but the files needed to be removed from git history.
+1. **Removed node_modules from git** - No more permission conflicts during git pull
+2. **Removed git operations from deployment scripts** - Plesk handles git via GUI, scripts only build/deploy
 
 **Commits:**
 - `09f06a1` - Remove node_modules from git tracking
+- `ee4fbc6` - Remove git operations from scripts (deploy-production.sh, rebuild-frontend-production.sh)
 
 ## Now Plesk Can Pull Cleanly
 
 You can now use the **Plesk Git Pull GUI** without errors.
 
-### Steps:
+### Workflow:
 
-1. **Open Plesk Control Panel**
+1. **Step 1: Plesk Git Pull (GUI)**
+   - Open Plesk Control Panel
    - Navigate to your domain (ask.7mountainsmedia.com)
    - Go to "Git" section
+   - Click **"Pull"** ← Plesk handles this
+   - Should complete without permission errors ✅
 
-2. **Click "Pull"**
-   - Should now pull successfully without permission errors
-   - This will pull all recent commits including:
-     - Frontend API configuration fixes
-     - Deployment scripts
-     - Node_modules cleanup
+2. **Step 2: Deploy with SSH**
 
-3. **After Successful Pull**
-
-   SSH into your server and run the deployment script:
+   After Plesk pull succeeds, SSH into your server:
    ```bash
    cd /var/www/vhosts/7mountainsmedia.com/ask.7mountainsmedia.com
    chmod +x deploy-production.sh
@@ -39,24 +37,41 @@ You can now use the **Plesk Git Pull GUI** without errors.
    ```
 
    This script will:
-   - Install all npm dependencies fresh
-   - Build the React frontend
-   - Start Node.js and Flask servers
-   - Verify everything is working
+   - Clean up node_modules and lock files
+   - Install npm dependencies fresh
+   - Build React frontend
+   - Start Node.js server (port 3000)
+   - Verify health endpoint
 
-4. **Verify Deployment**
+3. **Step 3: Verify It Works**
    ```bash
    curl http://localhost:3000/api/health
    ```
 
+   Then visit: https://ask.7mountainsmedia.com
+
 ## File Changes Summary
 
-All necessary code is now committed:
-- ✅ `chat-app/src/Auth.tsx` - Fixed API config to use relative paths
-- ✅ `chat-app/src/App.tsx` - Fixed API config to use relative paths  
-- ✅ `deploy-production.sh` - Complete deployment script
-- ✅ `fix-node-modules.sh` - Node.js module rebuild script
-- ✅ `rebuild-frontend-production.sh` - Frontend rebuild script
+All code is committed and ready:
+- ✅ `chat-app/src/Auth.tsx` - Uses relative paths for API calls
+- ✅ `chat-app/src/App.tsx` - Uses relative paths for API calls  
+- ✅ `deploy-production.sh` - Deployment script (NO git operations)
+- ✅ `rebuild-frontend-production.sh` - Frontend rebuild (NO git operations)
+- ✅ `fix-node-modules.sh` - Node.js rebuild script
+
+## Important: Deployment Scripts Don't Touch Git
+
+**The deployment scripts no longer have any git operations:**
+- ❌ No `git pull`
+- ❌ No `git fetch`  
+- ❌ No `git reset`
+
+**Plesk handles git via GUI.** The scripts only:
+- ✅ Clean up node_modules and lock files
+- ✅ Install dependencies
+- ✅ Build React
+- ✅ Start services
+- ✅ Verify health
 
 ## What This Fixes
 
@@ -64,12 +79,14 @@ All necessary code is now committed:
 - Frontend hardcoded to `http://localhost:5001` 
 - Browser couldn't connect from production domain
 - Git pull failed with permission errors
+- Deployment scripts tried to pull git themselves
 
 **After:**
 - Frontend uses **relative paths** (`/api`, `/auth`, `/chat`)
-- Works from **any domain** (development, staging, production)
+- Works from **any domain** automatically
+- **Git pull works cleanly** via Plesk GUI
+- **Scripts only deploy**, no git operations
 - Routes through **Node.js proxy** on port 3000 to Flask on port 5001
-- **Git pull works cleanly** without permission errors
 
 ## System Architecture
 
