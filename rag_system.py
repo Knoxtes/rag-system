@@ -323,10 +323,15 @@ class MultiCollectionRAGSystem:
         self.available_collections = available_collections
         self.collection_systems = {}
         
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY not set!")
-        
-        genai.configure(api_key=api_key)
+        # Configure authentication based on USE_VERTEX_AI setting
+        if USE_VERTEX_AI:
+            # Vertex AI uses GOOGLE_APPLICATION_CREDENTIALS environment variable
+            print("  🌐 Using Vertex AI authentication (GOOGLE_APPLICATION_CREDENTIALS)")
+        else:
+            # Consumer API requires GOOGLE_API_KEY
+            if not api_key:
+                raise ValueError("GOOGLE_API_KEY not set! Either set GOOGLE_API_KEY or use Vertex AI (set USE_VERTEX_AI=True)")
+            genai.configure(api_key=api_key)
         
         # Initialize AI model for collection routing
         self.routing_model = _get_generative_model('gemini-2.0-flash-exp')
@@ -829,10 +834,16 @@ class EnhancedRAGSystem:
             print(f"Warning: Collection name '{collection_name}' does not follow 'folder_ID' format. Live search may not be scoped.")
             self.folder_id = None
         
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY not set!")
-        
-        genai.configure(api_key=api_key)
+        # Configure authentication based on USE_VERTEX_AI setting
+        if USE_VERTEX_AI:
+            # Vertex AI uses GOOGLE_APPLICATION_CREDENTIALS environment variable
+            # No need for api_key, authentication handled by google-auth library
+            print("  🌐 Using Vertex AI authentication (GOOGLE_APPLICATION_CREDENTIALS)")
+        else:
+            # Consumer API requires GOOGLE_API_KEY
+            if not api_key:
+                raise ValueError("GOOGLE_API_KEY not set! Either set GOOGLE_API_KEY or use Vertex AI (set USE_VERTEX_AI=True)")
+            genai.configure(api_key=api_key)
         
         # Load embeddings based on config
         print("Loading embeddings...")
