@@ -46,17 +46,21 @@ rm -f "$SCRIPT_DIR/package-lock.json" 2>/dev/null || true
 rm -f "$SCRIPT_DIR/chat-app/package-lock.json" 2>/dev/null || true
 rm -f "$SCRIPT_DIR/yarn.lock" 2>/dev/null || true
 rm -f "$SCRIPT_DIR/chat-app/yarn.lock" 2>/dev/null || true
+echo "   Clearing npm cache..."
+$PLESK_NODE/npm cache clean --force 2>/dev/null || true
 echo "✓ Cleanup complete"
 echo ""
 
 echo "[3] Installing root dependencies..."
-$PLESK_NODE/npm install --omit=dev --legacy-peer-deps --prefer-offline || handle_error "Root npm install failed"
+echo "   (Using --force flag to rebuild all modules)..."
+$PLESK_NODE/npm install --omit=dev --legacy-peer-deps --force --audit=false || handle_error "Root npm install failed"
 echo "✓ Root dependencies installed"
 echo ""
 
 echo "[4] Installing frontend dependencies..."
 cd "$SCRIPT_DIR/chat-app"
-$PLESK_NODE/npm install --legacy-peer-deps --prefer-offline || handle_error "Frontend npm install failed"
+echo "   (Using --force flag to rebuild all modules)..."
+$PLESK_NODE/npm install --legacy-peer-deps --force --audit=false || handle_error "Frontend npm install failed"
 echo "✓ Frontend dependencies installed"
 echo ""
 
