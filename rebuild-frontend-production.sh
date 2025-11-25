@@ -27,19 +27,13 @@ echo "✓ Node.js: $NODE_VERSION"
 echo "✓ npm: $NPM_VERSION"
 echo ""
 
-echo "[2] Pulling latest changes from git..."
-cd "$SCRIPT_DIR"
-git pull origin main
-echo "✓ Git pull completed"
-echo ""
-
-echo "[3] Installing frontend dependencies..."
+echo "[2] Installing frontend dependencies..."
 cd "$SCRIPT_DIR/chat-app"
 $PLESK_NODE/npm install --legacy-peer-deps --prefer-offline
 echo "✓ Frontend dependencies installed"
 echo ""
 
-echo "[4] Building React frontend..."
+echo "[3] Building React frontend..."
 echo "   (This may take 2-3 minutes...)"
 export NODE_OPTIONS='--max-old-space-size=4096'
 export GENERATE_SOURCEMAP=false
@@ -54,13 +48,13 @@ fi
 echo "✓ React build completed successfully"
 echo ""
 
-echo "[5] Stopping Node.js server..."
+echo "[4] Stopping Node.js server..."
 pkill -f "node server.js" || true
 sleep 2
 echo "✓ Node.js server stopped"
 echo ""
 
-echo "[6] Restarting Node.js server..."
+echo "[5] Restarting Node.js server..."
 cd "$SCRIPT_DIR"
 nohup $PLESK_NODE/node server.js > nohup.out 2>&1 &
 NODE_PID=$!
@@ -75,7 +69,7 @@ else
 fi
 echo ""
 
-echo "[7] Verifying deployment..."
+echo "[6] Verifying deployment..."
 sleep 2
 
 # Test health endpoint

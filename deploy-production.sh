@@ -49,25 +49,18 @@ rm -f "$SCRIPT_DIR/chat-app/yarn.lock" 2>/dev/null || true
 echo "✓ Cleanup complete"
 echo ""
 
-echo "[3] Pulling latest code from git..."
-cd "$SCRIPT_DIR"
-git fetch origin main || handle_error "Failed to fetch from git"
-git reset --hard origin/main || handle_error "Failed to reset to origin/main"
-echo "✓ Git pull successful"
-echo ""
-
-echo "[4] Installing root dependencies..."
+echo "[3] Installing root dependencies..."
 $PLESK_NODE/npm install --omit=dev --legacy-peer-deps --prefer-offline || handle_error "Root npm install failed"
 echo "✓ Root dependencies installed"
 echo ""
 
-echo "[5] Installing frontend dependencies..."
+echo "[4] Installing frontend dependencies..."
 cd "$SCRIPT_DIR/chat-app"
 $PLESK_NODE/npm install --legacy-peer-deps --prefer-offline || handle_error "Frontend npm install failed"
 echo "✓ Frontend dependencies installed"
 echo ""
 
-echo "[6] Building React frontend..."
+echo "[5] Building React frontend..."
 echo "   (This may take 2-3 minutes...)"
 export NODE_OPTIONS='--max-old-space-size=4096'
 export GENERATE_SOURCEMAP=false
@@ -76,7 +69,7 @@ $PLESK_NODE/npm run build || handle_error "React build failed"
 echo "✓ React build completed"
 echo ""
 
-echo "[7] Starting services..."
+echo "[6] Starting services..."
 cd "$SCRIPT_DIR"
 
 echo "   Starting Node.js server..."
@@ -92,7 +85,7 @@ fi
 echo "✓ Node.js running (PID: $NODE_PID)"
 echo ""
 
-echo "[8] Verifying deployment..."
+echo "[7] Verifying deployment..."
 sleep 2
 
 # Test health endpoint
