@@ -668,6 +668,13 @@ def admin_dashboard_content():
             </div>
             
             <div class="action-card">
+                <h3>📝 Regenerate Index File</h3>
+                <p>Rebuild indexed_folders.json from ChromaDB collections</p>
+                <button class="btn" style="background: #8b5cf6;" onclick="regenerateIndexedFolders()">Regenerate Index</button>
+                <div id="regenerate-status" style="margin-top: 10px; font-size: 14px;"></div>
+            </div>
+            
+            <div class="action-card">
                 <h3>🧹 System Maintenance</h3>
                 <p>Clear caches and optimize system performance</p>
                 <button class="btn" onclick="clearCache()">Clear Cache</button>
@@ -984,6 +991,52 @@ def admin_dashboard_content():
             } finally {
                 updateButton.disabled = false;
                 updateButton.textContent = 'Update Collections';
+            }
+        }
+        
+        async function regenerateIndexedFolders() {
+            const token = localStorage.getItem('authToken');
+            const regenerateButton = document.querySelector('button[onclick="regenerateIndexedFolders()"]');
+            const statusDiv = document.getElementById('regenerate-status');
+            
+            if (!confirm('This will regenerate indexed_folders.json from ChromaDB collections. Continue?')) {
+                return;
+            }
+            
+            try {
+                regenerateButton.disabled = true;
+                regenerateButton.textContent = 'Regenerating...';
+                statusDiv.innerHTML = '<div style="color: #3b82f6;">⏳ Scanning ChromaDB collections...</div>';
+                
+                const response = await fetch('/admin/collections/regenerate-index', { 
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    statusDiv.innerHTML = `
+                        <div style="color: #10b981; font-weight: bold;">✅ Success!</div>
+                        <div style="color: #94a3b8; margin-top: 5px;">
+                            Found ${data.collections_found} collections<br>
+                            Regenerated ${data.folders_indexed} indexed folders<br>
+                            <small>Refresh the page to see updated collections</small>
+                        </div>
+                    `;
+                    
+                    // Auto-refresh stats after 2 seconds
+                    setTimeout(() => {
+                        refreshStats();
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${data.error || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${error.message}</div>`;
+            } finally {
+                regenerateButton.disabled = false;
+                regenerateButton.textContent = 'Regenerate Index';
             }
         }
         
@@ -1513,6 +1566,178 @@ def reset_indexing_status():
         'logs': ['Status manually reset by admin']
     }
     return jsonify({'message': 'Indexing status reset successfully', 'status': indexing_status})
+
+@admin_bp.route('/collections/regenerate-index', methods=['POST'])
+@require_admin
+def regenerate_indexed_folders():
+    """Regenerate indexed_folders.json by scanning ChromaDB collections"""
+    try:
+        import chromadb
+        from config import CHROMA_PERSIST_DIR
+        
+        print("[+] Regenerating indexed_folders.json from ChromaDB collections...")
+        
+        # Connect to ChromaDB
+        client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+        collections = client.list_collections()
+        
+        print(f"[+] Found {len(collections)} collections in ChromaDB")
+        
+        indexed_folders = {}
+        
+        for collection in collections:
+            collection_name = collection.name
+            
+            # Skip non-folder collections
+            if not collection_name.startswith('folder_'):
+                print(f"  ⏭️  Skipping non-folder collection: {collection_name}")
+                continue
+            
+            # Extract folder_id from collection name
+            folder_id = collection_name.replace('folder_', '')
+            
+            # Get collection stats
+            doc_count = collection.count()
+            
+            if doc_count == 0:
+                print(f"  ⚠️  Collection {collection_name} is empty - skipping")
+                continue
+            
+            # Get sample metadata to extract folder info
+            try:
+                results = collection.get(limit=1, include=['metadatas'])
+                if results and results['metadatas'] and len(results['metadatas']) > 0:
+                    sample_metadata = results['metadatas'][0]
+                    folder_name = sample_metadata.get('file_path', 'Unknown').split('/')[0] or 'Unknown'
+                else:
+                    folder_name = f"Folder {folder_id}"
+            except Exception as e:
+                print(f"  ⚠️  Could not fetch metadata for {collection_name}: {e}")
+                folder_name = f"Folder {folder_id}"
+            
+            # Create entry
+            indexed_folders[folder_id] = {
+                'collection_name': collection_name,
+                'name': folder_name,
+                'path': folder_name,
+                'location': folder_name,
+                'file_count': 0,  # Unknown without full scan
+                'files_processed': 0,  # Unknown without full scan
+                'files_failed': 0,
+                'files_skipped': 0,
+                'chunks_created': doc_count,
+                'indexed_at': datetime.now().isoformat(),
+                'regenerated': True
+            }
+            
+            print(f"  ✅ Added: {folder_name} ({doc_count} chunks)")
+        
+        # Save to file
+        with open(INDEXED_FOLDERS_FILE, 'w') as f:
+            json.dump(indexed_folders, f, indent=2)
+        
+        print(f"[+] Successfully regenerated indexed_folders.json with {len(indexed_folders)} folders")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully regenerated indexed_folders.json',
+            'collections_found': len(collections),
+            'folders_indexed': len(indexed_folders),
+            'indexed_folders': indexed_folders
+        })
+        
+    except Exception as e:
+        print(f"[!] Error regenerating indexed_folders.json: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@admin_bp.route('/collections/diagnose', methods=['GET'])
+@require_admin
+def diagnose_collections():
+    """Diagnose collection status - compare ChromaDB vs indexed_folders.json"""
+    try:
+        import chromadb
+        from config import CHROMA_PERSIST_DIR
+        
+        # Get ChromaDB collections
+        client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+        chroma_collections = client.list_collections()
+        
+        chroma_info = {}
+        for collection in chroma_collections:
+            if collection.name.startswith('folder_'):
+                folder_id = collection.name.replace('folder_', '')
+                chroma_info[folder_id] = {
+                    'collection_name': collection.name,
+                    'document_count': collection.count()
+                }
+        
+        # Get indexed_folders.json
+        indexed_info = {}
+        if os.path.exists(INDEXED_FOLDERS_FILE):
+            with open(INDEXED_FOLDERS_FILE, 'r') as f:
+                indexed_info = json.load(f)
+        
+        # Compare
+        diagnosis = {
+            'chromadb_collections': len(chroma_info),
+            'indexed_folders': len(indexed_info),
+            'in_chromadb_only': [],
+            'in_indexed_only': [],
+            'mismatched_counts': [],
+            'matched': []
+        }
+        
+        # Check ChromaDB collections not in indexed_folders.json
+        for folder_id, info in chroma_info.items():
+            if folder_id not in indexed_info:
+                diagnosis['in_chromadb_only'].append({
+                    'folder_id': folder_id,
+                    'collection_name': info['collection_name'],
+                    'document_count': info['document_count']
+                })
+            else:
+                indexed_count = indexed_info[folder_id].get('chunks_created', 0)
+                chroma_count = info['document_count']
+                
+                if indexed_count != chroma_count:
+                    diagnosis['mismatched_counts'].append({
+                        'folder_id': folder_id,
+                        'name': indexed_info[folder_id].get('name', 'Unknown'),
+                        'indexed_count': indexed_count,
+                        'chromadb_count': chroma_count
+                    })
+                else:
+                    diagnosis['matched'].append({
+                        'folder_id': folder_id,
+                        'name': indexed_info[folder_id].get('name', 'Unknown'),
+                        'document_count': chroma_count
+                    })
+        
+        # Check indexed_folders.json entries not in ChromaDB
+        for folder_id in indexed_info:
+            if folder_id not in chroma_info:
+                diagnosis['in_indexed_only'].append({
+                    'folder_id': folder_id,
+                    'name': indexed_info[folder_id].get('name', 'Unknown')
+                })
+        
+        return jsonify({
+            'success': True,
+            'diagnosis': diagnosis,
+            'needs_regeneration': len(diagnosis['in_chromadb_only']) > 0 or len(diagnosis['mismatched_counts']) > 0
+        })
+        
+    except Exception as e:
+        print(f"[!] Error diagnosing collections: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @admin_bp.route('/system/clear-cache', methods=['POST'])
 @require_admin
