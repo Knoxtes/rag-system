@@ -865,7 +865,27 @@ def switch_collection():
             })
         
         # Initialize new single collection RAG system
-        rag_system = EnhancedRAGSystem(drive_service, collection)
+        try:
+            rag_system = EnhancedRAGSystem(drive_service, collection)
+        except (TypeError, AttributeError) as db_error:
+            # ChromaDB corruption/version error - try to recreate collection
+            print(f"[!] ChromaDB error detected: {str(db_error)}")
+            print("[!] Attempting to recreate collection...")
+            
+            import chromadb
+            from config import CHROMA_PERSIST_DIR
+            
+            # Delete and recreate the corrupted collection
+            try:
+                client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+                client.delete_collection(name=collection)
+                print(f"[+] Deleted corrupted collection: {collection}")
+            except Exception as del_err:
+                print(f"[!] Warning during cleanup: {del_err}")
+            
+            # Try again with fresh collection
+            rag_system = EnhancedRAGSystem(drive_service, collection)
+            print(f"[+] Successfully recreated collection: {collection}")
         
         return jsonify({
             'success': True,

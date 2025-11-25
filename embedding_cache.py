@@ -56,10 +56,13 @@ class EmbeddingCache:
         
         Args:
             text: Document text
-            embedding: Embedding vector (numpy array)
+            embedding: Embedding vector (numpy array or list)
         """
         key = self._get_key(text)
-        self.cache.set(key, embedding.tolist(), expire=self.ttl_seconds)
+        # Handle both numpy arrays and lists
+        if hasattr(embedding, 'tolist'):
+            embedding = embedding.tolist()
+        self.cache.set(key, embedding, expire=self.ttl_seconds)
     
     def get_batch(self, texts):
         """
