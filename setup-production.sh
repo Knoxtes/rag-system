@@ -34,10 +34,17 @@ sleep 2
 echo "✓ Services stopped"
 echo ""
 
-# 3. Rebuild React frontend
-echo "[3] Building React frontend..."
-cd "$APP_DIR/chat-app"
+# 3. Install root Node.js dependencies
+echo "[3] Installing root Node.js dependencies..."
+cd "$APP_DIR"
 export PATH="$PLESK_NODE:$PATH"
+$PLESK_NODE/npm install --omit=dev --legacy-peer-deps
+echo "✓ Root dependencies installed"
+echo ""
+
+# 3b. Rebuild React frontend
+echo "[3b] Building React frontend..."
+cd "$APP_DIR/chat-app"
 $PLESK_NODE/npm install --omit=dev --legacy-peer-deps
 $PLESK_NODE/npm run build
 echo "✓ React build completed"
