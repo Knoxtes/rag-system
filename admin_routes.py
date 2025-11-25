@@ -202,19 +202,19 @@ def admin_dashboard():
             const debugInfo = document.getElementById('debug-info');
             const loadingMessage = document.getElementById('loading-message');
             
-            console.log(`Auth check attempt ${authCheckAttempts}:`);
+            console.log('Auth check attempt ' + authCheckAttempts + ':');
             console.log('- Token found:', !!token);
             console.log('- Token preview:', token ? token.substring(0, 20) + '...' : 'none');
             console.log('- URL params:', window.location.search);
             
-            debugInfo.textContent = `Attempt ${authCheckAttempts}/${maxAuthCheckAttempts} - Token: ${token ? 'Found' : 'Not found'}`;
+            debugInfo.textContent = 'Attempt ' + authCheckAttempts + '/' + maxAuthCheckAttempts + ' - Token: ' + (token ? 'Found' : 'Not found');
             
             if (!token) {
                 // If we just came from OAuth, wait a bit and retry
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('auth_complete') === 'true' && authCheckAttempts < maxAuthCheckAttempts) {
                     console.log('Just came from OAuth, retrying auth check in 1 second...');
-                    loadingMessage.textContent = `Waiting for authentication token... (${authCheckAttempts}/${maxAuthCheckAttempts})`;
+                    loadingMessage.textContent = 'Waiting for authentication token... (' + authCheckAttempts + '/' + maxAuthCheckAttempts + ')';
                     setTimeout(checkAuth, 1000);
                     return false;
                 }
@@ -241,14 +241,14 @@ def admin_dashboard():
                 
                 if (data.valid && data.user && data.user.is_admin) {
                     loadingMessage.textContent = 'Authentication successful! Loading dashboard...';
-                    debugInfo.textContent = `Welcome ${data.user.name || data.user.email}!`;
+                    debugInfo.textContent = `Welcome ${{data.user.name || data.user.email}!`;
                     console.log('Auth successful, loading dashboard...');
                     await loadDashboard();
                     return true;
                 } else if (data.valid && data.user && !data.user.is_admin) {
                     console.log('Valid user but not admin - redirecting to chat');
                     loadingMessage.textContent = 'Authenticated user - redirecting to chat interface...';
-                    debugInfo.textContent = `Welcome ${data.user.name || data.user.email}! You're not an admin user.`;
+                    debugInfo.textContent = `Welcome ${{data.user.name || data.user.email}! You're not an admin user.`;
                     
                     setTimeout(() => {
                         window.location.href = '/?from_admin=true';
@@ -256,12 +256,12 @@ def admin_dashboard():
                     return false;
                 } else {
                     console.log('Auth failed - not valid admin:', data);
-                    debugInfo.textContent = `Auth failed: ${data.error || 'Not valid user'} (User: ${data.user?.email || 'unknown'})`;
+                    debugInfo.textContent = `Auth failed: ${{data.error || 'Not valid user'} (User: ${{data.user?.email || 'unknown'})`;
                     
                     // Update error message for non-admin users
                     if (data.user && !data.user.is_admin) {
                         document.getElementById('auth-error-message').textContent = 
-                            `Hi ${data.user.name || data.user.email}! This is the admin dashboard. You can access the chat interface instead.`;
+                            `Hi ${{data.user.name || data.user.email}! This is the admin dashboard. You can access the chat interface instead.`;
                     }
                     
                     showAuthError();
@@ -274,13 +274,13 @@ def admin_dashboard():
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('auth_complete') === 'true' && authCheckAttempts < maxAuthCheckAttempts) {
                     console.log('Network error after OAuth, retrying in 2 seconds...');
-                    loadingMessage.textContent = `Network error, retrying... (${authCheckAttempts}/${maxAuthCheckAttempts})`;
-                    debugInfo.textContent = `Error: ${error.message}`;
+                    loadingMessage.textContent = `Network error, retrying... (${{authCheckAttempts}/${{maxAuthCheckAttempts})`;
+                    debugInfo.textContent = `Error: ${{error.message}`;
                     setTimeout(checkAuth, 2000);
                     return false;
                 }
                 
-                debugInfo.textContent = `Auth error: ${error.message}`;
+                debugInfo.textContent = `Auth error: ${{error.message}`;
                 showAuthError();
                 return false;
             }
@@ -309,9 +309,9 @@ def admin_dashboard():
             try {
                 // Add cache-busting timestamp
                 const cacheBust = new Date().getTime();
-                const response = await fetch(`/admin/dashboard-content?v=${cacheBust}`, {
+                const response = await fetch(`/admin/dashboard-content?v=${{cacheBust}`, {
                     headers: { 
-                        'Authorization': `Bearer ${token}`,
+                        'Authorization': `Bearer ${{token}`,
                         'Cache-Control': 'no-cache'
                     }
                 });
@@ -365,7 +365,7 @@ def admin_dashboard():
                                 try {
                                     console.log('Fetching folder list...');
                                     const response = await fetch('/admin/folders/list', {
-                                        headers: { 'Authorization': `Bearer ${token}` }
+                                        headers: { 'Authorization': `Bearer ${{token}` }
                                     });
                                     
                                     if (response.ok) {
@@ -373,7 +373,7 @@ def admin_dashboard():
                                         console.log('Folder data received:', data);
                                         
                                         if (data.folders && data.folders.length > 0) {
-                                            statusDiv.innerHTML = `<div style="color: #10b981;">✅ Found ${data.folders.length} folders</div>`;
+                                            statusDiv.innerHTML = `<div style="color: #10b981;">✅ Found ${{data.folders.length} folders</div>`;
                                             
                                             let html = '<div style="max-height: 400px; overflow-y: auto; margin-top: 15px;">';
                                             data.folders.forEach(folder => {
@@ -387,16 +387,16 @@ def admin_dashboard():
                                                     <div style="border: 1px solid #374151; padding: 15px; margin: 10px 0; border-radius: 8px; background: #1f2937;">
                                                         <div style="display: flex; justify-content: space-between; align-items: center;">
                                                             <div>
-                                                                <h4 style="margin: 0; color: #f3f4f6;">${folder.name}</h4>
-                                                                <p style="margin: 5px 0; color: ${statusColor}; font-size: 14px;">${statusText}</p>
-                                                                ${isIndexed ? `<p style="margin: 5px 0; color: #9ca3af; font-size: 12px;">Files: ${folder.file_count || 0} | Last indexed: ${folder.last_indexed || 'Unknown'}</p>` : ''}
+                                                                <h4 style="margin: 0; color: #f3f4f6;">${{folder.name}</h4>
+                                                                <p style="margin: 5px 0; color: ${{statusColor}; font-size: 14px;">${{statusText}</p>
+                                                                ${{isIndexed ? `<p style="margin: 5px 0; color: #9ca3af; font-size: 12px;">Files: ${{folder.file_count || 0} | Last indexed: ${{folder.last_indexed || 'Unknown'}</p>` : ''}
                                                             </div>
-                                                            <button onclick="indexFolder('${folder.id}', '${folder.name}')" 
-                                                                    style="background: ${buttonColor}; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                                                                ${buttonText}
+                                                            <button onclick="indexFolder('${{folder.id}', '${{folder.name}')" 
+                                                                    style="background: ${{buttonColor}; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                                                                ${{buttonText}
                                                             </button>
                                                         </div>
-                                                        <div id="index-status-${folder.id}" style="margin-top: 10px;"></div>
+                                                        <div id="index-status-${{folder.id}" style="margin-top: 10px;"></div>
                                                     </div>
                                                 `;
                                             });
@@ -408,20 +408,20 @@ def admin_dashboard():
                                             container.innerHTML = '';
                                         }
                                     } else {
-                                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                                        throw new Error(`HTTP ${{response.status}: ${{response.statusText}`);
                                     }
                                 } catch (error) {
                                     console.error('Error loading folders:', error);
-                                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${error.message}</div>`;
+                                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${{error.message}</div>`;
                                     container.innerHTML = '';
                                 }
                             };
                             
                             // Define the indexFolder function
                             window.indexFolder = async function(folderId, folderName) {
-                                console.log(`Indexing folder: ${folderName} (${folderId})`);
+                                console.log(`Indexing folder: ${{folderName} (${{folderId})`);
                                 const token = localStorage.getItem('authToken');
-                                const statusDiv = document.getElementById(`index-status-${folderId}`);
+                                const statusDiv = document.getElementById(`index-status-${{folderId}`);
                                 
                                 if (statusDiv) {
                                     statusDiv.innerHTML = '<div style="color: #3b82f6;">🔄 Starting indexing...</div>';
@@ -429,11 +429,11 @@ def admin_dashboard():
                                 
                                 try {
                                     // Start indexing
-                                    const response = await fetch(`/admin/folders/index/${folderId}`, {
+                                    const response = await fetch(`/admin/folders/index/${{folderId}`, {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
-                                            'Authorization': `Bearer ${token}`
+                                            'Authorization': `Bearer ${{token}`
                                         },
                                         body: JSON.stringify({
                                             folder_name: folderName
@@ -445,29 +445,29 @@ def admin_dashboard():
                                     if (response.ok) {
                                         // Start polling for progress
                                         if (statusDiv) {
-                                            statusDiv.innerHTML = `<div style="color: #3b82f6;">🔄 ${data.message}</div><div id="progress-${folderId}" style="margin-top: 10px;"></div>`;
+                                            statusDiv.innerHTML = `<div style="color: #3b82f6;">🔄 ${{data.message}</div><div id="progress-${{folderId}" style="margin-top: 10px;"></div>`;
                                         }
                                         
                                         // Poll for status updates
-                                        const progressDiv = document.getElementById(`progress-${folderId}`);
+                                        const progressDiv = document.getElementById(`progress-${{folderId}`);
                                         const pollStatus = async () => {
                                             try {
-                                                const statusResponse = await fetch(`/admin/folders/index/${folderId}/status`, {
-                                                    headers: { 'Authorization': `Bearer ${token}` }
+                                                const statusResponse = await fetch(`/admin/folders/index/${{folderId}/status`, {
+                                                    headers: { 'Authorization': `Bearer ${{token}` }
                                                 });
                                                 const statusData = await statusResponse.json();
                                                 
                                                 if (progressDiv) {
                                                     let progressBar = `
                                                         <div style="background: #374151; border-radius: 8px; overflow: hidden; margin-bottom: 10px;">
-                                                            <div style="background: #3b82f6; height: 20px; width: ${statusData.progress}%; transition: width 0.3s;"></div>
+                                                            <div style="background: #3b82f6; height: 20px; width: ${{statusData.progress}%; transition: width 0.3s;"></div>
                                                         </div>
-                                                        <div style="font-size: 12px; color: #94a3b8;">${statusData.message} (${statusData.progress}%)</div>
+                                                        <div style="font-size: 12px; color: #94a3b8;">${{statusData.message} (${{statusData.progress}%)</div>
                                                     `;
                                                     
                                                     if (statusData.logs && statusData.logs.length > 0) {
                                                         const lastLog = statusData.logs[statusData.logs.length - 1];
-                                                        progressBar += `<div style="font-size: 11px; color: #6b7280; margin-top: 5px;">${lastLog}</div>`;
+                                                        progressBar += `<div style="font-size: 11px; color: #6b7280; margin-top: 5px;">${{lastLog}</div>`;
                                                     }
                                                     
                                                     progressDiv.innerHTML = progressBar;
@@ -479,7 +479,7 @@ def admin_dashboard():
                                                     // Indexing completed
                                                     if (statusData.error) {
                                                         if (statusDiv) {
-                                                            statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${statusData.error}</div>`;
+                                                            statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${{statusData.error}</div>`;
                                                         }
                                                     } else {
                                                         if (statusDiv) {
@@ -506,17 +506,17 @@ def admin_dashboard():
                                         // Handle conflict - another indexing is in progress
                                         const resetButton = `<button onclick="resetIndexingStatus()" style="background: #f59e0b; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-left: 10px; font-size: 12px;">Reset</button>`;
                                         if (statusDiv) {
-                                            statusDiv.innerHTML = `<div style="color: #f59e0b;">⚠️ Another indexing is in progress. ${resetButton}<br><small>${data.current_message || 'Unknown status'}</small></div>`;
+                                            statusDiv.innerHTML = `<div style="color: #f59e0b;">⚠️ Another indexing is in progress. ${{resetButton}<br><small>${{data.current_message || 'Unknown status'}</small></div>`;
                                         }
                                     } else {
                                         if (statusDiv) {
-                                            statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${data.error || data.message}</div>`;
+                                            statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{data.error || data.message}</div>`;
                                         }
                                     }
                                 } catch (error) {
                                     console.error('Error indexing folder:', error);
                                     if (statusDiv) {
-                                        statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${error.message}</div>`;
+                                        statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${{error.message}</div>`;
                                     }
                                 }
                             };
@@ -528,7 +528,7 @@ def admin_dashboard():
                                     const response = await fetch('/admin/collections/reset-status', {
                                         method: 'POST',
                                         headers: {
-                                            'Authorization': `Bearer ${token}`
+                                            'Authorization': `Bearer ${{token}`
                                         }
                                     });
                                     
@@ -864,7 +864,7 @@ def admin_dashboard_content():
         console.log('[GDrive Auth] Checking status...');
         try {
             const response = await fetch('/admin/gdrive/status', {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${{token}` }
             });
             console.log('[GDrive Auth] Response status:', response.status);
             const data = await response.json();
@@ -879,7 +879,7 @@ def admin_dashboard_content():
                             <span style="font-size: 24px;">✅</span>
                             <div>
                                 <p style="color: #10b981; font-weight: bold; margin: 0;">Connected</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.message}</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
                             </div>
                         </div>
                     `;
@@ -893,7 +893,7 @@ def admin_dashboard_content():
                             <span style="font-size: 24px;">❌</span>
                             <div>
                                 <p style="color: #ef4444; font-weight: bold; margin: 0;">Not Connected</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.message}</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
                             </div>
                         </div>
                     `;
@@ -926,7 +926,7 @@ def admin_dashboard_content():
             try {
                 const response = await fetch('/admin/gdrive/disconnect', { 
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 const data = await response.json();
                 
@@ -947,7 +947,7 @@ def admin_dashboard_content():
             console.log('[Stats] Fetching system stats...');
             try {
                 const response = await fetch('/admin/stats/system', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 
                 console.log('[Stats] Response status:', response.status);
@@ -990,17 +990,17 @@ def admin_dashboard_content():
                 
                 const response = await fetch('/admin/collections/update', { 
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 const data = await response.json();
                 
                 if (response.ok) {
                     statusDiv.innerHTML = '<div style="color: #10b981;">Collection update started successfully!</div>';
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">Update failed: ${data.error}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">Update failed: ${{data.error}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
             } finally {
                 updateButton.disabled = false;
                 updateButton.textContent = 'Update Collections';
@@ -1023,7 +1023,7 @@ def admin_dashboard_content():
                 
                 const response = await fetch('/admin/collections/regenerate-index', { 
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 const data = await response.json();
                 
@@ -1031,8 +1031,8 @@ def admin_dashboard_content():
                     statusDiv.innerHTML = `
                         <div style="color: #10b981; font-weight: bold;">✅ Success!</div>
                         <div style="color: #94a3b8; margin-top: 5px;">
-                            Found ${data.collections_found} collections<br>
-                            Regenerated ${data.folders_indexed} indexed folders<br>
+                            Found ${{data.collections_found} collections<br>
+                            Regenerated ${{data.folders_indexed} indexed folders<br>
                             <small>Refresh the page to see updated collections</small>
                         </div>
                     `;
@@ -1043,10 +1043,10 @@ def admin_dashboard_content():
                         window.location.reload();
                     }, 2000);
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${data.error || 'Unknown error'}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${{data.error || 'Unknown error'}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${{error.message}</div>`;
             } finally {
                 regenerateButton.disabled = false;
                 regenerateButton.textContent = 'Regenerate Index';
@@ -1058,7 +1058,7 @@ def admin_dashboard_content():
             try {
                 const response = await fetch('/admin/system/clear-cache', { 
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 const data = await response.json();
                 
@@ -1091,7 +1091,7 @@ def admin_dashboard_content():
             const token = localStorage.getItem('authToken');
             try {
                 const response = await fetch('/admin/migrations/status', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 const data = await response.json();
                 
@@ -1103,7 +1103,7 @@ def admin_dashboard_content():
                             <span style="font-size: 24px;">✅</span>
                             <div>
                                 <p style="color: #10b981; font-weight: bold; margin: 0;">Enabled</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.vertex_embeddings.dimension}-dimensional embeddings active</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.vertex_embeddings.dimension}-dimensional embeddings active</p>
                             </div>
                         </div>
                     `;
@@ -1113,7 +1113,7 @@ def admin_dashboard_content():
                             <span style="font-size: 24px;">⚠️</span>
                             <div>
                                 <p style="color: #f59e0b; font-weight: bold; margin: 0;">Using Local Embeddings</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.vertex_embeddings.dimension}-dim (change config to enable)</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.vertex_embeddings.dimension}-dim (change config to enable)</p>
                             </div>
                         </div>
                     `;
@@ -1127,7 +1127,7 @@ def admin_dashboard_content():
                             <span style="font-size: 24px;">✅</span>
                             <div>
                                 <p style="color: #10b981; font-weight: bold; margin: 0;">Document AI Active</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">Project: ${data.document_ai.project_id}</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">Project: ${{data.document_ai.project_id}</p>
                             </div>
                         </div>
                     `;
@@ -1136,7 +1136,7 @@ def admin_dashboard_content():
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 24px;">⚠️</span>
                             <div>
-                                <p style="color: #f59e0b; font-weight: bold; margin: 0;">Using ${data.document_ai.backend}</p>
+                                <p style="color: #f59e0b; font-weight: bold; margin: 0;">Using ${{data.document_ai.backend}</p>
                                 <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">Switch to Document AI for better OCR</p>
                             </div>
                         </div>
@@ -1153,7 +1153,7 @@ def admin_dashboard_content():
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">Size</span>
-                            <span class="stat-value">${data.database.size_mb} MB</span>
+                            <span class="stat-value">${{data.database.size_mb} MB</span>
                         </div>
                     `;
                 } else {
@@ -1168,10 +1168,10 @@ def admin_dashboard_content():
                 if (data.backups.count > 0) {
                     backupDiv.innerHTML = `
                         <p style="color: #64748b; font-size: 14px; margin-bottom: 5px;">
-                            <strong>Backups:</strong> ${data.backups.count} available
+                            <strong>Backups:</strong> ${{data.backups.count} available
                         </p>
                         <p style="color: #64748b; font-size: 12px; margin: 0;">
-                            Latest: ${data.backups.latest}
+                            Latest: ${{data.backups.latest}
                         </p>
                     `;
                 } else {
@@ -1198,17 +1198,17 @@ def admin_dashboard_content():
             try {
                 const response = await fetch('/admin/migrations/install-packages', {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 const data = await response.json();
                 
                 if (response.ok) {
                     statusDiv.innerHTML = '<div style="color: #10b981;">✅ Installed!</div>';
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${data.message}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{data.message}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
             }
         }
         
@@ -1229,7 +1229,7 @@ def admin_dashboard_content():
                 const response = await fetch('/admin/migrations/reindex', {
                     method: 'POST',
                     headers: { 
-                        'Authorization': `Bearer ${token}`,
+                        'Authorization': `Bearer ${{token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ create_backup: true })
@@ -1242,33 +1242,33 @@ def admin_dashboard_content():
                     // Poll for status
                     const pollInterval = setInterval(async () => {
                         const statusResponse = await fetch('/admin/collections/status', {
-                            headers: { 'Authorization': `Bearer ${token}` }
+                            headers: { 'Authorization': `Bearer ${{token}` }
                         });
                         const status = await statusResponse.json();
                         
                         if (status.logs) {
                             logsContent.innerHTML = status.logs.map(log => 
-                                `<div style="padding: 5px 0;">• ${log}</div>`
+                                `<div style="padding: 5px 0;">• ${{log}</div>`
                             ).join('');
                         }
                         
                         if (!status.running) {
                             clearInterval(pollInterval);
                             if (status.error) {
-                                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${status.error}</div>`;
+                                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{status.error}</div>`;
                             } else {
                                 statusDiv.innerHTML = `<div style="color: #10b981;">✅ Done! Restart server.</div>`;
                                 checkMigrationStatus(); // Refresh migration status
                             }
                         } else {
-                            statusDiv.innerHTML = `<div style="color: #3b82f6;">${status.progress}% - ${status.message}</div>`;
+                            statusDiv.innerHTML = `<div style="color: #3b82f6;">${{status.progress}% - ${{status.message}</div>`;
                         }
                     }, 2000);
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${data.error}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{data.error}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
             }
         }
         
@@ -1289,7 +1289,7 @@ def admin_dashboard_content():
                 const response = await fetch('/admin/migrations/index-all-folders', {
                     method: 'POST',
                     headers: { 
-                        'Authorization': `Bearer ${token}`,
+                        'Authorization': `Bearer ${{token}`,
                         'Content-Type': 'application/json'
                     }
                 });
@@ -1301,13 +1301,13 @@ def admin_dashboard_content():
                     // Poll for status
                     const pollInterval = setInterval(async () => {
                         const statusResponse = await fetch('/admin/collections/status', {
-                            headers: { 'Authorization': `Bearer ${token}` }
+                            headers: { 'Authorization': `Bearer ${{token}` }
                         });
                         const status = await statusResponse.json();
                         
                         if (status.logs) {
                             logsContent.innerHTML = status.logs.map(log => 
-                                `<div style="padding: 5px 0;">• ${log}</div>`
+                                `<div style="padding: 5px 0;">• ${{log}</div>`
                             ).join('');
                             // Auto-scroll to bottom
                             logsContent.scrollTop = logsContent.scrollHeight;
@@ -1316,20 +1316,20 @@ def admin_dashboard_content():
                         if (!status.running) {
                             clearInterval(pollInterval);
                             if (status.error) {
-                                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${status.error}</div>`;
+                                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{status.error}</div>`;
                             } else {
                                 statusDiv.innerHTML = `<div style="color: #10b981;">✅ Complete! Restart server.</div>`;
                                 checkMigrationStatus(); // Refresh migration status
                             }
                         } else {
-                            statusDiv.innerHTML = `<div style="color: #3b82f6;">${status.progress}% - ${status.message}</div>`;
+                            statusDiv.innerHTML = `<div style="color: #3b82f6;">${{status.progress}% - ${{status.message}</div>`;
                         }
                     }, 2000);
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${data.error || data.message}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{data.error || data.message}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
             }
         }
         
@@ -1354,7 +1354,7 @@ def admin_dashboard_content():
             try {
                 console.log('Fetching folder list...');
                 const response = await fetch('/admin/folders/list', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 console.log('Response status:', response.status);
                 const data = await response.json();
@@ -1365,7 +1365,7 @@ def admin_dashboard_content():
             
             try {
                 const response = await fetch('/admin/folders/list', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 const data = await response.json();
                 
@@ -1375,19 +1375,19 @@ def admin_dashboard_content():
                     const foldersHtml = `
                         <div style="max-height: 400px; overflow-y: auto;">
                             <div style="display: grid; gap: 15px;">
-                                ${data.folders.map(folder => `
+                                ${{data.folders.map(folder => `
                                     <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
                                         <div>
-                                            <h4 style="color: #e2e8f0; margin: 0 0 5px 0;">${folder.name}</h4>
+                                            <h4 style="color: #e2e8f0; margin: 0 0 5px 0;">${{folder.name}</h4>
                                             <p style="color: #94a3b8; margin: 0; font-size: 14px;">
-                                                ${folder.indexed ? '✅ Indexed' : '⏳ Not indexed'} 
-                                                ${folder.file_count ? `• ${folder.file_count} files` : ''}
-                                                ${folder.last_indexed ? `• Last: ${new Date(folder.last_indexed).toLocaleDateString()}` : ''}
+                                                ${{folder.indexed ? '✅ Indexed' : '⏳ Not indexed'} 
+                                                ${{folder.file_count ? `• ${{folder.file_count} files` : ''}
+                                                ${{folder.last_indexed ? `• Last: ${{new Date(folder.last_indexed).toLocaleDateString()}` : ''}
                                             </p>
                                         </div>
-                                        <button class="btn" onclick="indexFolder('${folder.id}', '${folder.name}')" 
-                                                style="background: ${folder.indexed ? '#6b7280' : '#10b981'}; min-width: 120px;">
-                                            ${folder.indexed ? 'Re-index' : 'Index Now'}
+                                        <button class="btn" onclick="indexFolder('${{folder.id}', '${{folder.name}')" 
+                                                style="background: ${{folder.indexed ? '#6b7280' : '#10b981'}; min-width: 120px;">
+                                            ${{folder.indexed ? 'Re-index' : 'Index Now'}
                                         </button>
                                     </div>
                                 `).join('')}
@@ -1400,11 +1400,11 @@ def admin_dashboard_content():
                     
                     container.innerHTML = foldersHtml;
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${data.error}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{data.error}</div>`;
                     container.innerHTML = '<p style="color: #ef4444;">Failed to load folders</p>';
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
                 container.innerHTML = '<p style="color: #ef4444;">Network error</p>';
                 console.error('Folder selection error:', error);
             }
@@ -1413,7 +1413,7 @@ def admin_dashboard_content():
         async function indexFolder(folderId, folderName) {
             const token = localStorage.getItem('authToken');
             
-            if (!confirm(`Index folder: ${folderName}?\\n\\nThis will process all files in this folder and its subfolders.`)) {
+            if (!confirm(`Index folder: ${{folderName}?\\n\\nThis will process all files in this folder and its subfolders.`)) {
                 return;
             }
             
@@ -1430,9 +1430,9 @@ def admin_dashboard_content():
             stopBtn.style.display = 'inline-block';
             
             try {
-                const response = await fetch(`/admin/folders/index/${folderId}`, {
+                const response = await fetch(`/admin/folders/index/${{folderId}`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${{token}` }
                 });
                 const data = await response.json();
                 
@@ -1440,14 +1440,14 @@ def admin_dashboard_content():
                     // Poll for progress
                     const pollInterval = setInterval(async () => {
                         const statusResponse = await fetch('/admin/collections/status', {
-                            headers: { 'Authorization': `Bearer ${token}` }
+                            headers: { 'Authorization': `Bearer ${{token}` }
                         });
                         const status = await statusResponse.json();
                         
                         // Update progress
                         const progress = status.progress || 0;
-                        progressBar.style.width = `${progress}%`;
-                        percentage.textContent = `${progress}%`;
+                        progressBar.style.width = `${{progress}%`;
+                        percentage.textContent = `${{progress}%`;
                         message.textContent = status.message || 'Processing...';
                         
                         // Update logs
@@ -1461,7 +1461,7 @@ def admin_dashboard_content():
                             stopBtn.style.display = 'none';
                             
                             if (status.error) {
-                                message.textContent = `Error: ${status.error}`;
+                                message.textContent = `Error: ${{status.error}`;
                                 progressBar.style.background = '#ef4444';
                             } else {
                                 message.textContent = 'Completed successfully!';
@@ -1482,7 +1482,7 @@ def admin_dashboard_content():
                     throw new Error(data.error || 'Failed to start indexing');
                 }
             } catch (error) {
-                message.textContent = `Error: ${error.message}`;
+                message.textContent = `Error: ${{error.message}`;
                 progressBar.style.background = '#ef4444';
                 stopBtn.style.display = 'none';
             }
