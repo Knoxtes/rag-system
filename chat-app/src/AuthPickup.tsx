@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000';
+// Use relative path for API calls - this works with the proxy in production
+const API_BASE_URL = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || '';
 
 const AuthPickup: React.FC = () => {
   useEffect(() => {
