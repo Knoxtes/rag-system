@@ -37,6 +37,8 @@ echo ""
 
 echo "[4] Installing root dependencies from scratch..."
 $PLESK_NODE/npm install --omit=dev --legacy-peer-deps --verbose
+echo "   Installing ajv explicitly (fixes codegen error)..."
+$PLESK_NODE/npm install ajv@8 ajv-keywords@5 --legacy-peer-deps --force || true
 echo "✓ Dependencies installed"
 echo ""
 

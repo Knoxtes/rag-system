@@ -61,6 +61,8 @@ echo "[4] Installing frontend dependencies..."
 cd "$SCRIPT_DIR/chat-app"
 echo "   (Using --force flag to rebuild all modules)..."
 $PLESK_NODE/npm install --legacy-peer-deps --force --audit=false || handle_error "Frontend npm install failed"
+echo "   Installing ajv explicitly (fixes codegen error)..."
+$PLESK_NODE/npm install ajv@8 ajv-keywords@5 --legacy-peer-deps --force || true
 echo "✓ Frontend dependencies installed"
 echo ""
 
