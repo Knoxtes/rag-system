@@ -166,12 +166,12 @@ def admin_dashboard():
     <meta http-equiv="Expires" content="0">
     <title>RAG System Admin Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }
-        .loading-container { display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
-        .loading { width: 40px; height: 40px; border: 4px solid #334155; border-top: 4px solid #3b82f6; border-radius: 50%; margin-bottom: 20px; }
-        .auth-error { text-align: center; padding: 40px; color: #ef4444; }
-        .auth-button { background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 20px; }
-        .auth-button:hover { background: #2563eb; }
+        body {{ font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }}
+        .loading-container {{ display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }}
+        .loading {{ width: 40px; height: 40px; border: 4px solid #334155; border-top: 4px solid #3b82f6; border-radius: 50%; margin-bottom: 20px; }}
+        .auth-error {{ text-align: center; padding: 40px; color: #ef4444; }}
+        .auth-button {{ background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 20px; }}
+        .auth-button:hover {{ background: #2563eb; }}
     </style>
 </head>
 <body>
@@ -205,25 +205,25 @@ def admin_dashboard_content():
     
     html_content = """
     <style>
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); }
-        .header h1 { font-size: 2.5rem; font-weight: 700; color: #f8fafc; margin-bottom: 10px; }
-        .header p { color: #94a3b8; font-size: 1.1rem; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }
-        .stat-card h3 { color: #3b82f6; font-size: 1.2rem; margin-bottom: 15px; }
-        .stat-item { display: flex; justify-content: space-between; margin-bottom: 10px; padding: 8px 0; border-bottom: 1px solid #334155; }
-        .stat-item:last-child { border-bottom: none; }
-        .stat-label { color: #94a3b8; }
-        .stat-value { color: #f8fafc; font-weight: 600; }
-        .btn { background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; margin: 5px; }
-        .btn:hover { background: #2563eb; }
-        .btn.success { background: #10b981; }
-        .btn.success:hover { background: #059669; }
-        .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .action-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; text-align: center; }
-        .action-card h3 { color: #10b981; margin-bottom: 15px; }
-        .action-card p { color: #94a3b8; margin-bottom: 20px; }
+        .container {{ max-width: 1400px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); }}
+        .header h1 {{ font-size: 2.5rem; font-weight: 700; color: #f8fafc; margin-bottom: 10px; }}
+        .header p {{ color: #94a3b8; font-size: 1.1rem; }}
+        .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }}
+        .stat-card {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }}
+        .stat-card h3 {{ color: #3b82f6; font-size: 1.2rem; margin-bottom: 15px; }}
+        .stat-item {{ display: flex; justify-content: space-between; margin-bottom: 10px; padding: 8px 0; border-bottom: 1px solid #334155; }}
+        .stat-item:last-child {{ border-bottom: none; }}
+        .stat-label {{ color: #94a3b8; }}
+        .stat-value {{ color: #f8fafc; font-weight: 600; }}
+        .btn {{ background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; margin: 5px; }}
+        .btn:hover {{ background: #2563eb; }}
+        .btn.success {{ background: #10b981; }}
+        .btn.success:hover {{ background: #059669; }}
+        .actions-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }}
+        .action-card {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; text-align: center; }}
+        .action-card h3 {{ color: #10b981; margin-bottom: 15px; }}
+        .action-card p {{ color: #94a3b8; margin-bottom: 20px; }}
     </style>
     
     <div class="container">
