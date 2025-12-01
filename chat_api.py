@@ -1396,7 +1396,29 @@ def drive_status():
                 print(f"[Drive Status] Drive API test failed: {error_msg}")
                 
                 # Check if it's an auth error - might need re-auth
-                needs_reauth = 'expired' in error_msg.lower() or 'invalid' in error_msg.lower() or '401' in error_msg
+                # Check both string patterns and specific HTTP error codes
+                needs_reauth = False
+                
+                # Check for Google API HttpError with specific status codes
+                try:
+                    from googleapiclient.errors import HttpError
+                    if isinstance(e, HttpError):
+                        if e.resp.status in [401, 403]:
+                            needs_reauth = True
+                except ImportError:
+                    pass
+                
+                # Fallback to string matching for other error types
+                if not needs_reauth:
+                    error_lower = error_msg.lower()
+                    needs_reauth = (
+                        'expired' in error_lower or 
+                        'invalid' in error_lower or 
+                        '401' in error_msg or
+                        'unauthorized' in error_lower or
+                        'invalid_grant' in error_lower or
+                        'token has been expired' in error_lower
+                    )
                 
                 return jsonify({
                     'available': False,

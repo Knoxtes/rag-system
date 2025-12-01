@@ -77,8 +77,7 @@ def get_credentials():
                 return creds
             except Exception as refresh_error:
                 print(f"[GDrive Auth] Token refresh failed: {refresh_error}")
-                # Don't return None immediately - the token might still work for some operations
-                # or we should let the caller know to re-authenticate
+                # Token refresh failed - caller should handle re-authentication
                 return None
         
         # No refresh token available
