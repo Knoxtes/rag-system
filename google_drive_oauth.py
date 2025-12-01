@@ -50,8 +50,9 @@ def get_flow():
 
 
 def get_credentials():
-    """Get existing credentials from file"""
+    """Get existing credentials from file with robust refresh handling"""
     if not os.path.exists(TOKEN_FILE):
+        print("[GDrive Auth] No token file found")
         return None
     
     try:
@@ -60,22 +61,34 @@ def get_credentials():
         
         # Check if valid
         if creds and creds.valid:
+            print("[GDrive Auth] Credentials are valid")
             return creds
         
-        # Try to refresh
+        # Try to refresh if expired but has refresh token
         if creds and creds.expired and creds.refresh_token:
             from google.auth.transport.requests import Request
+            print("[GDrive Auth] Token expired, attempting refresh...")
             try:
                 creds.refresh(Request())
                 # Save refreshed credentials
                 with open(TOKEN_FILE, 'wb') as token:
                     pickle.dump(creds, token)
+                print("[GDrive Auth] Token refreshed successfully")
                 return creds
-            except:
+            except Exception as refresh_error:
+                print(f"[GDrive Auth] Token refresh failed: {refresh_error}")
+                # Token refresh failed - caller should handle re-authentication
                 return None
         
+        # No refresh token available
+        if creds and creds.expired and not creds.refresh_token:
+            print("[GDrive Auth] Token expired and no refresh token available - re-authentication required")
+            return None
+        
+        print("[GDrive Auth] Credentials invalid or missing")
         return None
-    except:
+    except Exception as load_error:
+        print(f"[GDrive Auth] Error loading credentials: {load_error}")
         return None
 
 
@@ -87,36 +100,54 @@ def save_credentials(creds):
 
 @gdrive_oauth_bp.route('/status')
 def auth_status():
-    """Check if Google Drive is authenticated"""
+    """Check if Google Drive is authenticated with improved error handling"""
     try:
         creds = get_credentials()
         
         if creds:
             try:
-                # Test the credentials with a timeout
-                service = build('drive', 'v3', credentials=creds)
-                service.files().list(pageSize=1).execute()
+                # Test the credentials with a quick API call with timeout
+                import socket
+                original_timeout = socket.getdefaulttimeout()
+                socket.setdefaulttimeout(10)  # 10 second timeout
+                
+                try:
+                    service = build('drive', 'v3', credentials=creds)
+                    service.files().list(pageSize=1).execute()
+                finally:
+                    socket.setdefaulttimeout(original_timeout)
                 
                 return jsonify({
                     'authenticated': True,
-                    'message': 'Google Drive connected'
+                    'message': 'Google Drive connected',
+                    'has_refresh_token': creds.refresh_token is not None
                 })
             except Exception as e:
-                print(f"Credentials test failed: {e}")
+                error_msg = str(e)
+                print(f"[GDrive Status] Credentials test failed: {error_msg}")
+                
+                # Check if it's a token expiration issue
+                if 'expired' in error_msg.lower() or 'invalid' in error_msg.lower():
+                    return jsonify({
+                        'authenticated': False,
+                        'message': 'Token expired - please reconnect',
+                        'needs_reauth': True
+                    })
+                
                 return jsonify({
                     'authenticated': False,
-                    'message': 'Credentials expired or invalid'
+                    'message': f'Connection error: {error_msg[:100]}'
                 })
         
         return jsonify({
             'authenticated': False,
-            'message': 'Not authenticated'
+            'message': 'Not authenticated - please connect Google Drive'
         })
     except Exception as e:
-        print(f"Status check error: {e}")
+        print(f"[GDrive Status] Status check error: {e}")
         return jsonify({
             'authenticated': False,
-            'message': 'Error checking status'
+            'message': 'Error checking status - please try again'
         })
 
 

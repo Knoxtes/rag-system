@@ -125,8 +125,12 @@ def safe_drive_call(func, max_retries=3, backoff=2):
 # Create admin blueprint
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
-# Google OAuth Configuration
-SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+# Google OAuth Configuration - Full scopes needed for Drive operations
+SCOPES = [
+    'https://www.googleapis.com/auth/drive',  # Full drive access (required for shared drives)
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive.metadata.readonly'
+]
 TOKEN_FILE = 'token.pickle'
 
 # Global variables for background tasks
@@ -224,6 +228,7 @@ def admin_dashboard_content():
         .action-card {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; text-align: center; }}
         .action-card h3 {{ color: #10b981; margin-bottom: 15px; }}
         .action-card p {{ color: #94a3b8; margin-bottom: 20px; }}
+        @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
     </style>
     
     <div class="container">
@@ -484,57 +489,95 @@ def admin_dashboard_content():
     async function checkGDriveAuth() {
         const token = localStorage.getItem('authToken');
         console.log('[GDrive Auth] Checking status...');
+        
+        const statusDiv = document.getElementById('gdrive-status');
+        const actionsDiv = document.getElementById('gdrive-actions');
+        
+        // Show loading state
+        statusDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 24px; height: 24px; border: 3px solid #334155; border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div>
+                    <p style="color: #94a3b8; font-weight: bold; margin: 0;">Checking...</p>
+                </div>
+            </div>
+        `;
+        actionsDiv.innerHTML = '';
+        
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+            
             const response = await fetch('/admin/gdrive/status', {
-                headers: { 'Authorization': `Bearer ${{token}` }
+                headers: { 'Authorization': `Bearer ${{token}` },
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
+            
             console.log('[GDrive Auth] Response status:', response.status);
             const data = await response.json();
             console.log('[GDrive Auth] Data:', data);
-            
-            const statusDiv = document.getElementById('gdrive-status');
-            const actionsDiv = document.getElementById('gdrive-actions');
                 
-                if (data.authenticated) {
-                    statusDiv.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 24px;">✅</span>
-                            <div>
-                                <p style="color: #10b981; font-weight: bold; margin: 0;">Connected</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
-                            </div>
+            if (data.authenticated) {
+                const hasRefreshToken = data.has_refresh_token !== false;
+                statusDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">✅</span>
+                        <div>
+                            <p style="color: #10b981; font-weight: bold; margin: 0;">Connected</p>
+                            <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
+                            ${{hasRefreshToken ? '<p style="color: #64748b; font-size: 12px; margin: 2px 0 0 0;">✓ Refresh token available</p>' : '<p style="color: #f59e0b; font-size: 12px; margin: 2px 0 0 0;">⚠️ No refresh token - may need to reconnect</p>'}}
                         </div>
-                    `;
-                    actionsDiv.innerHTML = `
-                        <button class="btn" onclick="disconnectGDrive()" style="background: #ef4444;">Disconnect</button>
-                        <button class="btn" onclick="checkGDriveAuth()" style="background: #6366f1; margin-left: 10px;">Refresh Status</button>
-                    `;
-                } else {
-                    statusDiv.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 24px;">❌</span>
-                            <div>
-                                <p style="color: #ef4444; font-weight: bold; margin: 0;">Not Connected</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
-                            </div>
+                    </div>
+                `;
+                actionsDiv.innerHTML = `
+                    <button class="btn" onclick="disconnectGDrive()" style="background: #ef4444;">Disconnect</button>
+                    <button class="btn" onclick="checkGDriveAuth()" style="background: #6366f1; margin-left: 10px;">Refresh Status</button>
+                `;
+            } else {
+                // Check if needs re-authentication
+                const needsReauth = data.needs_reauth === true;
+                const statusIcon = needsReauth ? '🔄' : '❌';
+                const statusColor = needsReauth ? '#f59e0b' : '#ef4444';
+                const statusText = needsReauth ? 'Re-authentication Required' : 'Not Connected';
+                
+                statusDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">${{statusIcon}</span>
+                        <div>
+                            <p style="color: ${{statusColor}; font-weight: bold; margin: 0;">${{statusText}</p>
+                            <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
                         </div>
-                    `;
-                    actionsDiv.innerHTML = `
-                        <button class="btn success" onclick="connectGDrive()">Connect Google Drive</button>
-                        <p style="font-size: 13px; color: #64748b; margin-top: 10px;">
-                            Required to index documents from Google Drive
-                        </p>
-                    `;
-                }
-            } catch (error) {
-                console.error('GDrive auth check error:', error);
-                document.getElementById('gdrive-status').innerHTML = `
-                    <p style="color: #ef4444;">Error checking connection status</p>
+                    </div>
+                `;
+                actionsDiv.innerHTML = `
+                    <button class="btn success" onclick="connectGDrive()">${{needsReauth ? 'Reconnect Google Drive' : 'Connect Google Drive'}</button>
+                    <button class="btn" onclick="checkGDriveAuth()" style="background: #6366f1; margin-left: 10px;">Retry Check</button>
+                    <p style="font-size: 13px; color: #64748b; margin-top: 10px;">
+                        ${{needsReauth ? 'Your access token has expired. Please reconnect to continue using Google Drive features.' : 'Required to index documents from Google Drive'}}
+                    </p>
                 `;
             }
+        } catch (error) {
+            console.error('GDrive auth check error:', error);
+            const isTimeout = error.name === 'AbortError';
+            statusDiv.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 24px;">⚠️</span>
+                    <div>
+                        <p style="color: #f59e0b; font-weight: bold; margin: 0;">${{isTimeout ? 'Connection Timeout' : 'Error Checking Status'}</p>
+                        <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{isTimeout ? 'The server took too long to respond.' : error.message}</p>
+                    </div>
+                </div>
+            `;
+            actionsDiv.innerHTML = `
+                <button class="btn" onclick="checkGDriveAuth()" style="background: #6366f1;">Retry</button>
+                <button class="btn success" onclick="connectGDrive()" style="margin-left: 10px;">Reconnect Google Drive</button>
+            `;
         }
+    }
         
-        function connectGDrive() {
+    function connectGDrive() {
 
             window.location.href = '/admin/gdrive/authorize';
         }
@@ -2583,29 +2626,62 @@ def run_collection_update():
 @admin_bp.route('/gdrive/status')
 @require_admin
 def gdrive_status():
-    """Check Google Drive authentication status"""
+    """Check Google Drive authentication status with automatic token refresh"""
     try:
         if os.path.exists(TOKEN_FILE):
             with open(TOKEN_FILE, 'rb') as token:
                 creds = pickle.load(token)
-                
+            
+            # Valid credentials - all good
             if creds and creds.valid:
                 return jsonify({
                     'authenticated': True,
                     'message': 'Google Drive connected and authenticated',
                     'has_refresh_token': creds.refresh_token is not None
                 })
+            
+            # Expired but has refresh token - try to refresh
             elif creds and creds.expired and creds.refresh_token:
+                try:
+                    from google.auth.transport.requests import Request
+                    print("[Admin GDrive Status] Token expired, attempting auto-refresh...")
+                    creds.refresh(Request())
+                    
+                    # Save the refreshed credentials
+                    with open(TOKEN_FILE, 'wb') as token:
+                        pickle.dump(creds, token)
+                    
+                    print("[Admin GDrive Status] Token refreshed successfully")
+                    return jsonify({
+                        'authenticated': True,
+                        'message': 'Token auto-refreshed successfully',
+                        'has_refresh_token': True
+                    })
+                except Exception as refresh_error:
+                    print(f"[Admin GDrive Status] Auto-refresh failed: {refresh_error}")
+                    return jsonify({
+                        'authenticated': False,
+                        'message': f'Token expired and refresh failed: {str(refresh_error)[:100]}',
+                        'has_refresh_token': True,
+                        'needs_reauth': True
+                    })
+            
+            # Expired without refresh token - need re-auth
+            elif creds and creds.expired and not creds.refresh_token:
                 return jsonify({
-                    'authenticated': True,
-                    'message': 'Token expired but has refresh token (will auto-renew)',
-                    'has_refresh_token': True
+                    'authenticated': False,
+                    'message': 'Token expired with no refresh token - please reconnect',
+                    'has_refresh_token': False,
+                    'needs_reauth': True
                 })
+            
+            # Invalid credentials
             else:
                 return jsonify({
                     'authenticated': False,
-                    'message': 'Token invalid or missing refresh token',
-                    'has_refresh_token': creds.refresh_token is not None if creds else False
+                    'message': 'Token invalid or corrupted',
+                    'has_refresh_token': creds.refresh_token is not None if creds else False,
+                    'needs_reauth': True
                 })
         else:
             return jsonify({
@@ -2613,9 +2689,10 @@ def gdrive_status():
                 'message': 'Not connected to Google Drive'
             })
     except Exception as e:
+        print(f"[Admin GDrive Status] Error checking status: {e}")
         return jsonify({
             'authenticated': False,
-            'message': f'Error checking status: {str(e)}'
+            'message': f'Error checking status: {str(e)[:100]}'
         }), 500
 
 

@@ -28,6 +28,12 @@ const AuthPickup: React.FC = () => {
           localStorage.setItem('user_info', JSON.stringify(data.user_info));
           localStorage.setItem('is_admin', data.is_admin.toString());
           
+          // Store refresh token if available
+          if (data.refresh_token) {
+            localStorage.setItem('rag_refresh_token', data.refresh_token);
+            console.log('AuthPickup: Refresh token stored');
+          }
+          
           console.log('AuthPickup: Tokens stored in localStorage');
           
           // Redirect to main app

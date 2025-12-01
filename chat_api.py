@@ -1254,7 +1254,7 @@ def search_folders():
 @app.route('/auth/drive-reinit', methods=['POST'])
 @require_auth
 def reinitialize_drive():
-    """Reinitialize Google Drive service after web authentication"""
+    """Reinitialize Google Drive service after web authentication with proper token refresh"""
     try:
         global drive_service
         
@@ -1262,24 +1262,50 @@ def reinitialize_drive():
         import pickle
         import os
         from googleapiclient.discovery import build
+        from google.auth.transport.requests import Request
         
         if os.path.exists(TOKEN_FILE):
-            print("Loading Google Drive credentials from web auth...")
+            print("[Drive Reinit] Loading Google Drive credentials from web auth...")
             with open(TOKEN_FILE, 'rb') as token:
                 creds = pickle.load(token)
-                
+            
+            # Check if credentials are valid or need refresh
             if creds and creds.valid:
                 drive_service = build('drive', 'v3', credentials=creds)
-                print("✅ Google Drive service initialized from web auth credentials!")
+                print("[Drive Reinit] ✅ Google Drive service initialized from valid credentials!")
                 return jsonify({
                     'success': True,
-                    'message': 'Google Drive service initialized successfully!'
+                    'message': 'Google Drive service initialized successfully!',
+                    'has_refresh_token': creds.refresh_token is not None
                 })
+            elif creds and creds.expired and creds.refresh_token:
+                # Try to refresh the expired token
+                print("[Drive Reinit] Token expired, attempting refresh...")
+                try:
+                    creds.refresh(Request())
+                    # Save the refreshed credentials
+                    with open(TOKEN_FILE, 'wb') as token:
+                        pickle.dump(creds, token)
+                    drive_service = build('drive', 'v3', credentials=creds)
+                    print("[Drive Reinit] ✅ Token refreshed and Drive service initialized!")
+                    return jsonify({
+                        'success': True,
+                        'message': 'Token refreshed and Google Drive connected!',
+                        'has_refresh_token': True
+                    })
+                except Exception as refresh_error:
+                    print(f"[Drive Reinit] Token refresh failed: {refresh_error}")
+                    return jsonify({
+                        'error': 'Token refresh failed',
+                        'message': 'Please disconnect and reconnect Google Drive',
+                        'needs_reauth': True
+                    }), 401
             else:
                 return jsonify({
                     'error': 'Invalid credentials',
-                    'message': 'Please re-authenticate'
-                }), 400
+                    'message': 'Token expired and no refresh token available. Please reconnect.',
+                    'needs_reauth': True
+                }), 401
         else:
             return jsonify({
                 'error': 'No credentials found',
@@ -1287,43 +1313,119 @@ def reinitialize_drive():
             }), 400
             
     except Exception as e:
-        print(f"Error reinitializing Google Drive: {str(e)}")
+        print(f"[Drive Reinit] Error reinitializing Google Drive: {str(e)}")
         return jsonify({'error': f'Failed to initialize Google Drive: {str(e)}'}), 500
 
 @app.route('/drive/status', methods=['GET'])
 @require_auth 
 def drive_status():
-    """Check Google Drive service status"""
+    """Check Google Drive service status with proper token handling"""
     global drive_service
     
     try:
+        # First check if we have stored credentials and their state
+        credentials_info = {
+            'token_exists': os.path.exists(TOKEN_FILE),
+            'has_refresh_token': False,
+            'token_expired': False
+        }
+        
+        if os.path.exists(TOKEN_FILE):
+            try:
+                import pickle
+                from google.auth.transport.requests import Request
+                
+                with open(TOKEN_FILE, 'rb') as token:
+                    creds = pickle.load(token)
+                
+                credentials_info['has_refresh_token'] = creds.refresh_token is not None
+                credentials_info['token_expired'] = creds.expired if creds else True
+                
+                # Try to refresh if expired
+                if creds and creds.expired and creds.refresh_token:
+                    print("[Drive Status] Token expired, attempting refresh...")
+                    try:
+                        creds.refresh(Request())
+                        with open(TOKEN_FILE, 'wb') as token:
+                            pickle.dump(creds, token)
+                        credentials_info['token_expired'] = False
+                        print("[Drive Status] Token refreshed successfully")
+                        
+                        # Reinitialize drive service with refreshed creds
+                        from googleapiclient.discovery import build
+                        drive_service = build('drive', 'v3', credentials=creds)
+                    except Exception as refresh_error:
+                        print(f"[Drive Status] Token refresh failed: {refresh_error}")
+            except Exception as creds_error:
+                print(f"[Drive Status] Error reading credentials: {creds_error}")
+        
         if drive_service is None:
             # Try to initialize
             try:
                 drive_service = authenticate_google_drive(interactive=False)
-            except:
-                pass
+            except Exception as init_error:
+                print(f"[Drive Status] Drive init failed: {init_error}")
                 
         if drive_service is None:
             return jsonify({
                 'available': False,
                 'message': 'Google Drive service not initialized',
-                'can_retry': True
+                'can_retry': True,
+                'credentials_info': credentials_info
             })
         else:
             # Test the service with a simple call
             try:
-                drive_service.files().list(pageSize=1).execute()
+                import socket
+                original_timeout = socket.getdefaulttimeout()
+                socket.setdefaulttimeout(10)  # 10 second timeout
+                
+                try:
+                    drive_service.files().list(pageSize=1).execute()
+                finally:
+                    socket.setdefaulttimeout(original_timeout)
+                    
                 return jsonify({
                     'available': True,
                     'message': 'Google Drive service is working',
-                    'can_retry': False
+                    'can_retry': False,
+                    'credentials_info': credentials_info
                 })
             except Exception as e:
+                error_msg = str(e)
+                print(f"[Drive Status] Drive API test failed: {error_msg}")
+                
+                # Check if it's an auth error - might need re-auth
+                # Check both string patterns and specific HTTP error codes
+                needs_reauth = False
+                
+                # Check for Google API HttpError with specific status codes
+                try:
+                    from googleapiclient.errors import HttpError
+                    if isinstance(e, HttpError):
+                        if e.resp.status in [401, 403]:
+                            needs_reauth = True
+                except ImportError:
+                    pass
+                
+                # Fallback to string matching for other error types
+                if not needs_reauth:
+                    error_lower = error_msg.lower()
+                    needs_reauth = (
+                        'expired' in error_lower or 
+                        'invalid' in error_lower or 
+                        '401' in error_msg or
+                        'unauthorized' in error_lower or
+                        'invalid_grant' in error_lower or
+                        'token has been expired' in error_lower
+                    )
+                
                 return jsonify({
                     'available': False,
-                    'message': f'Google Drive service error: {str(e)}',
-                    'can_retry': True
+                    'message': f'Google Drive service error: {error_msg[:100]}',
+                    'can_retry': True,
+                    'needs_reauth': needs_reauth,
+                    'credentials_info': credentials_info
                 })
     except Exception as e:
         return jsonify({
