@@ -22,10 +22,12 @@ def login():
         flow = oauth_config.get_flow()
         flow.redirect_uri = oauth_config.redirect_uri
         
+        # Use 'consent' prompt to ensure we always get a refresh token
+        # This is critical for maintaining long-term access
         authorization_url, state = flow.authorization_url(
             access_type='offline',
             include_granted_scopes='true',
-            prompt='select_account'
+            prompt='consent'  # Changed from 'select_account' to ensure refresh token
         )
         
         # Store state in session for security
@@ -245,10 +247,12 @@ def pickup_tokens():
     """Endpoint for React app to pickup authentication tokens"""
     try:
         token = session.get('pending_auth_token')
+        refresh_token = session.get('pending_refresh_token')
         user_info = session.get('pending_user_info')
         
         print(f"Token pickup request:")
         print(f"  Token found in session: {bool(token)}")
+        print(f"  Refresh token found: {bool(refresh_token)}")
         print(f"  User info found: {bool(user_info)}")
         
         if not token or not user_info:
@@ -260,6 +264,7 @@ def pickup_tokens():
         
         # Clear the pending tokens from session
         session.pop('pending_auth_token', None)
+        session.pop('pending_refresh_token', None)
         session.pop('pending_user_info', None)
         
         print(f"  Returning tokens for: {user_info.get('email')}")
@@ -267,6 +272,7 @@ def pickup_tokens():
         return jsonify({
             'success': True,
             'token': token,
+            'refresh_token': refresh_token,  # Include refresh token
             'user_info': user_info,
             'is_admin': False
         })
