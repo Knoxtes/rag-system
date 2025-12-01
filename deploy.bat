@@ -5,6 +5,43 @@ REM This script sets up and starts the RAG system in a production environment
 echo 🚀 Starting RAG System Deployment...
 echo ==================================
 
+REM Check for uncommitted changes
+if exist .git (
+    echo 🔍 Checking for uncommitted changes...
+    
+    REM Check if HEAD exists (repository has commits)
+    git rev-parse --verify HEAD >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo ℹ️  New repository with no commits yet
+        echo.
+    ) else (
+        REM Check if there are any uncommitted changes
+        git diff-index --quiet HEAD -- >nul 2>&1
+        if %errorlevel% neq 0 (
+            echo.
+            echo ⚠️  WARNING: Uncommitted changes detected!
+            echo.
+            echo The following changes are uncommitted:
+            git status --short
+            echo.
+            set "PROCEED="
+            set /p "PROCEED=Do you want to proceed with deployment anyway? (y/N): "
+            REM /i flag makes comparison case-insensitive (y, Y, yes, Yes, YES all accepted)
+            REM Empty input (just pressing Enter) will not match and falls through to cancel
+            if /i "%PROCEED%"=="y" goto proceed
+            if /i "%PROCEED%"=="yes" goto proceed
+            echo ❌ Deployment cancelled. Please commit your changes first.
+            exit /b 1
+            :proceed
+            echo ⚠️  Proceeding with uncommitted changes...
+            echo.
+        ) else (
+            echo ✅ No uncommitted changes detected
+            echo.
+        )
+    )
+)
+
 REM Check if Node.js is available
 node --version >nul 2>&1
 if %errorlevel% neq 0 (

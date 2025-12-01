@@ -117,9 +117,13 @@ rag-system/
 
 ### Production Deployment
 - `./deploy-plesk.sh` - Full deployment for Plesk (git pull, dependencies, build)
+- `./deploy.sh` - Deployment script for Linux/Mac
+- `deploy.bat` - Deployment script for Windows
 - `./update-from-git.sh` - Quick update from Git
 - `npm run deploy:full` - Update, install dependencies, rebuild frontend
 - `npm run deploy:update` - Git pull latest changes
+
+**Note**: The deployment scripts will check for uncommitted changes before proceeding. If uncommitted changes are detected, you'll be prompted to confirm whether to proceed. This helps prevent accidental deployments of work-in-progress code.
 
 ### Development
 - `npm start` - Start Node.js proxy + Flask backend

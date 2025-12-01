@@ -484,55 +484,79 @@ def admin_dashboard_content():
     async function checkGDriveAuth() {
         const token = localStorage.getItem('authToken');
         console.log('[GDrive Auth] Checking status...');
+        
+        const statusDiv = document.getElementById('gdrive-status');
+        const actionsDiv = document.getElementById('gdrive-actions');
+        
+        // Show loading state with timeout protection
+        statusDiv.innerHTML = '<p style="color: #94a3b8;">Checking connection status...</p>';
+        actionsDiv.innerHTML = '';
+        
         try {
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
             const response = await fetch('/admin/gdrive/status', {
-                headers: { 'Authorization': `Bearer ${{token}` }
+                headers: { 'Authorization': `Bearer ${{token}` },
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
+            
             console.log('[GDrive Auth] Response status:', response.status);
             const data = await response.json();
             console.log('[GDrive Auth] Data:', data);
-            
-            const statusDiv = document.getElementById('gdrive-status');
-            const actionsDiv = document.getElementById('gdrive-actions');
                 
-                if (data.authenticated) {
-                    statusDiv.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 24px;">✅</span>
-                            <div>
-                                <p style="color: #10b981; font-weight: bold; margin: 0;">Connected</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
-                            </div>
+            if (data.authenticated) {
+                statusDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">✅</span>
+                        <div>
+                            <p style="color: #10b981; font-weight: bold; margin: 0;">Connected</p>
+                            <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
+                            ${{data.needs_reauth ? '<p style="color: #f59e0b; font-size: 12px; margin: 5px 0 0 0;">⚠️ Token may expire soon - consider reconnecting</p>' : ''}}
                         </div>
-                    `;
-                    actionsDiv.innerHTML = `
-                        <button class="btn" onclick="disconnectGDrive()" style="background: #ef4444;">Disconnect</button>
-                        <button class="btn" onclick="checkGDriveAuth()" style="background: #6366f1; margin-left: 10px;">Refresh Status</button>
-                    `;
-                } else {
-                    statusDiv.innerHTML = `
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 24px;">❌</span>
-                            <div>
-                                <p style="color: #ef4444; font-weight: bold; margin: 0;">Not Connected</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
-                            </div>
+                    </div>
+                `;
+                actionsDiv.innerHTML = `
+                    <button class="btn" onclick="disconnectGDrive()" style="background: #ef4444;">Disconnect</button>
+                    <button class="btn" onclick="checkGDriveAuth()" style="background: #6366f1; margin-left: 10px;">Refresh Status</button>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">❌</span>
+                        <div>
+                            <p style="color: #ef4444; font-weight: bold; margin: 0;">Not Connected</p>
+                            <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message || 'Authentication required'}}</p>
                         </div>
-                    `;
-                    actionsDiv.innerHTML = `
-                        <button class="btn success" onclick="connectGDrive()">Connect Google Drive</button>
-                        <p style="font-size: 13px; color: #64748b; margin-top: 10px;">
-                            Required to index documents from Google Drive
-                        </p>
-                    `;
-                }
-            } catch (error) {
-                console.error('GDrive auth check error:', error);
-                document.getElementById('gdrive-status').innerHTML = `
-                    <p style="color: #ef4444;">Error checking connection status</p>
+                    </div>
+                `;
+                actionsDiv.innerHTML = `
+                    <button class="btn success" onclick="connectGDrive()">${{data.needs_reauth ? 'Reconnect Google Drive' : 'Connect Google Drive'}}</button>
+                    <p style="font-size: 13px; color: #64748b; margin-top: 10px;">
+                        Required to index documents from Google Drive
+                    </p>
                 `;
             }
+        } catch (error) {
+            console.error('GDrive auth check error:', error);
+            const errorMessage = error.name === 'AbortError' ? 'Request timed out' : error.message;
+            statusDiv.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 24px;">⚠️</span>
+                    <div>
+                        <p style="color: #f59e0b; font-weight: bold; margin: 0;">Connection Error</p>
+                        <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{errorMessage}}</p>
+                    </div>
+                </div>
+            `;
+            actionsDiv.innerHTML = `
+                <button class="btn success" onclick="connectGDrive()">Connect Google Drive</button>
+                <button class="btn" onclick="checkGDriveAuth()" style="background: #6366f1; margin-left: 10px;">Retry</button>
+            `;
         }
+    }
         
         function connectGDrive() {
 
