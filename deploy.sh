@@ -24,7 +24,7 @@ if [ -d .git ]; then
         echo ""
         read -p "Do you want to proceed with deployment anyway? (y/N): " -r
         echo ""
-        if [[ ! $REPLY =~ ^[Yy](es)?$ ]]; then
+        if [[ ! $REPLY =~ ^[Yy]([eE][sS])?$ ]]; then
             echo "❌ Deployment cancelled. Please commit your changes first."
             exit 1
         fi

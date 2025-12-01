@@ -26,7 +26,7 @@ if exist .git (
             echo.
             set "PROCEED="
             set /p "PROCEED=Do you want to proceed with deployment anyway? (y/N): "
-            REM /i flag makes comparison case-insensitive (accepts y, Y, yes, Yes, YES)
+            REM /i flag makes comparison case-insensitive (y, Y, yes, Yes, YES all accepted)
             REM Empty input (just pressing Enter) will not match and falls through to cancel
             if /i "%PROCEED%"=="y" goto proceed
             if /i "%PROCEED%"=="yes" goto proceed
