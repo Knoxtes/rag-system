@@ -67,6 +67,7 @@ def get_credentials():
         # Try to refresh
         if creds and creds.expired and creds.refresh_token:
             from google.auth.transport.requests import Request
+            from google.auth.exceptions import RefreshError
             try:
                 print("[GDrive] Attempting to refresh expired credentials...")
                 creds.refresh(Request())
@@ -75,6 +76,10 @@ def get_credentials():
                     pickle.dump(creds, token)
                 print("[GDrive] Credentials refreshed successfully")
                 return creds
+            except RefreshError as e:
+                print(f"[GDrive] Refresh token revoked or expired: {e}")
+                # Token needs to be re-obtained through OAuth flow
+                return None
             except Exception as e:
                 print(f"[GDrive] Failed to refresh credentials: {e}")
                 # Don't delete the token file - let user re-authenticate
