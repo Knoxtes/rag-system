@@ -10,6 +10,7 @@
 credentials.json
 token.pickle
 service-account-key.json
+client_secret_*.json
 *.pem
 *.key
 *.p12

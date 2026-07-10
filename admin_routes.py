@@ -50,7 +50,7 @@ def get_all_files_recursive_from_folder(folder_id, drive_service, depth=0):
                     includeItemsFromAllDrives=True,
                     pageSize=1000,
                     pageToken=page_token,
-                    fields='files(id, name, mimeType), nextPageToken'
+                    fields='files(id, name, mimeType, modifiedTime, size), nextPageToken'
                 ).execute()
             
             response = safe_drive_call(make_request)
@@ -209,32 +209,38 @@ def admin_dashboard_content():
     
     html_content = """
     <style>
-        .container {{ max-width: 1400px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); }}
-        .header h1 {{ font-size: 2.5rem; font-weight: 700; color: #f8fafc; margin-bottom: 10px; }}
-        .header p {{ color: #94a3b8; font-size: 1.1rem; }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .stat-card {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }}
-        .stat-card h3 {{ color: #3b82f6; font-size: 1.2rem; margin-bottom: 15px; }}
-        .stat-item {{ display: flex; justify-content: space-between; margin-bottom: 10px; padding: 8px 0; border-bottom: 1px solid #334155; }}
-        .stat-item:last-child {{ border-bottom: none; }}
-        .stat-label {{ color: #94a3b8; }}
-        .stat-value {{ color: #f8fafc; font-weight: 600; }}
-        .btn {{ background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; margin: 5px; }}
-        .btn:hover {{ background: #2563eb; }}
-        .btn.success {{ background: #10b981; }}
-        .btn.success:hover {{ background: #059669; }}
-        .actions-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .action-card {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; text-align: center; }}
-        .action-card h3 {{ color: #10b981; margin-bottom: 15px; }}
-        .action-card p {{ color: #94a3b8; margin-bottom: 20px; }}
-        @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); }
+        .header h1 { font-size: 2.5rem; font-weight: 700; color: #f8fafc; margin-bottom: 10px; }
+        .header p { color: #94a3b8; font-size: 1.1rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }
+        .stat-card h3 { color: #3b82f6; font-size: 1.2rem; margin-bottom: 15px; }
+        .stat-item { display: flex; justify-content: space-between; margin-bottom: 10px; padding: 8px 0; border-bottom: 1px solid #334155; }
+        .stat-item:last-child { border-bottom: none; }
+        .stat-label { color: #94a3b8; }
+        .stat-value { color: #f8fafc; font-weight: 600; }
+        .btn { background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; margin: 5px; }
+        .btn:hover { background: #2563eb; }
+        .btn.success { background: #10b981; }
+        .btn.success:hover { background: #059669; }
+        .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .action-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 25px; text-align: center; }
+        .action-card h3 { color: #10b981; margin-bottom: 15px; }
+        .action-card p { color: #94a3b8; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
     
     <div class="container">
-        <div class="header">
-            <h1>🛠️ RAG System Admin Dashboard</h1>
-            <p>System Administration & Collection Management</p>
+        <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>🛠️ RAG System Admin Dashboard</h1>
+                <p>System Administration & Collection Management</p>
+            </div>
+            <div>
+                <button class="btn" onclick="goToChat()" style="background: #10b981; margin-right: 10px;">💬 Go to Chat</button>
+                <button class="btn" onclick="logout()" style="background: #ef4444;">Logout</button>
+            </div>
         </div>
         
         <div class="stats-grid">
@@ -459,24 +465,41 @@ def admin_dashboard_content():
                     </button>
                 </div>
             </div>
-        </div>">
-                    <h3 style="color: #86efac;">📖 Documentation</h3>
-                    <p style="color: #bbf7d0;">View setup guides and migration instructions</p>
-                    <button class="btn" onclick="window.open('/static/VERTEX_AI_MIGRATION.md', '_blank')" style="background: #10b981;">
-                        Vertex AI Guide
-                    </button>
-                    <button class="btn" onclick="window.open('/static/DOCUMENTAI_SETUP.md', '_blank')" style="background: #10b981; margin-top: 10px;">
-                        Document AI Guide
-                    </button>
-                </div>
+        </div>
+
+        <!-- Incremental Sync Panel -->
+        <div id="sync-panel" style="margin: 30px 0; padding: 30px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 2px solid #8b5cf6; border-radius: 12px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.2);">
+            <h2 style="color: #8b5cf6; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
+                <span>🔄</span>
+                <span>Incremental Sync</span>
+            </h2>
+            <p style="color: #94a3b8; margin-bottom: 20px;">Checks indexed folders for changed documents and re-indexes only those. Runs automatically on the configured schedule; use the buttons to run it now or preview what would change.</p>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+                <button class="btn" onclick="startIncrementalSync(false)" style="background: #8b5cf6;">Sync Now</button>
+                <button class="btn" onclick="startIncrementalSync(true)" style="background: #6b7280;">Dry Run (preview)</button>
+                <button class="btn" onclick="refreshSyncStatus()" style="background: #334155;">Refresh Status</button>
             </div>
-            
-            <div id="migration-logs" style="margin-top: 20px; padding: 15px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; font-family: monospace; font-size: 13px; color: #94a3b8; max-height: 300px; overflow-y: auto; display: none;">
-                <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #334155; color: #f8fafc; font-weight: bold;">
-                    📋 Migration Logs
+
+            <div style="background: #0f172a; border-radius: 8px; padding: 20px; border: 1px solid #334155;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span style="color: #e2e8f0; font-weight: 600;">Status: <span id="sync-message" style="color: #94a3b8; font-weight: 400;">Loading...</span></span>
+                    <span id="sync-percentage" style="color: #8b5cf6; font-weight: 600;"></span>
                 </div>
-                <div id="migration-logs-content"></div>
+                <div style="width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-bottom: 15px;">
+                    <div id="sync-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #8b5cf6, #6366f1); transition: width 0.3s ease;"></div>
+                </div>
+                <div id="sync-tracker-stats" style="color: #94a3b8; font-size: 14px; margin-bottom: 15px;"></div>
+                <div style="color: #e2e8f0; font-weight: 600; margin-bottom: 8px;">Recent Syncs</div>
+                <div id="sync-history" style="color: #94a3b8; font-size: 13px; font-family: monospace; white-space: pre-wrap;">-</div>
             </div>
+        </div>
+
+        <div id="migration-logs" style="margin-top: 20px; padding: 15px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; font-family: monospace; font-size: 13px; color: #94a3b8; max-height: 300px; overflow-y: auto; display: none;">
+            <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #334155; color: #f8fafc; font-weight: bold;">
+                📋 Migration Logs
+            </div>
+            <div id="migration-logs-content"></div>
         </div>
     </div>
     
@@ -484,10 +507,15 @@ def admin_dashboard_content():
 
         console.log('[Admin Dashboard] Script loaded and executing');
         
+        // Helper function to get auth token (check both new and old key names)
+        function getAuthToken() {
+            return localStorage.getItem('rag_auth_token') || localStorage.getItem('authToken');
+        }
+        
         let refreshInterval;
     
     async function checkGDriveAuth() {
-        const token = localStorage.getItem('authToken');
+        const token = getAuthToken();
         console.log('[GDrive Auth] Checking status...');
         
         const statusDiv = document.getElementById('gdrive-status');
@@ -509,7 +537,7 @@ def admin_dashboard_content():
             const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
             
             const response = await fetch('/admin/gdrive/status', {
-                headers: { 'Authorization': `Bearer ${{token}` },
+                headers: { 'Authorization': `Bearer ${token}` },
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
@@ -525,8 +553,8 @@ def admin_dashboard_content():
                         <span style="font-size: 24px;">✅</span>
                         <div>
                             <p style="color: #10b981; font-weight: bold; margin: 0;">Connected</p>
-                            <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
-                            ${{hasRefreshToken ? '<p style="color: #64748b; font-size: 12px; margin: 2px 0 0 0;">✓ Refresh token available</p>' : '<p style="color: #f59e0b; font-size: 12px; margin: 2px 0 0 0;">⚠️ No refresh token - may need to reconnect</p>'}}
+                            <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.message}</p>
+                            ${hasRefreshToken ? '<p style="color: #64748b; font-size: 12px; margin: 2px 0 0 0;">✓ Refresh token available</p>' : '<p style="color: #f59e0b; font-size: 12px; margin: 2px 0 0 0;">⚠️ No refresh token - may need to reconnect</p>'}
                         </div>
                     </div>
                 `;
@@ -543,18 +571,18 @@ def admin_dashboard_content():
                 
                 statusDiv.innerHTML = `
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">${{statusIcon}</span>
+                        <span style="font-size: 24px;">${statusIcon}</span>
                         <div>
-                            <p style="color: ${{statusColor}; font-weight: bold; margin: 0;">${{statusText}</p>
-                            <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.message}</p>
+                            <p style="color: ${statusColor}; font-weight: bold; margin: 0;">${statusText}</p>
+                            <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.message}</p>
                         </div>
                     </div>
                 `;
                 actionsDiv.innerHTML = `
-                    <button class="btn success" onclick="connectGDrive()">${{needsReauth ? 'Reconnect Google Drive' : 'Connect Google Drive'}</button>
+                    <button class="btn success" onclick="connectGDrive()">${needsReauth ? 'Reconnect Google Drive' : 'Connect Google Drive'}</button>
                     <button class="btn" onclick="checkGDriveAuth()" style="background: #6366f1; margin-left: 10px;">Retry Check</button>
                     <p style="font-size: 13px; color: #64748b; margin-top: 10px;">
-                        ${{needsReauth ? 'Your access token has expired. Please reconnect to continue using Google Drive features.' : 'Required to index documents from Google Drive'}}
+                        ${needsReauth ? 'Your access token has expired. Please reconnect to continue using Google Drive features.' : 'Required to index documents from Google Drive'}
                     </p>
                 `;
             }
@@ -565,8 +593,8 @@ def admin_dashboard_content():
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 24px;">⚠️</span>
                     <div>
-                        <p style="color: #f59e0b; font-weight: bold; margin: 0;">${{isTimeout ? 'Connection Timeout' : 'Error Checking Status'}</p>
-                        <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{isTimeout ? 'The server took too long to respond.' : error.message}</p>
+                        <p style="color: #f59e0b; font-weight: bold; margin: 0;">${isTimeout ? 'Connection Timeout' : 'Error Checking Status'}</p>
+                        <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${isTimeout ? 'The server took too long to respond.' : error.message}</p>
                     </div>
                 </div>
             `;
@@ -587,11 +615,11 @@ def admin_dashboard_content():
                 return;
             }
             
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             try {
                 const response = await fetch('/admin/gdrive/disconnect', { 
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${{token}` }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
                 
@@ -608,11 +636,11 @@ def admin_dashboard_content():
         }
         
         async function refreshStats() {
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             console.log('[Stats] Fetching system stats...');
             try {
                 const response = await fetch('/admin/stats/system', {
-                    headers: { 'Authorization': `Bearer ${{token}` }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 
                 console.log('[Stats] Response status:', response.status);
@@ -644,7 +672,7 @@ def admin_dashboard_content():
         }
         
         async function updateCollections() {
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             const updateButton = document.querySelector('button[onclick="updateCollections()"]');
             const statusDiv = document.getElementById('update-status');
             
@@ -655,17 +683,17 @@ def admin_dashboard_content():
                 
                 const response = await fetch('/admin/collections/update', { 
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${{token}` }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
                 
                 if (response.ok) {
                     statusDiv.innerHTML = '<div style="color: #10b981;">Collection update started successfully!</div>';
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">Update failed: ${{data.error}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">Update failed: ${data.error}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
             } finally {
                 updateButton.disabled = false;
                 updateButton.textContent = 'Update Collections';
@@ -673,7 +701,7 @@ def admin_dashboard_content():
         }
         
         async function regenerateIndexedFolders() {
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             const regenerateButton = document.querySelector('button[onclick="regenerateIndexedFolders()"]');
             const statusDiv = document.getElementById('regenerate-status');
             
@@ -688,7 +716,7 @@ def admin_dashboard_content():
                 
                 const response = await fetch('/admin/collections/regenerate-index', { 
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${{token}` }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
                 
@@ -696,8 +724,8 @@ def admin_dashboard_content():
                     statusDiv.innerHTML = `
                         <div style="color: #10b981; font-weight: bold;">✅ Success!</div>
                         <div style="color: #94a3b8; margin-top: 5px;">
-                            Found ${{data.collections_found} collections<br>
-                            Regenerated ${{data.folders_indexed} indexed folders<br>
+                            Found ${data.collections_found} collections<br>
+                            Regenerated ${data.folders_indexed} indexed folders<br>
                             <small>Refresh the page to see updated collections</small>
                         </div>
                     `;
@@ -707,10 +735,10 @@ def admin_dashboard_content():
                         window.location.reload();
                     }, 2000);
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${{data.error || 'Unknown error'}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${data.error || 'Unknown error'}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${{error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ Error: ${error.message}</div>`;
             } finally {
                 regenerateButton.disabled = false;
                 regenerateButton.textContent = 'Regenerate Index';
@@ -718,11 +746,11 @@ def admin_dashboard_content():
         }
         
         async function clearCache() {
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             try {
                 const response = await fetch('/admin/system/clear-cache', { 
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${{token}` }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
                 
@@ -741,6 +769,7 @@ def admin_dashboard_content():
         console.log('[Admin Dashboard] Starting initial data load...');
         refreshStats();
         checkGDriveAuth();  // Check Google Drive auth status
+        refreshSyncStatus();  // Load incremental sync panel
         console.log('[Admin Dashboard] Initial functions called');
 
         window.addEventListener('beforeunload', () => {
@@ -748,10 +777,10 @@ def admin_dashboard_content():
         });
 
         async function checkMigrationStatus() {
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             try {
                 const response = await fetch('/admin/migrations/status', {
-                    headers: { 'Authorization': `Bearer ${{token}` }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
 
@@ -762,7 +791,7 @@ def admin_dashboard_content():
                             <span style="font-size: 24px;">✅</span>
                             <div>
                                 <p style="color: #10b981; font-weight: bold; margin: 0;">Enabled</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.vertex_embeddings.dimension}-dimensional embeddings active</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.vertex_embeddings.dimension}-dimensional embeddings active</p>
                             </div>
                         </div>
                     `;
@@ -772,7 +801,7 @@ def admin_dashboard_content():
                             <span style="font-size: 24px;">⚠️</span>
                             <div>
                                 <p style="color: #f59e0b; font-weight: bold; margin: 0;">Using Local Embeddings</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${{data.vertex_embeddings.dimension}-dim (change config to enable)</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">${data.vertex_embeddings.dimension}-dim (change config to enable)</p>
                             </div>
                         </div>
                     `;
@@ -785,7 +814,7 @@ def admin_dashboard_content():
                             <span style="font-size: 24px;">✅</span>
                             <div>
                                 <p style="color: #10b981; font-weight: bold; margin: 0;">Document AI Active</p>
-                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">Project: ${{data.document_ai.project_id}</p>
+                                <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">Project: ${data.document_ai.project_id}</p>
                             </div>
                         </div>
                     `;
@@ -794,7 +823,7 @@ def admin_dashboard_content():
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 24px;">⚠️</span>
                             <div>
-                                <p style="color: #f59e0b; font-weight: bold; margin: 0;">Using ${{data.document_ai.backend}</p>
+                                <p style="color: #f59e0b; font-weight: bold; margin: 0;">Using ${data.document_ai.backend}</p>
                                 <p style="color: #94a3b8; font-size: 14px; margin: 5px 0 0 0;">Switch to Document AI for better OCR</p>
                             </div>
                         </div>
@@ -810,7 +839,7 @@ def admin_dashboard_content():
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">Size</span>
-                            <span class="stat-value">${{data.database.size_mb} MB</span>
+                            <span class="stat-value">${data.database.size_mb} MB</span>
                         </div>
                     `;
                 } else {
@@ -824,10 +853,10 @@ def admin_dashboard_content():
                 if (data.backups.count > 0) {
                     backupDiv.innerHTML = `
                         <p style="color: #64748b; font-size: 14px; margin-bottom: 5px;">
-                            <strong>Backups:</strong> ${{data.backups.count} available
+                            <strong>Backups:</strong> ${data.backups.count} available
                         </p>
                         <p style="color: #64748b; font-size: 12px; margin: 0;">
-                            Latest: ${{data.backups.latest}
+                            Latest: ${data.backups.latest}
                         </p>
                     `;
                 } else {
@@ -842,7 +871,7 @@ def admin_dashboard_content():
         }
         
         async function installMigrationPackages() {
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             const statusDiv = document.getElementById('install-status');
             
             if (!confirm('Install Google Cloud packages?\\n\\nThis may take a few minutes.')) {
@@ -854,22 +883,22 @@ def admin_dashboard_content():
             try {
                 const response = await fetch('/admin/migrations/install-packages', {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${{token}` }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
                 
                 if (response.ok) {
                     statusDiv.innerHTML = '<div style="color: #10b981;">✅ Installed!</div>';
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{data.message}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${data.message}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
             }
         }
         
         async function startReindex() {
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             const statusDiv = document.getElementById('reindex-status');
             const logsDiv = document.getElementById('migration-logs');
             const logsContent = document.getElementById('migration-logs-content');
@@ -885,7 +914,7 @@ def admin_dashboard_content():
                 const response = await fetch('/admin/migrations/reindex', {
                     method: 'POST',
                     headers: { 
-                        'Authorization': `Bearer ${{token}`,
+                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ create_backup: true })
@@ -897,38 +926,38 @@ def admin_dashboard_content():
 
                     const pollInterval = setInterval(async () => {
                         const statusResponse = await fetch('/admin/collections/status', {
-                            headers: { 'Authorization': `Bearer ${{token}` }
+                            headers: { 'Authorization': `Bearer ${token}` }
                         });
                         const status = await statusResponse.json();
                         
                         if (status.logs) {
                             logsContent.innerHTML = status.logs.map(log => 
-                                `<div style="padding: 5px 0;">• ${{log}</div>`
+                                `<div style="padding: 5px 0;">• ${log}</div>`
                             ).join('');
                         }
                         
                         if (!status.running) {
                             clearInterval(pollInterval);
                             if (status.error) {
-                                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{status.error}</div>`;
+                                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${status.error}</div>`;
                             } else {
                                 statusDiv.innerHTML = `<div style="color: #10b981;">✅ Done! Restart server.</div>`;
                                 checkMigrationStatus(); // Refresh migration status
                             }
                         } else {
-                            statusDiv.innerHTML = `<div style="color: #3b82f6;">${{status.progress}% - ${{status.message}</div>`;
+                            statusDiv.innerHTML = `<div style="color: #3b82f6;">${status.progress}% - ${status.message}</div>`;
                         }
                     }, 2000);
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{data.error}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${data.error}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
             }
         }
         
         async function startFullIndexing() {
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             const statusDiv = document.getElementById('indexing-status');
             const logsDiv = document.getElementById('migration-logs');
             const logsContent = document.getElementById('migration-logs-content');
@@ -944,7 +973,7 @@ def admin_dashboard_content():
                 const response = await fetch('/admin/migrations/index-all-folders', {
                     method: 'POST',
                     headers: { 
-                        'Authorization': `Bearer ${{token}`,
+                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
                 });
@@ -955,13 +984,13 @@ def admin_dashboard_content():
 
                     const pollInterval = setInterval(async () => {
                         const statusResponse = await fetch('/admin/collections/status', {
-                            headers: { 'Authorization': `Bearer ${{token}` }
+                            headers: { 'Authorization': `Bearer ${token}` }
                         });
                         const status = await statusResponse.json();
                         
                         if (status.logs) {
                             logsContent.innerHTML = status.logs.map(log => 
-                                `<div style="padding: 5px 0;">• ${{log}</div>`
+                                `<div style="padding: 5px 0;">• ${log}</div>`
                             ).join('');
 
                             logsContent.scrollTop = logsContent.scrollHeight;
@@ -970,26 +999,26 @@ def admin_dashboard_content():
                         if (!status.running) {
                             clearInterval(pollInterval);
                             if (status.error) {
-                                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{status.error}</div>`;
+                                statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${status.error}</div>`;
                             } else {
                                 statusDiv.innerHTML = `<div style="color: #10b981;">✅ Complete! Restart server.</div>`;
                                 checkMigrationStatus(); // Refresh migration status
                             }
                         } else {
-                            statusDiv.innerHTML = `<div style="color: #3b82f6;">${{status.progress}% - ${{status.message}</div>`;
+                            statusDiv.innerHTML = `<div style="color: #3b82f6;">${status.progress}% - ${status.message}</div>`;
                         }
                     }, 2000);
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{data.error || data.message}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${data.error || data.message}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
             }
         }
 
         async function loadFolderSelection() {
             console.log('loadFolderSelection called');
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             console.log('Token:', token ? 'Found' : 'Missing');
             
             const statusDiv = document.getElementById('folder-selection-status');
@@ -1003,44 +1032,32 @@ def admin_dashboard_content():
             
             statusDiv.innerHTML = '<div style="color: #3b82f6;">Loading folders...</div>';
             panel.style.display = 'block';
-            
-            try {
-                console.log('Fetching folder list...');
-                const response = await fetch('/admin/folders/list', {
-                    headers: { 'Authorization': `Bearer ${{token}` }
-                });
-                console.log('Response status:', response.status);
-                const data = await response.json();
-                console.log('Response data:', data);
-            
-            statusDiv.innerHTML = '<div style="color: #3b82f6;">Loading folders...</div>';
-            panel.style.display = 'block';
-            
+
             try {
                 const response = await fetch('/admin/folders/list', {
-                    headers: { 'Authorization': `Bearer ${{token}` }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     statusDiv.innerHTML = '<div style="color: #10b981;">✅ Folders loaded</div>';
                     
                     const foldersHtml = `
                         <div style="max-height: 400px; overflow-y: auto;">
                             <div style="display: grid; gap: 15px;">
-                                ${{data.folders.map(folder => `
+                                ${data.folders.map(folder => `
                                     <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 15px; display: flex; justify-content: space-between; align-items: center;">
                                         <div>
-                                            <h4 style="color: #e2e8f0; margin: 0 0 5px 0;">${{folder.name}</h4>
+                                            <h4 style="color: #e2e8f0; margin: 0 0 5px 0;">${folder.name}</h4>
                                             <p style="color: #94a3b8; margin: 0; font-size: 14px;">
-                                                ${{folder.indexed ? '✅ Indexed' : '⏳ Not indexed'} 
-                                                ${{folder.file_count ? `• ${{folder.file_count} files` : ''}
-                                                ${{folder.last_indexed ? `• Last: ${{new Date(folder.last_indexed).toLocaleDateString()}` : ''}
+                                                ${folder.is_indexed ? '✅ Indexed' : '⏳ Not indexed'}
+                                                ${folder.file_count ? `• ${folder.file_count} files` : ''}
+                                                ${folder.last_indexed ? `• Last: ${new Date(folder.last_indexed).toLocaleDateString()}` : ''}
                                             </p>
                                         </div>
-                                        <button class="btn" onclick="indexFolder('${{folder.id}', '${{folder.name}')" 
-                                                style="background: ${{folder.indexed ? '#6b7280' : '#10b981'}; min-width: 120px;">
-                                            ${{folder.indexed ? 'Re-index' : 'Index Now'}
+                                        <button class="btn" onclick="indexFolder('${folder.id}', '${folder.name}')"
+                                                style="background: ${folder.is_indexed ? '#6b7280' : '#10b981'}; min-width: 120px;">
+                                            ${folder.is_indexed ? 'Re-index' : 'Index Now'}
                                         </button>
                                     </div>
                                 `).join('')}
@@ -1053,20 +1070,20 @@ def admin_dashboard_content():
                     
                     container.innerHTML = foldersHtml;
                 } else {
-                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${{data.error}</div>`;
+                    statusDiv.innerHTML = `<div style="color: #ef4444;">❌ ${data.error}</div>`;
                     container.innerHTML = '<p style="color: #ef4444;">Failed to load folders</p>';
                 }
             } catch (error) {
-                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${{error.message}</div>`;
+                statusDiv.innerHTML = `<div style="color: #ef4444;">Error: ${error.message}</div>`;
                 container.innerHTML = '<p style="color: #ef4444;">Network error</p>';
                 console.error('Folder selection error:', error);
             }
         }
         
         async function indexFolder(folderId, folderName) {
-            const token = localStorage.getItem('authToken');
+            const token = getAuthToken();
             
-            if (!confirm(`Index folder: ${{folderName}?\\n\\nThis will process all files in this folder and its subfolders.`)) {
+            if (!confirm(`Index folder: ${folderName}?\\n\\nThis will process all files in this folder and its subfolders.`)) {
                 return;
             }
             
@@ -1082,9 +1099,9 @@ def admin_dashboard_content():
             stopBtn.style.display = 'inline-block';
             
             try {
-                const response = await fetch(`/admin/folders/index/${{folderId}`, {
+                const response = await fetch(`/admin/folders/index/${folderId}`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${{token}` }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
                 
@@ -1092,13 +1109,13 @@ def admin_dashboard_content():
 
                     const pollInterval = setInterval(async () => {
                         const statusResponse = await fetch('/admin/collections/status', {
-                            headers: { 'Authorization': `Bearer ${{token}` }
+                            headers: { 'Authorization': `Bearer ${token}` }
                         });
                         const status = await statusResponse.json();
 
                         const progress = status.progress || 0;
-                        progressBar.style.width = `${{progress}%`;
-                        percentage.textContent = `${{progress}%`;
+                        progressBar.style.width = `${progress}%`;
+                        percentage.textContent = `${progress}%`;
                         message.textContent = status.message || 'Processing...';
 
                         if (status.logs) {
@@ -1111,7 +1128,7 @@ def admin_dashboard_content():
                             stopBtn.style.display = 'none';
                             
                             if (status.error) {
-                                message.textContent = `Error: ${{status.error}`;
+                                message.textContent = `Error: ${status.error}`;
                                 progressBar.style.background = '#ef4444';
                             } else {
                                 message.textContent = 'Completed successfully!';
@@ -1130,7 +1147,7 @@ def admin_dashboard_content():
                     throw new Error(data.error || 'Failed to start indexing');
                 }
             } catch (error) {
-                message.textContent = `Error: ${{error.message}`;
+                message.textContent = `Error: ${error.message}`;
                 progressBar.style.background = '#ef4444';
                 stopBtn.style.display = 'none';
             }
@@ -1153,6 +1170,99 @@ def admin_dashboard_content():
             document.getElementById('indexing-message').textContent = 'Stopped by user';
         }
 
+        function goToChat() {
+            const isDev = window.location.hostname === 'localhost';
+            window.location.href = isDev ? 'http://localhost:3000/?from_admin=true' : '/?from_admin=true';
+        }
+        
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('rag_auth_token');
+            localStorage.removeItem('rag_refresh_token');
+            localStorage.removeItem('user_info');
+            localStorage.removeItem('is_admin');
+            fetch('/auth/logout', { method: 'POST' }).finally(function() {
+                window.location.href = '/auth/login';
+            });
+        }
+
+        // ===== Incremental Sync panel =====
+        var syncPollInterval = null;
+
+        async function refreshSyncStatus() {
+            const token = getAuthToken();
+            try {
+                const [statusRes, historyRes] = await Promise.all([
+                    fetch('/admin/sync/status', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/admin/sync/history?limit=5', { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
+                const status = await statusRes.json();
+                const history = await historyRes.json();
+
+                const msg = document.getElementById('sync-message');
+                const pct = document.getElementById('sync-percentage');
+                const bar = document.getElementById('sync-progress-bar');
+                const tracker = document.getElementById('sync-tracker-stats');
+                const hist = document.getElementById('sync-history');
+
+                msg.textContent = status.error ? `Error: ${status.error}` : (status.message || 'Ready');
+                pct.textContent = status.running ? `${status.progress || 0}%` : '';
+                bar.style.width = `${status.running ? (status.progress || 0) : 0}%`;
+
+                if (status.tracker) {
+                    tracker.textContent = `Tracking ${status.tracker.total_files || 0} files / ${status.tracker.total_chunks || 0} chunks across indexed folders`;
+                }
+
+                if (history.success && history.history && history.history.length) {
+                    hist.textContent = history.history.map(h => {
+                        const when = (h.started_at || '').slice(0, 16).replace('T', ' ');
+                        return `${when}  ${h.status}  +${h.files_added} added ~${h.files_updated} updated =${h.files_skipped} unchanged -${h.files_deleted} deleted`;
+                    }).join('\\n');
+                } else {
+                    hist.textContent = 'No syncs recorded yet.';
+                }
+
+                // Keep polling while a sync runs
+                if (status.running && !syncPollInterval) {
+                    syncPollInterval = setInterval(refreshSyncStatus, 2000);
+                } else if (!status.running && syncPollInterval) {
+                    clearInterval(syncPollInterval);
+                    syncPollInterval = null;
+                }
+            } catch (error) {
+                document.getElementById('sync-message').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function startIncrementalSync(dryRun) {
+            const token = getAuthToken();
+            const label = dryRun ? 'Dry run' : 'Sync';
+            if (!dryRun && !confirm('Start incremental sync now?\\n\\nOnly changed documents will be re-indexed.')) {
+                return;
+            }
+            try {
+                const response = await fetch('/admin/sync/start', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ dry_run: !!dryRun })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('sync-message').textContent = `${label} started...`;
+                    if (!syncPollInterval) {
+                        syncPollInterval = setInterval(refreshSyncStatus, 2000);
+                    }
+                } else {
+                    document.getElementById('sync-message').textContent = data.error || `Failed to start ${label.toLowerCase()}`;
+                }
+            } catch (error) {
+                document.getElementById('sync-message').textContent = `Error: ${error.message}`;
+            }
+        }
+
         window.refreshStats = refreshStats;
         window.checkGDriveAuth = checkGDriveAuth;
         window.updateCollections = updateCollections;
@@ -1168,6 +1278,8 @@ def admin_dashboard_content():
         window.hideFolderSelection = hideFolderSelection;
         window.hideProgressPanel = hideProgressPanel;
         window.stopIndexing = stopIndexing;
+        window.goToChat = goToChat;
+        window.logout = logout;
 
     setTimeout(checkMigrationStatus, 1000);
     
@@ -1654,17 +1766,17 @@ def index_specific_folder(folder_id):
         if not folder_info or folder_info.get('mimeType') != 'application/vnd.google-apps.folder':
             return jsonify({'error': 'Invalid folder ID'}), 400
         
-        # Reset status before starting
+        # Claim the running flag before spawning so a double-click can't start two jobs
         indexing_status = {
-            'running': False,
+            'running': True,
             'progress': 0,
-            'message': 'Ready',
+            'message': 'Starting...',
             'started_at': None,
             'completed_at': None,
             'error': None,
             'logs': []
         }
-        
+
         # Start background indexing for specific folder
         thread = threading.Thread(target=run_single_folder_indexing, args=(folder_id, folder_info['name']))
         thread.daemon = True
@@ -1799,12 +1911,19 @@ def run_single_folder_indexing(folder_id, folder_name):
             logs=indexing_status['logs'] + ['✅ Google Drive service ready']
         )
         
-        # Initialize embedder
+        # Initialize embedder (must match what the chat system queries with)
         try:
-            from embeddings import LocalEmbedder
-            embedder = LocalEmbedder()
+            from config import USE_VERTEX_EMBEDDINGS
+            if USE_VERTEX_EMBEDDINGS:
+                from vertex_embeddings import VertexEmbedder
+                embedder = VertexEmbedder()
+                embedder_name = 'Vertex AI'
+            else:
+                from embeddings import LocalEmbedder
+                embedder = LocalEmbedder()
+                embedder_name = 'Local'
             update_status(
-                logs=indexing_status['logs'] + ['✅ Embedder initialized']
+                logs=indexing_status['logs'] + [f'✅ Embedder initialized ({embedder_name})']
             )
         except Exception as e:
             raise Exception(f'Failed to initialize embedder: {str(e)}')
@@ -1866,15 +1985,18 @@ def run_single_folder_indexing(folder_id, folder_name):
         
         # Process files (same logic as full indexing but for single folder)
         folder_chunks = 0
-        files_succeeded = 0
         files_failed = 0
         files_skipped = 0
-        
+
         # Batch processing
-        BATCH_SIZE = 5
+        BATCH_SIZE = 50
         batch_chunks = []
         batch_metadatas = []
         batch_ids = []
+
+        # File tracker entries, written only for files whose batches all succeed
+        pending_tracker = {}
+        failed_file_ids = set()
         
         for file_idx, file in enumerate(files, 1):
             try:
@@ -1927,56 +2049,89 @@ def run_single_folder_indexing(folder_id, folder_name):
                     files_failed += 1
                     continue
                 
-                # Add to batch
+                # Add to batch (file_name/folder_name are what rag_system reads;
+                # filename/source kept for older readers)
                 for i, chunk in enumerate(chunks):
                     batch_chunks.append(chunk)
                     batch_metadatas.append({
+                        'file_name': file_name,
+                        'folder_name': folder_name,
                         'filename': file_name,
                         'source': folder_name,
                         'file_id': file_id,
+                        'folder_id': folder_id,
                         'mime_type': file_mime,
                         'chunk_index': i,
                         'total_chunks': len(chunks),
-                        'text_length': len(chunk)
+                        'text_length': len(chunk),
+                        'modified_time': file.get('modifiedTime', '')
                     })
                     batch_ids.append(f"{file_id}_chunk_{i}")
-                
+
+                # Queue tracker entry so the incremental sync knows this file is indexed
+                pending_tracker[file_id] = {
+                    'file_id': file_id,
+                    'file_name': file_name,
+                    'mime_type': file_mime,
+                    'folder_id': folder_id,
+                    'folder_name': folder_name,
+                    'modified_time': file.get('modifiedTime', ''),
+                    'chunk_count': len(chunks),
+                    'file_size': int(file.get('size', 0) or 0)
+                }
+
                 # Process batch
                 if len(batch_chunks) >= BATCH_SIZE or file_idx == folder_file_count:
                     try:
                         batch_embeddings = embedder.embed_documents(batch_chunks)
                         if hasattr(batch_embeddings, 'tolist'):
                             batch_embeddings = batch_embeddings.tolist()
-                        
+
                         vector_store.add_documents(
                             documents=batch_chunks,
                             metadatas=batch_metadatas,
                             ids=batch_ids,
                             embeddings=batch_embeddings
                         )
-                        
+
                         folder_chunks += len(batch_chunks)
-                        files_succeeded += 1
-                        
+
                         # Clear batch
                         batch_chunks.clear()
                         batch_metadatas.clear()
                         batch_ids.clear()
-                        
+
                     except Exception as batch_error:
                         update_status(
                             logs=indexing_status['logs'] + [f'⚠️ Batch processing error: {str(batch_error)[:100]}']
                         )
-                        files_failed += 1
+                        failed_file_ids.update(m['file_id'] for m in batch_metadatas)
                         batch_chunks.clear()
                         batch_metadatas.clear()
                         batch_ids.clear()
                         continue
-                
+
             except Exception as file_error:
                 files_failed += 1
                 continue
-        
+
+        # Record successfully indexed files in the tracker so incremental
+        # sync skips them instead of re-embedding everything
+        files_succeeded = 0
+        try:
+            from file_tracker import FileTracker
+            tracker = FileTracker()
+            for fid, entry in pending_tracker.items():
+                if fid not in failed_file_ids:
+                    tracker.update_file_state(**entry)
+                    files_succeeded += 1
+        except Exception as tracker_error:
+            update_status(
+                logs=indexing_status['logs'] + [f'⚠️ Tracker update error: {str(tracker_error)[:100]}']
+            )
+            files_succeeded = len(pending_tracker) - len(failed_file_ids)
+        files_failed += len(failed_file_ids)
+
         # Save folder info
         indexed_folders[folder_id] = {
             'collection_name': collection_id,

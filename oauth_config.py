@@ -31,16 +31,23 @@ class OAuthConfig:
         self.allowed_domains = [domain.strip() for domain in self.allowed_domains if domain.strip()]
         
         # Security Configuration
-        self.secret_key = os.getenv('JWT_SECRET_KEY', secrets.token_urlsafe(32))
-        self.token_expiry_hours = int(os.getenv('TOKEN_EXPIRY_HOURS', '168'))  # Default 7 days
+        self.secret_key = os.getenv('JWT_SECRET_KEY')
+        if not self.secret_key:
+            self.secret_key = secrets.token_urlsafe(32)
+            print("WARNING: JWT_SECRET_KEY not set — using a random key. All tokens will be invalidated on restart.")
+        self.token_expiry_hours = int(os.getenv('TOKEN_EXPIRY_HOURS', '1'))  # Short-lived; refresh flow handles renewal
         self.refresh_token_expiry_days = int(os.getenv('REFRESH_TOKEN_EXPIRY_DAYS', '30'))  # Default 30 days
         
-        # OAuth Scopes - Include Google Drive scopes
+        # Identity-only scopes for regular user login
         self.scopes = [
             'openid',
             'https://www.googleapis.com/auth/userinfo.email',
             'https://www.googleapis.com/auth/userinfo.profile',
-            'https://www.googleapis.com/auth/drive',  # Full drive access (required for shared drives)
+        ]
+
+        # Extended scopes when admin needs Drive access (used by admin Drive setup flows)
+        self.drive_scopes = self.scopes + [
+            'https://www.googleapis.com/auth/drive',
             'https://www.googleapis.com/auth/drive.readonly',
             'https://www.googleapis.com/auth/drive.metadata.readonly'
         ]
@@ -51,7 +58,7 @@ class OAuthConfig:
     def _validate_config(self):
         """Validate OAuth configuration"""
         if not self.client_id or not self.client_secret:
-            raise ValueError("Google OAuth credentials not found. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.")
+            print("WARNING: Google OAuth credentials not found. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.")
         
         if not self.allowed_domains:
             print("WARNING: No allowed domains specified. All authenticated users will be allowed.")
@@ -180,10 +187,7 @@ def require_auth(f):
         
         token = auth_header.split(' ')[1]
         
-        # Get OAuth config
-        oauth_config = OAuthConfig()
-        
-        # Verify token
+        # Verify token using the module-level instance (same secret that signed it)
         payload = oauth_config.verify_jwt_token(token)
         if 'error' in payload:
             return jsonify({'error': payload['error'], 'code': 'INVALID_TOKEN'}), 401

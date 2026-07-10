@@ -1,4 +1,4 @@
-# vector_store.py - ChromaDB 1.2.1 compatible
+# vector_store.py - ChromaDB compatible
 
 import chromadb
 from config import CHROMA_PERSIST_DIR, COLLECTION_NAME
@@ -29,7 +29,7 @@ def safe_print(*args, **kwargs):
 
 
 class VectorStore:
-    """ChromaDB 1.2.1 - Manages vector database collections"""
+    """ChromaDB - Manages vector database collections"""
     
     def __init__(self, collection_name=COLLECTION_NAME, persist_directory=CHROMA_PERSIST_DIR):
         """
@@ -55,15 +55,15 @@ class VectorStore:
         print(f"[+] Collection '{self.collection_name}' ready. Documents: {count}")
     
     def add_documents(self, documents, embeddings, metadatas, ids):
-        """Add documents to the specific collection - auto-persists"""
+        """Add or update documents in the collection - auto-persists"""
         try:
             if hasattr(embeddings, 'tolist'):
                 embeddings = embeddings.tolist()
-            
+
             batch_size = 4000
             for i in range(0, len(ids), batch_size):
-                print(f"  Adding batch {i//batch_size + 1} to '{self.collection_name}'...")
-                self.collection.add(
+                print(f"  Upserting batch {i//batch_size + 1} to '{self.collection_name}'...")
+                self.collection.upsert(
                     documents=documents[i:i + batch_size],
                     embeddings=embeddings[i:i + batch_size],
                     metadatas=metadatas[i:i + batch_size],
@@ -71,6 +71,7 @@ class VectorStore:
                 )
         except Exception as e:
             print(f"  Error adding documents: {e}")
+            raise
     
     def search(self, query_embedding, n_results=5, where=None):
         """Search for similar documents in this collection

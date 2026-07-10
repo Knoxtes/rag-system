@@ -919,11 +919,11 @@ class EnhancedRAGSystem:
             temperature=AGENT_TEMPERATURE,  # From config - Lower = more focused
             top_p=0.8,        # Nucleus sampling
             top_k=40,         # Top-k sampling
-            max_output_tokens=2048,
+            max_output_tokens=8192,  # Output is billed as used; the cap only limits depth
         )
 
-        # --- MODIFIED: Using the model you confirmed is available ---
-        model_name = 'models/gemini-2.5-flash-preview-09-2025' 
+        from config import GEMINI_MODEL
+        model_name = f'models/{GEMINI_MODEL}'
         
         try:
             # --- FINAL: This is the correct, modern initialization ---
@@ -1178,7 +1178,7 @@ class EnhancedRAGSystem:
                 file_id = metadata.get('file_id')
                 if file_id and file_id not in csv_files_found:
                     csv_files_found[file_id] = {
-                        'file_name': metadata.get('file_name'),
+                        'file_name': metadata.get('file_name') or metadata.get('filename'),
                         'file_path': metadata.get('file_path', ''),
                         'total_chunks': metadata.get('total_chunks', 1)
                     }
@@ -1320,7 +1320,7 @@ class EnhancedRAGSystem:
                 continue
 
             # Diversity: Limit chunks from same file
-            file_name = metadata.get('file_name', 'unknown')
+            file_name = metadata.get('file_name') or metadata.get('filename', 'unknown')
             if file_name not in file_counts:
                 file_counts[file_name] = 0
             
@@ -1456,7 +1456,7 @@ class EnhancedRAGSystem:
                 # Format file information with Google Drive link
                 file_info = self._format_file_info(metadata)
                 
-                full_path = f"{metadata.get('file_path', '')}{metadata.get('file_name', 'unknown')}"
+                full_path = f"{metadata.get('file_path', '')}{metadata.get('file_name') or metadata.get('filename', 'unknown')}"
                 chunk_idx = metadata.get('chunk_index', 0)
                 total_chunks = metadata.get('total_chunks', 1)
                 
@@ -1469,7 +1469,7 @@ class EnhancedRAGSystem:
                 
                 output_snippets.append({
                     "source_path": full_path,
-                    "folder": metadata.get('folder_name', ''),
+                    "folder": metadata.get('folder_name') or metadata.get('source', ''),
                     "snippet": snippet,
                     "relevance": f"{item['score']:.2f}",
                     "file_info": file_info  # Enhanced with Google Drive link and metadata
@@ -1485,7 +1485,7 @@ class EnhancedRAGSystem:
             # Group by file
             files_in_folder = {}
             for metadata in matching_metadatas:
-                file_name = metadata.get('file_name', 'unknown')
+                file_name = metadata.get('file_name') or metadata.get('filename', 'unknown')
                 if file_name not in files_in_folder:
                     # Format file information with Google Drive link
                     file_info = self._format_file_info(metadata)
@@ -1630,7 +1630,7 @@ class EnhancedRAGSystem:
             traceback.print_exc()
             return []
     
-    def query(self, question, chat_history=[], file_id=None):
+    def query(self, question, chat_history=None, file_id=None):
         """
         Processes a query using the agentic loop with safety limits.
         'chat_history' is now managed *internally* by the agent.
@@ -1915,7 +1915,7 @@ class EnhancedRAGSystem:
             Formatted file info dictionary
         """
         file_id = metadata.get('file_id', '')
-        file_name = metadata.get('file_name', 'unknown')
+        file_name = metadata.get('file_name') or metadata.get('filename', 'unknown')
         mime_type = metadata.get('mime_type', '')
         file_path = metadata.get('file_path', '')
         

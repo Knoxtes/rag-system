@@ -10,7 +10,7 @@ try:
     TIKTOKEN_AVAILABLE = True
 except ImportError:
     TIKTOKEN_AVAILABLE = False
-    print("⚠️  tiktoken not available, using character count approximation for token counting")
+    print("WARNING: tiktoken not available, using character count approximation for token counting")
 
 
 class VertexEmbedder:

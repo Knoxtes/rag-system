@@ -5,8 +5,8 @@ import os
 # Disable ChromaDB telemetry (prevents telemetry errors)
 os.environ['ANONYMIZED_TELEMETRY'] = 'False'
 
-# Google Cloud Settings - CHANGE THIS!
-PROJECT_ID = "rag-chatbot-475316"  # ⚠️ Replace with your actual project ID
+# Google Cloud Settings
+PROJECT_ID = "mountains-internal-use"
 LOCATION = "us-central1"
 
 # API Settings
@@ -29,7 +29,7 @@ CHROMA_PERSIST_DIR = "./chroma_db"
 COLLECTION_NAME = "google_drive_docs" 
 
 # Embedding Settings
-EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"  # UPGRADED: Better quality, similar speed (384 -> 512 dims)
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"  # Local fallback only (384 dims); production uses Vertex text-embedding-004 (768 dims)
 # Alternatives:
 # EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # Fast but basic
 # EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"  # Best quality, slower
@@ -53,8 +53,9 @@ DIVERSITY_THRESHOLD = 0.85  # Similarity threshold for deduplication (0-1)
 MAX_CHUNKS_PER_FILE = 4  # INCREASED: Allow more chunks from highly relevant files
 
 # RAG System Settings
-# ⚠️ Set this in your environment!
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# Note: GOOGLE_API_KEY is only needed if USE_VERTEX_AI=False
+# When using Vertex AI, authentication is via GOOGLE_APPLICATION_CREDENTIALS
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")  # Optional with Vertex AI
 MAX_CONTEXT_CHARACTERS = 8000  # OPTIMIZED: Reduced from 12000 to save API costs (33% reduction)
 
 # Gemini Model Settings
@@ -66,7 +67,7 @@ GEMINI_MODEL = "gemini-2.5-flash"  # Cheapest and fastest model (Flash 2.5)
 
 # Query Caching Settings (NEW - for cost optimization)
 ENABLE_QUERY_CACHE = True  # Cache frequent queries to reduce API calls
-CACHE_TTL_SECONDS = 900  # Cache lifetime: 5 minutes
+CACHE_TTL_SECONDS = 900  # Cache lifetime: 15 minutes
 CACHE_MAX_SIZE = 2000  # Maximum number of cached queries
 
 # Embedding Cache Settings (NEW - for performance)
@@ -83,9 +84,10 @@ EMBEDDING_BATCH_SIZE = 64  # Batch size for embedding generation
 RERANKING_BATCH_SIZE = 32  # Batch size for reranking
 
 # Advanced Retrieval Settings
-USE_PARENT_DOCUMENT_RETRIEVAL = True  # Retrieve small chunks, return larger parent context
-PARENT_CHUNK_SIZE = 800  # Size of parent chunks (2x child chunks)
-USE_CONTEXTUAL_COMPRESSION = True  # Filter retrieved chunks to only relevant sentences
+USE_PARENT_DOCUMENT_RETRIEVAL = False  # NOT WIRED UP: no indexing path stores parent chunks
+PARENT_CHUNK_SIZE = 800  # Size of parent chunks (only used if parent retrieval is implemented)
+USE_CONTEXTUAL_COMPRESSION = False  # OFF: embedded every sentence per query (slow + costly)
+# and silently dropped low-similarity sentences (tables/numbers), hurting accuracy
 
 # Agent Settings
 MAX_AGENT_ITERATIONS = 8  # Maximum tool calls before forcing final answer

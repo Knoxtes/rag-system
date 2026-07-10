@@ -829,7 +829,11 @@ const ChatApp: React.FC = () => {
         body: JSON.stringify({
           message: inputText,
           collection: selectedCollection,
-          file_id: selectedFile?.id || null
+          file_id: selectedFile?.id || null,
+          history: messages
+            .filter(m => !m.isLoading && m.text)
+            .slice(-6)
+            .map(m => ({ role: m.sender, content: m.text }))
         })
       });
 

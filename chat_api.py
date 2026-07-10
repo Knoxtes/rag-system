@@ -32,12 +32,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rag_system import EnhancedRAGSystem, MultiCollectionRAGSystem
 from auth import authenticate_google_drive
 from oauth_config import require_auth, oauth_config
+from admin_auth import require_admin
 from auth_routes import auth_bp
 from config import SCOPES, CREDENTIALS_FILE, TOKEN_FILE, USE_VERTEX_AI
 from rate_limiter import limiter
 import re
 
 app = Flask(__name__)
+
+# Trust one level of X-Forwarded-For (Apache/Plesk reverse proxy)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # Production Configuration
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', oauth_config.secret_key)
@@ -71,8 +76,15 @@ try:
 except ImportError as e:
     print(f"Warning: Could not load admin routes: {e}")
 
-# Health monitoring integrated into main app
+# Register admin sync blueprint (incremental indexing API)
+try:
+    from admin_sync_routes import sync_bp
+    app.register_blueprint(sync_bp)
+except ImportError as e:
+    print(f"Warning: Could not load admin sync routes: {e}")
+
 # Production Logging
+os.makedirs('logs', exist_ok=True)
 if not app.debug:
     file_handler = RotatingFileHandler('logs/rag_system.log', maxBytes=10240000, backupCount=10)
     file_handler.setFormatter(logging.Formatter(
@@ -277,6 +289,11 @@ multi_collection_rag = None
 drive_service = None
 available_collections = {}
 
+# Per-collection RAG instances, kept warm so switching collections doesn't
+# rebuild the embedder/LLM and doesn't discard each collection's query cache
+rag_instance_pool = {}
+rag_pool_lock = Lock()
+
 # Initialization guard to prevent double initialization
 _rag_initialized = False
 
@@ -343,10 +360,6 @@ def compress_response(data):
         return {'compressed': False, 'data': data}
 
 def get_cache_key(parent_id, query=None):
-    """Generate cache key for folder requests"""
-    if query:
-        return f"search:{query}:{parent_id}"
-    return f"folder:{parent_id}"
     """Generate cache key for folder requests"""
     if query:
         return f"search:{query}:{parent_id}"
@@ -735,11 +748,14 @@ def health_check():
         'allowed_domains': oauth_config.allowed_domains if oauth_config.allowed_domains else ['all']
     })
 
-@app.route('/force-init', methods=['GET'])
+@app.route('/force-init', methods=['POST'])
+@require_admin
 def force_init():
     """Force re-initialization of RAG system"""
     global _rag_initialized
     _rag_initialized = False
+    with rag_pool_lock:
+        rag_instance_pool.clear()
     initialize_rag_system()
     return jsonify({
         'status': 'reinitialized',
@@ -768,23 +784,35 @@ def get_collections():
 @limiter.limit("30 per minute")
 def chat():
     """Handle chat messages"""
-    global rag_system, multi_collection_rag
+    global multi_collection_rag
     
     try:
-        print(f"[DEBUG] Chat endpoint called")
-        print(f"[DEBUG] rag_system: {rag_system is not None}")
-        print(f"[DEBUG] multi_collection_rag: {multi_collection_rag is not None}")
-        
+        app.logger.debug("Chat endpoint called, rag=%s multi=%s", rag_system is not None, multi_collection_rag is not None)
+
         data = request.get_json()
-        print(f"[DEBUG] Request data: {data}")
-        
+
         if not data or 'message' not in data:
             return jsonify({'error': 'Message is required'}), 400
-        
+
         message = data['message']
         collection = data.get('collection')
-        file_id = data.get('file_id')  # Extract file_id for targeted queries
-        print(f"[DEBUG] Message: {message}, Collection: {collection}, File ID: {file_id}")
+        file_id = data.get('file_id')
+        app.logger.debug("Collection: %s, File ID: %s", collection, file_id)
+
+        # Conversation history: [{'role': 'user'|'assistant', 'content': str}, ...]
+        # Capped to bound input-token cost; skipped entirely for cached/stateless paths.
+        gemini_history = None
+        raw_history = data.get('history')
+        if isinstance(raw_history, list) and raw_history:
+            gemini_history = []
+            for turn in raw_history[-6:]:  # last 3 exchanges
+                if not isinstance(turn, dict):
+                    continue
+                content = str(turn.get('content', ''))[:4000]
+                role = 'model' if turn.get('role') == 'assistant' else 'user'
+                if content:
+                    gemini_history.append({'role': role, 'parts': [content]})
+            gemini_history = gemini_history or None
         
         # PRIORITY: Handle direct document queries FIRST (before any RAG logic)
         if file_id:
@@ -814,9 +842,7 @@ def chat():
                         # Query specific collection with file reference
                         print(f"  🔍 Searching RAG collection '{collection}' for file data...")
                         
-                        # Enhance query with file ID context
-                        rag_query = f"{message} [File ID: {file_id}]"
-                        rag_result = rag_system.query(rag_query, collection_id=collection)
+                        rag_result = rag_system.query(message, file_id=file_id)
                         
                         if rag_result and rag_result.get('answer'):
                             print(f"  ✅ RAG fallback successful - found full data!")
@@ -890,17 +916,21 @@ def chat():
                 'error': response.get('error')
             })
         
-        # Switch single collection if requested
+        # Use a pooled per-collection RAG instance (keeps caches warm)
+        request_rag = rag_system
         if collection and collection != rag_system.collection_name:
             if collection in available_collections and collection != "ALL_COLLECTIONS":
-                rag_system = EnhancedRAGSystem(drive_service, collection)
-                print(f"Switched to collection: {collection}")
+                with rag_pool_lock:
+                    request_rag = rag_instance_pool.get(collection)
+                    if request_rag is None:
+                        print(f"Building RAG instance for collection: {collection}")
+                        request_rag = EnhancedRAGSystem(drive_service, collection)
+                        rag_instance_pool[collection] = request_rag
             else:
                 return jsonify({'error': f'Collection {collection} not found'}), 400
-        
-        # Use RAG system for collection queries (no specific file selected)
+
         print(f"Processing RAG query: {message}")
-        response = rag_system.query(message)
+        response = request_rag.query(message, chat_history=gemini_history)
         
         # Extract answer and documents
         answer = response.get('answer', 'No response generated')
@@ -1509,86 +1539,13 @@ def test_workspace():
             'message': 'Error testing workspace functionality'
         }), 500
 
-@app.route('/auth/drive-setup', methods=['GET'])
-@require_auth  
-def drive_auth_setup():
-    """Get Google Drive authentication setup URL"""
-    try:
-        from google_auth_oauthlib.flow import InstalledAppFlow
-        import json
-        
-        if not os.path.exists(CREDENTIALS_FILE):
-            return jsonify({
-                'error': 'Credentials file not found',
-                'message': 'Please ensure credentials.json is in the project directory'
-            }), 500
-            
-        # Create OAuth flow for Google Drive
-        flow = InstalledAppFlow.from_client_secrets_file(
-            CREDENTIALS_FILE, SCOPES)
-        flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
-        
-        auth_url, state = flow.authorization_url(
-            access_type='offline',
-            include_granted_scopes='true'
-        )
-        
-        # Store the flow in session for later use
-        session['drive_auth_flow_state'] = state
-        
-        return jsonify({
-            'auth_url': auth_url,
-            'state': state,
-            'instructions': 'Visit the URL, authorize access, then paste the authorization code in the next step'
-        })
-        
-    except Exception as e:
-        print(f"Error setting up Google Drive auth: {str(e)}")
-        return jsonify({'error': f'Failed to setup Google Drive auth: {str(e)}'}), 500
 
-@app.route('/auth/drive-complete', methods=['POST'])
-@require_auth
-def drive_auth_complete():
-    """Complete Google Drive authentication with authorization code"""
-    try:
-        data = request.get_json()
-        auth_code = data.get('code', '').strip()
-        
-        if not auth_code:
-            return jsonify({'error': 'Authorization code required'}), 400
-            
-        # Recreate the flow
-        from google_auth_oauthlib.flow import InstalledAppFlow
-        flow = InstalledAppFlow.from_client_secrets_file(
-            CREDENTIALS_FILE, SCOPES)
-        flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
-        
-        # Exchange code for credentials
-        flow.fetch_token(code=auth_code)
-        creds = flow.credentials
-        
-        # Save credentials
-        import pickle
-        with open(TOKEN_FILE, 'wb') as token:
-            pickle.dump(creds, token)
-            
-        # Initialize the global drive service
-        global drive_service
-        from googleapiclient.discovery import build
-        drive_service = build('drive', 'v3', credentials=creds)
-        
-        print("✅ Google Drive authentication completed via web interface!")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Google Drive authentication successful! Folders are now available.'
-        })
-        
-    except Exception as e:
-        print(f"Error completing Google Drive auth: {str(e)}")
-        return jsonify({'error': f'Failed to complete Google Drive auth: {str(e)}'}), 500
+# /auth/drive-setup and /auth/drive-complete removed — used the deprecated OOB OAuth
+# flow (urn:ietf:wg:oauth:2.0:oob) that Google shut down in 2022.
+# Use /admin/gdrive/* flow instead.
 
 @app.route('/cache/status', methods=['GET'])
+@require_admin
 def cache_status():
     """Get cache status and statistics"""
     try:
@@ -1612,6 +1569,7 @@ def cache_status():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/cache/clear', methods=['POST'])
+@require_admin
 def clear_cache():
     """Clear all cache entries"""
     try:
@@ -1622,6 +1580,7 @@ def clear_cache():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/cost/summary', methods=['GET'])
+@require_admin
 def cost_summary():
     """Get API cost summary (simplified version)"""
     try:
@@ -1647,6 +1606,7 @@ def reset_cost_tracking():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/cache/preload', methods=['POST'])
+@require_admin
 def trigger_preload():
     """Manually trigger cache preload"""
     try:

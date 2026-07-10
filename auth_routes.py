@@ -58,26 +58,14 @@ def callback():
         if not code:
             return jsonify({'error': 'Authorization code not provided'}), 400
         
-        # Get state parameter
+        # Validate CSRF state parameter
         state = request.args.get('state')
         session_state = session.get('oauth_state')
-        
-        # In development, be more lenient with state validation but still log the issue
-        if os.getenv('FLASK_ENV') == 'production':
-            if not state or state != session_state:
-                return jsonify({'error': 'Invalid state parameter'}), 400
-        else:
-            print(f"Development OAuth callback:")
-            print(f"  Received state: {state}")
-            print(f"  Session state: {session_state}")
-            print(f"  Code received: {code[:20]}..." if code else "  No code")
-            
-            # In development, if states don't match, clear session and proceed
-            # This handles cases where session data might be stale
-            if state != session_state:
-                print(f"  State mismatch detected, clearing session and proceeding...")
-                session.clear()
-                session['oauth_state'] = state  # Set current state for this request
+
+        if not state or state != session_state:
+            if os.getenv('FLASK_ENV') != 'production':
+                logging.warning(f"OAuth state mismatch (dev mode): received={state}, session={session_state}")
+            return jsonify({'error': 'Invalid state parameter'}), 400
         
         # Exchange code for tokens
         flow = oauth_config.get_flow()
@@ -90,18 +78,20 @@ def callback():
             logging.error(f"Token exchange error: {str(e)}")
             return jsonify({'error': 'Failed to exchange authorization code', 'details': str(e)}), 400
         
-        # Get user info and store credentials for Google Drive
+        # Get user info
         try:
             user_service = build('oauth2', 'v2', credentials=credentials)
             user_info = user_service.userinfo().get().execute()
-            
-            # Also store the credentials for Google Drive access
-            import pickle
-            from config import TOKEN_FILE
-            with open(TOKEN_FILE, 'wb') as token:
-                pickle.dump(credentials, token)
-            print(f"✅ Saved Google Drive credentials for {user_info['email']}")
-            
+
+            # Only store Drive credentials for the admin user (used by indexer)
+            from admin_auth import is_admin_user
+            if is_admin_user(user_info['email']):
+                import pickle
+                from config import TOKEN_FILE
+                with open(TOKEN_FILE, 'wb') as token:
+                    pickle.dump(credentials, token)
+                print(f"Saved Google Drive credentials for admin {user_info['email']}")
+
         except Exception as e:
             logging.error(f"Failed to get user info: {str(e)}")
             return jsonify({'error': 'Failed to get user information', 'details': str(e)}), 400
@@ -125,17 +115,20 @@ def callback():
         
         # Determine redirect destination
         if is_admin:
-            redirect_url = '/admin/dashboard?auth_complete=true'
-            welcome_message = f"Welcome to the Admin Dashboard, {user_info.get('name', user_info['email'])}!"
-            page_title = "Admin Authentication Success"
-            
-            # For admin users, use the existing redirect approach
-            user_info_escaped = json.dumps(user_info).replace('"', '&quot;')
-            
+            import html as html_mod
+            safe_name = html_mod.escape(user_info.get('name', user_info['email']))
+
+            auth_data = json.dumps({
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'user_info': user_info,
+                'redirect': '/admin/dashboard?auth_complete=true',
+            })
+
             return f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>{page_title}</title>
+    <title>Admin Authentication Success</title>
     <style>
         body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f0f2f5; }}
         .container {{ max-width: 400px; margin: 0 auto; padding: 30px; background: white; border-radius: 10px; }}
@@ -146,23 +139,21 @@ def callback():
 </head>
 <body>
     <div class="container">
-        <h2 class="success">✅ Authentication Successful!</h2>
-        <p class="admin">{welcome_message}</p>
+        <h2 class="success">Authentication Successful!</h2>
+        <p class="admin">Welcome to the Admin Dashboard, {safe_name}!</p>
         <p class="progress" id="progress">Preparing authentication data...</p>
     </div>
-    
+
+    <script id="auth-data" type="application/json">{auth_data}</script>
     <script>
-        console.log('Admin authentication completion...');
         try {{
-            localStorage.setItem('authToken', '{access_token}');
-            localStorage.setItem('user_info', '{user_info_escaped}');
+            var d = JSON.parse(document.getElementById('auth-data').textContent);
+            localStorage.setItem('authToken', d.access_token);
+            localStorage.setItem('user_info', JSON.stringify(d.user_info));
             localStorage.setItem('is_admin', 'true');
-            localStorage.setItem('rag_auth_token', '{access_token}');
-            localStorage.setItem('rag_refresh_token', '{refresh_token}');
-            
-            setTimeout(function() {{
-                window.location.href = '{redirect_url}';
-            }}, 500);
+            localStorage.setItem('rag_auth_token', d.access_token);
+            localStorage.setItem('rag_refresh_token', d.refresh_token);
+            setTimeout(function() {{ window.location.href = d.redirect; }}, 500);
         }} catch (error) {{
             console.error('Authentication error:', error);
         }}
@@ -193,35 +184,23 @@ def verify_token():
         data = request.get_json()
         token = data.get('token') if data else None
         
-        print(f"Token verification request:")
-        print(f"  Request data: {data}")
-        print(f"  Token received: {token[:20] + '...' if token and len(token) > 20 else token}")
-        
         if not token:
-            print("  Error: Token not provided")
             return jsonify({'valid': False, 'error': 'Token not provided'}), 400
-        
-        # Verify token
+
         payload = oauth_config.verify_jwt_token(token)
-        print(f"  Token verification result: {payload}")
-        
+
         if 'error' in payload:
-            print(f"  Error in token verification: {payload['error']}")
+            logging.debug(f"Token verification failed: {payload['error']}")
             return jsonify({'valid': False, 'error': payload['error']}), 401
-        
-        # Check domain restriction
+
         if not oauth_config.is_domain_allowed(payload['email']):
-            print(f"  Error: Domain not allowed for {payload['email']}")
             return jsonify({'valid': False, 'error': 'Domain not allowed'}), 403
-        
-        # Import admin check
+
         try:
             from admin_auth import is_admin_user
             is_admin = is_admin_user(payload['email'])
         except ImportError:
             is_admin = False
-        
-        print(f"  Verification successful for {payload['email']} (admin: {is_admin})")
         
         return jsonify({
             'valid': True,
@@ -237,9 +216,7 @@ def verify_token():
     
     except Exception as e:
         logging.error(f"Token verification error: {str(e)}")
-        print(f"  Exception in token verification: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logging.error(f"Token verification error: {str(e)}")
         return jsonify({'valid': False, 'error': 'Token verification failed'}), 500
 
 @auth_bp.route('/auth/pickup', methods=['GET'])
@@ -249,11 +226,6 @@ def pickup_tokens():
         token = session.get('pending_auth_token')
         refresh_token = session.get('pending_refresh_token')
         user_info = session.get('pending_user_info')
-        
-        print(f"Token pickup request:")
-        print(f"  Token found in session: {bool(token)}")
-        print(f"  Refresh token found: {bool(refresh_token)}")
-        print(f"  User info found: {bool(user_info)}")
         
         if not token or not user_info:
             return jsonify({
@@ -267,8 +239,6 @@ def pickup_tokens():
         session.pop('pending_refresh_token', None)
         session.pop('pending_user_info', None)
         
-        print(f"  Returning tokens for: {user_info.get('email')}")
-        
         return jsonify({
             'success': True,
             'token': token,
@@ -278,7 +248,6 @@ def pickup_tokens():
         })
         
     except Exception as e:
-        print(f"  Exception in token pickup: {str(e)}")
         logging.error(f"Token pickup error: {str(e)}")
         return jsonify({'error': 'Token pickup failed'}), 500
 

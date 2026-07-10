@@ -2,9 +2,15 @@
 let authCheckAttempts = 0;
 const maxAuthCheckAttempts = 3;
 
+// Helper function to get auth token (check both old and new key names)
+function getAuthToken() {
+    // Check the new key first (used by React app), then fall back to old key
+    return localStorage.getItem('rag_auth_token') || localStorage.getItem('authToken');
+}
+
 async function checkAuth() {
     authCheckAttempts = authCheckAttempts + 1;
-    const token = localStorage.getItem('authToken');
+    const token = getAuthToken();
 
     const debugInfo = document.getElementById('debug-info');
     const loadingMessage = document.getElementById('loading-message');
@@ -57,7 +63,7 @@ async function checkAuth() {
             debugInfo.textContent = 'Welcome ' + (data.user.name || data.user.email) + '! You are not an admin user.';
             
             setTimeout(() => {
-                window.location.href = '/?from_admin=true';
+                redirectToChat();
             }, 2000);
             return false;
         } else {
@@ -104,11 +110,13 @@ function redirectToLogin() {
 }
 
 function redirectToChat() {
-    window.location.href = '/';
+    // In development, go to React dev server, in production go to root
+    const isDev = window.location.hostname === 'localhost';
+    window.location.href = isDev ? 'http://localhost:3000/?from_admin=true' : '/?from_admin=true';
 }
 
 async function loadDashboard() {
-    const token = localStorage.getItem('authToken');
+    const token = getAuthToken();
     
     try {
         const cacheBust = new Date().getTime();
