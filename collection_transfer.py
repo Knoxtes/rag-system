@@ -274,6 +274,11 @@ def import_package(path: str, replace: bool = False) -> int:
     entry = manifest.get('indexed_folders_entry') or {}
     entry.setdefault('collection_name', name)
     entry.setdefault('name', manifest.get('folder_name') or folder_id)
+    # File/chunk counts shown in the collection picker
+    entry['files_processed'] = len(rows)
+    entry['file_count'] = len(rows)
+    entry['chunks_created'] = imported
+    entry['indexed_at'] = entry.get('indexed_at') or datetime.utcnow().isoformat()
     entry['imported_at'] = datetime.utcnow().isoformat()
     indexed = _load_indexed_folders()
     indexed[folder_id] = {**indexed.get(folder_id, {}), **entry}

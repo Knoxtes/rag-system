@@ -296,6 +296,7 @@ rag_pool_lock = Lock()
 
 # Initialization guard to prevent double initialization
 _rag_initialized = False
+_cache_refresh_started = False
 
 # Folder cache for better performance
 folder_cache = {}
@@ -425,46 +426,56 @@ def preload_folder_structure():
             )
         
         response = safe_drive_request(make_request)
-        if response and 'files' in response:
-            root_files = response['files']
-            update_cache(cache_key, root_files)
-            # print(f"Preloaded {len(root_files)} root folders")  # Disabled for production
-            
-            # Step 2: Preload first level of top 8 folders (most likely to be accessed)
-            priority_folders = root_files[:8]  # Reduced from 10 to avoid overwhelming API
-            for i, folder in enumerate(priority_folders):
-                try:
-                    subfolder_cache_key = get_cache_key(folder['id'])
-                    
-                    # Skip if already cached
-                    if not is_cache_expired(folder_cache.get(subfolder_cache_key, {})):
-                        continue
-                    
-                    def make_subfolder_request():
-                        return drive_service.files().list(
-                            q=f"'{folder['id']}' in parents and trashed=false",
-                            pageSize=25,  # Smaller page size for subfolders
-                            fields="files(id, name, mimeType, webViewLink)",
-                            supportsAllDrives=True,
-                            includeItemsFromAllDrives=True
-                        )
-                    
-                    subfolder_response = safe_drive_request(make_subfolder_request)
-                    if subfolder_response and 'files' in subfolder_response:
-                        subitems = subfolder_response['files']
-                        update_cache(subfolder_cache_key, subitems)
-                        # print(f"  → Preloaded {len(subitems)} items in '{folder['name'][:25]}...'")  # Disabled for production
-                        
-                    # Small delay to be respectful to API rate limits
-                    time.sleep(0.01)  # Minimize delay for API friendliness
-                    
-                except Exception as subfolder_error:
-                    # print(f"  → Failed to preload '{folder['name']}': {subfolder_error}")  # Disabled for production
+        if not (response and 'files' in response):
+            return
+
+        root_files = response['files']
+        update_cache(cache_key, root_files)
+
+        # Walk the ENTIRE shared drive tree (breadth-first) so every folder
+        # listing is served from cache. Refreshed hourly by the background
+        # thread; folder-list calls are metadata-only (no download cost).
+        FOLDER_MIME = 'application/vnd.google-apps.folder'
+        MAX_FOLDERS = 2000  # safety valve against runaway trees
+        queue = [f['id'] for f in root_files if f.get('mimeType') == FOLDER_MIME]
+        visited = set(queue)
+        fetched = 0
+
+        while queue and fetched < MAX_FOLDERS:
+            folder_id = queue.pop(0)
+            subfolder_cache_key = get_cache_key(folder_id)
+
+            cached_entry = folder_cache.get(subfolder_cache_key, {})
+            if not is_cache_expired(cached_entry):
+                items = cached_entry.get('data', [])
+            else:
+                def make_subfolder_request():
+                    return drive_service.files().list(
+                        q=f"'{folder_id}' in parents and trashed=false",
+                        pageSize=200,
+                        fields="files(id, name, mimeType, webViewLink)",
+                        supportsAllDrives=True,
+                        includeItemsFromAllDrives=True
+                    )
+
+                subfolder_response = safe_drive_request(make_subfolder_request)
+                if not (subfolder_response and 'files' in subfolder_response):
                     continue
-        
+                items = subfolder_response['files']
+                update_cache(subfolder_cache_key, items)
+                fetched += 1
+                time.sleep(0.02)  # stay friendly to the Drive API
+
+            for item in items:
+                if item.get('mimeType') == FOLDER_MIME and item['id'] not in visited:
+                    visited.add(item['id'])
+                    queue.append(item['id'])
+
+        print(f"[+] Drive preload complete: {fetched} folder listings refreshed, "
+              f"{len(visited)} folders known")
+
     except Exception as e:
-        # print(f"Error in enhanced preload: {str(e)}")  # Disabled for production
-        pass
+        print(f"[!] Error in drive preload: {str(e)}")
 
 def start_background_cache_refresh():
     """Start background thread for cache refresh with simplified approach"""
@@ -696,7 +707,14 @@ def initialize_rag_system():
             pass  # print("✅ RAG system fully initialized and ready for chat")
         else:
             pass  # print("⚠️  RAG system not initialized - chat will be unavailable")
-        
+
+        # Kick off the hourly full-drive cache preload (was never started before)
+        global _cache_refresh_started
+        if drive_service and not _cache_refresh_started:
+            _cache_refresh_started = True
+            start_background_cache_refresh()
+            print("[+] Background drive-cache refresh started (full tree, hourly)")
+
     except Exception as e:
         # print(f"[!] Error initializing RAG system: {e}")  # Disabled for production
         raise e

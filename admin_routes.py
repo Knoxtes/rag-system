@@ -467,6 +467,16 @@ def admin_dashboard_content():
             </div>
         </div>
 
+        <!-- Collections Panel -->
+        <div id="collections-panel" style="margin: 30px 0; padding: 30px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 2px solid #06b6d4; border-radius: 12px;">
+            <h2 style="color: #06b6d4; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
+                <span>🗄️</span>
+                <span>Collections</span>
+            </h2>
+            <p style="color: #94a3b8; margin-bottom: 15px;">Indexed collections shown in the chat picker. Renaming changes the display name everywhere (picker, citations, sync stats) — the underlying folder link is untouched.</p>
+            <div id="collections-list" style="color: #94a3b8;">Loading...</div>
+        </div>
+
         <!-- Incremental Sync Panel -->
         <div id="sync-panel" style="margin: 30px 0; padding: 30px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 2px solid #8b5cf6; border-radius: 12px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.2);">
             <h2 style="color: #8b5cf6; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
@@ -770,6 +780,7 @@ def admin_dashboard_content():
         refreshStats();
         checkGDriveAuth();  // Check Google Drive auth status
         refreshSyncStatus();  // Load incremental sync panel
+        loadCollectionsPanel();  // Load collections panel
         console.log('[Admin Dashboard] Initial functions called');
 
         window.addEventListener('beforeunload', () => {
@@ -1186,6 +1197,54 @@ def admin_dashboard_content():
             });
         }
 
+        // ===== Collections panel =====
+        async function loadCollectionsPanel() {
+            const token = getAuthToken();
+            const listDiv = document.getElementById('collections-list');
+            try {
+                const res = await fetch('/collections', { headers: { 'Authorization': `Bearer ${token}` } });
+                const data = await res.json();
+                const entries = Object.entries(data.collections || {}).filter(([id]) => id !== 'ALL_COLLECTIONS');
+                if (!entries.length) {
+                    listDiv.textContent = 'No collections indexed yet.';
+                    return;
+                }
+                listDiv.innerHTML = entries.map(([id, info]) => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 15px; margin-bottom: 8px;">
+                        <div>
+                            <span style="color: #e2e8f0; font-weight: 600;">${info.name}</span>
+                            <span style="color: #64748b; font-size: 13px; margin-left: 10px;">${info.files_processed || 0} files</span>
+                        </div>
+                        <button class="btn" onclick="renameCollection('${id}', '${String(info.name).replace(/'/g, "\\'")}')" style="background: #06b6d4; padding: 6px 14px;">Rename</button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                listDiv.textContent = `Error loading collections: ${error.message}`;
+            }
+        }
+
+        async function renameCollection(collectionId, currentName) {
+            const newName = prompt(`Rename collection "${currentName}" to:`, currentName);
+            if (!newName || newName.trim() === '' || newName === currentName) return;
+            const token = getAuthToken();
+            try {
+                const res = await fetch('/admin/collections/rename', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ collection_name: collectionId, new_name: newName.trim() })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    loadCollectionsPanel();
+                    refreshSyncStatus();
+                } else {
+                    alert(data.error || 'Rename failed');
+                }
+            } catch (error) {
+                alert(`Rename failed: ${error.message}`);
+            }
+        }
+
         // ===== Incremental Sync panel =====
         var syncPollInterval = null;
 
@@ -1321,6 +1380,73 @@ def update_collections():
         
         return jsonify({'message': 'Collection update started'})
     
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/collections/rename', methods=['POST'])
+@require_admin
+def rename_collection():
+    """Rename a collection's display name everywhere: indexed_folders.json,
+    the live registry, the file tracker, and chunk metadata (citations)."""
+    data = request.get_json() or {}
+    collection_name = data.get('collection_name', '')
+    new_name = (data.get('new_name') or '').strip()
+
+    if not collection_name.startswith('folder_') or not new_name:
+        return jsonify({'error': 'collection_name (folder_*) and new_name are required'}), 400
+    if len(new_name) > 100:
+        return jsonify({'error': 'new_name too long (max 100 chars)'}), 400
+
+    folder_id = collection_name.replace('folder_', '')
+
+    try:
+        if not os.path.exists('indexed_folders.json'):
+            return jsonify({'error': 'indexed_folders.json not found'}), 404
+        with open('indexed_folders.json', 'r') as f:
+            indexed_folders = json.load(f)
+        if folder_id not in indexed_folders:
+            return jsonify({'error': f'Collection {collection_name} not found'}), 404
+
+        old_name = indexed_folders[folder_id].get('name', '')
+        indexed_folders[folder_id]['name'] = new_name
+        indexed_folders[folder_id]['path'] = new_name
+        with open('indexed_folders.json', 'w') as f:
+            json.dump(indexed_folders, f, indent=2)
+
+        # Live registry (no restart needed for the chat picker)
+        from chat_api import available_collections
+        if collection_name in available_collections:
+            available_collections[collection_name]['name'] = new_name
+
+        # Tracker rows (sync history/stats display)
+        from file_tracker import FileTracker
+        FileTracker().rename_folder(folder_id, new_name)
+
+        # Chunk metadata in place, so source citations show the new name
+        chunks_updated = 0
+        try:
+            from vector_store import VectorStore
+            vs = VectorStore(collection_name=collection_name)
+            existing = vs.collection.get(include=['metadatas'])
+            ids = existing.get('ids', [])
+            metas = existing.get('metadatas', [])
+            if ids:
+                for m in metas:
+                    m['folder_name'] = new_name
+                    if 'source' in m:
+                        m['source'] = new_name
+                vs.collection.update(ids=ids, metadatas=metas)
+                chunks_updated = len(ids)
+        except Exception as meta_error:
+            print(f"[!] Rename: chunk metadata update failed: {meta_error}")
+
+        return jsonify({
+            'success': True,
+            'old_name': old_name,
+            'new_name': new_name,
+            'chunks_updated': chunks_updated
+        })
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

@@ -211,6 +211,14 @@ class FileTracker:
                 WHERE file_id = ?
             """, (file_id,))
     
+    def rename_folder(self, folder_id: str, new_name: str):
+        """Update the display name recorded for all tracked files in a folder."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE tracked_files SET folder_name = ? WHERE folder_id = ?
+            """, (new_name, folder_id))
+
     def remove_file(self, file_id: str):
         """Completely remove a file from tracking."""
         with self._get_connection() as conn:

@@ -512,8 +512,8 @@ const ChatApp: React.FC = () => {
         }));
         setFolders(rootFolders);
         
-        // Intelligent prefetching: Load top 5 most likely folders in background
-        const priorityFolders = rootFolders.slice(0, 5).map((folder: any) => folder.id);
+        // Prefetch every root folder in the background (server cache keeps this cheap)
+        const priorityFolders = rootFolders.map((folder: any) => folder.id);
         if (priorityFolders.length > 0) {
           setTimeout(() => {
             console.log('🚀 Starting smart prefetch for popular folders...');
