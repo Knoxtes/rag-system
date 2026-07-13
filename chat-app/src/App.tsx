@@ -512,37 +512,54 @@ const ChatApp: React.FC = () => {
         }));
         setFolders(rootFolders);
         
-        // Prefetch every root folder in the background (server cache keeps this cheap)
-        const priorityFolders = rootFolders.map((folder: any) => folder.id);
-        if (priorityFolders.length > 0) {
-          setTimeout(() => {
-            console.log('🚀 Starting smart prefetch for popular folders...');
-            const startTime = performance.now();
-            
-            loadFoldersBatch(priorityFolders).then(batchResults => {
-              setFolders(prevFolders => 
-                prevFolders.map(folder => {
-                  if (batchResults[folder.id]?.items) {
-                    return {
-                      ...folder,
-                      children: batchResults[folder.id].items.map((item: any) => ({
-                        ...item,
-                        isExpanded: false,
-                        isLoaded: false,
-                        children: []
-                      })),
-                      isLoaded: true,
-                      isPrefetched: true
-                    };
-                  }
-                  return folder;
-                })
-              );
-              
-              const prefetchTime = performance.now() - startTime;
-              console.log(`✨ Prefetched ${priorityFolders.length} folders in ${prefetchTime.toFixed(1)}ms`);
+        // Deep prefetch: walk the WHOLE folder tree level by level so every
+        // folder (nested included) expands instantly. The server caches the
+        // same tree hourly, so these calls are cheap cache hits.
+        const attachBatchChildren = (items: FolderItem[], results: Record<string, any>): FolderItem[] =>
+          items.map(item => {
+            const res = item.type === 'folder' ? results[item.id] : undefined;
+            const children = res?.items
+              ? res.items.map((child: any) => ({
+                  ...child,
+                  isExpanded: false,
+                  isLoaded: false,
+                  children: []
+                }))
+              : (item.children || []);
+            return {
+              ...item,
+              ...(res?.items ? { isLoaded: true, isPrefetched: true } : {}),
+              children: attachBatchChildren(children, results)
+            };
+          });
+
+        const deepPrefetch = async (parentIds: string[], depth: number, total: number): Promise<number> => {
+          if (parentIds.length === 0 || depth >= 8 || total >= 600) return total;
+          const nextIds: string[] = [];
+          for (let i = 0; i < parentIds.length; i += 40) {
+            const batch = parentIds.slice(i, i + 40);
+            const results = await loadFoldersBatch(batch);
+            if (!results || Object.keys(results).length === 0) continue;
+            setFolders(prevFolders => attachBatchChildren(prevFolders, results));
+            Object.values(results).forEach((r: any) => {
+              (r?.items || []).forEach((it: any) => {
+                if (it.type === 'folder') nextIds.push(it.id);
+              });
             });
-          }, 800); // Reduced delay for faster prefetch
+          }
+          return deepPrefetch(nextIds, depth + 1, total + parentIds.length);
+        };
+
+        const rootIds = rootFolders.map((folder: any) => folder.id);
+        if (rootIds.length > 0) {
+          setTimeout(() => {
+            console.log('🚀 Prefetching full folder tree...');
+            const startTime = performance.now();
+            deepPrefetch(rootIds, 0, 0).then(count => {
+              const prefetchTime = performance.now() - startTime;
+              console.log(`✨ Prefetched ${count} folders (all levels) in ${prefetchTime.toFixed(1)}ms`);
+            });
+          }, 800);
         }
         
         // Show info about shared drive and cache status
