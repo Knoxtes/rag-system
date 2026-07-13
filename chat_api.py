@@ -1713,12 +1713,29 @@ def create_app():
         print("[!] Server will start with limited functionality")
     return app
 
+def _exit_when_parent_dies():
+    """When spawned by server.js, exit on stdin EOF (parent death) so a killed
+    Node process never leaves an orphaned Flask holding the port with broken
+    stdout pipes ([Errno 32] on every print)."""
+    try:
+        sys.stdin.read()
+    except Exception:
+        pass
+    try:
+        print("[!] Parent process gone (stdin closed) - shutting down", flush=True)
+    finally:
+        os._exit(0)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RAG Chat API Server')
     parser.add_argument('--production', action='store_true', help='Run in production mode')
     parser.add_argument('--port', type=int, default=5000, help='Port to run on')
     parser.add_argument('--host', default='127.0.0.1', help='Host to bind to')
     args = parser.parse_args()
+
+    if os.getenv('FLASK_MANAGED_BY_NODE'):
+        Thread(target=_exit_when_parent_dies, daemon=True).start()
     
     print("[*] Starting RAG Chat API Server...")
     print("="*50)

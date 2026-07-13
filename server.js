@@ -25,7 +25,9 @@ function startFlaskBackend() {
   
   flaskProcess = spawn(pythonCommand, ['chat_api.py', '--port', FLASK_PORT, '--host', '127.0.0.1'], {
     cwd: __dirname,
-    stdio: ['pipe', 'pipe', 'pipe']
+    stdio: ['pipe', 'pipe', 'pipe'],
+    // Lets Flask detect parent death (stdin EOF) and exit instead of orphaning
+    env: { ...process.env, FLASK_MANAGED_BY_NODE: '1' }
   });
 
   flaskProcess.stdout.on('data', (data) => {
