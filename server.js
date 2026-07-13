@@ -100,6 +100,10 @@ process.on('SIGTERM', () => {
 ensureFlaskBackend();
 setInterval(ensureFlaskBackend, 15000);
 
+// Flask's static assets (admin-auth.js etc.) — must come before the React
+// build static, whose SPA fallback would otherwise return index.html as JS
+app.use('/static', express.static(path.join(__dirname, 'static')));
+
 // Serve static files from React build
 const buildPath = path.join(__dirname, 'chat-app', 'build');
 if (fs.existsSync(buildPath)) {

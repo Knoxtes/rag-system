@@ -403,19 +403,27 @@ def get_cached_data(cache_key):
             return data
     return None
 
-def preload_folder_structure():
+def preload_folder_structure(service=None):
     """
-    Enhanced preload with deeper folder structure caching
+    Walk the shared drive folder tree into the server cache.
+
+    Uses its OWN Drive service instance: googleapiclient/httplib2 is not
+    thread-safe, so sharing the request handlers' global drive_service from
+    this background walk causes hangs (504s) under concurrent access.
     """
-    # print("Starting enhanced folder structure preload...")  # Disabled for production
-    
     try:
+        if service is None:
+            from google_drive_oauth import get_drive_service
+            service = get_drive_service() or drive_service
+        if service is None:
+            return
+
         # Step 1: Start with root folders
         cache_key = get_cache_key(SHARED_DRIVE_ID)
-        
+
         # Load root folders
         def make_request():
-            return drive_service.files().list(
+            return service.files().list(
                 q=f"'{SHARED_DRIVE_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
                 driveId=SHARED_DRIVE_ID,
                 corpora='drive',
@@ -450,7 +458,7 @@ def preload_folder_structure():
                 items = cached_entry.get('data', [])
             else:
                 def make_subfolder_request():
-                    return drive_service.files().list(
+                    return service.files().list(
                         q=f"'{folder_id}' in parents and trashed=false",
                         pageSize=200,
                         fields="files(id, name, mimeType, webViewLink)",
@@ -480,10 +488,11 @@ def preload_folder_structure():
 def start_background_cache_refresh():
     """Start background thread for cache refresh with simplified approach"""
     def refresh_loop():
+        time.sleep(30)  # let startup requests win before the first full walk
         while True:
             try:
                 if drive_service:
-                    preload_folder_structure()
+                    preload_folder_structure()  # builds its own Drive service
                     
                     # Simple memory cache cleanup
                     current_time = datetime.now()
@@ -1788,5 +1797,6 @@ if __name__ == '__main__':
         debug=not args.production,
         host=args.host,
         port=args.port,
+        threaded=True,  # Werkzeug defaults to single-threaded; one slow request would stall the app
         use_reloader=not args.production
     )
