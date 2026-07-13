@@ -6,6 +6,11 @@ Handles authentication and organization domain restrictions
 import os
 import json
 import secrets
+
+# Google returns previously-granted scopes (e.g. Drive) alongside the requested
+# identity scopes when include_granted_scopes=true; without this, oauthlib
+# rejects the token exchange with "Scope has changed".
+os.environ.setdefault('OAUTHLIB_RELAX_TOKEN_SCOPE', '1')
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import request, jsonify, session, redirect, url_for
