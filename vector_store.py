@@ -1,5 +1,14 @@
 # vector_store.py - ChromaDB compatible
 
+# Older distros (AlmaLinux 9) ship sqlite3 < 3.35, which Chroma rejects.
+# If pysqlite3-binary is installed, swap it in before chromadb imports sqlite3.
+try:
+    __import__('pysqlite3')
+    import sys as _sys
+    _sys.modules['sqlite3'] = _sys.modules.pop('pysqlite3')
+except ImportError:
+    pass
+
 import chromadb
 from config import CHROMA_PERSIST_DIR, COLLECTION_NAME
 import os
