@@ -1717,7 +1717,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RAG Chat API Server')
     parser.add_argument('--production', action='store_true', help='Run in production mode')
     parser.add_argument('--port', type=int, default=5000, help='Port to run on')
-    parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
+    parser.add_argument('--host', default='127.0.0.1', help='Host to bind to')
     args = parser.parse_args()
     
     print("[*] Starting RAG Chat API Server...")

@@ -118,7 +118,9 @@ OCR_LANGUAGES = ["en"]  # Languages for OCR processing (e.g., ["en", "es", "fr"]
 OCR_GPU_ENABLED = True  # Use GPU acceleration for EasyOCR (if available)
 
 # Google Document AI Settings (when OCR_BACKEND = "documentai")
-DOCUMENTAI_PROJECT_ID = "rag-chatbot-475316"  # Your Google Cloud project ID
+# NOTE: points at the old GCP project; override via env when migrating OCR
+# to mountains-internal-use (enable the Document AI API there first)
+DOCUMENTAI_PROJECT_ID = os.getenv("DOCUMENTAI_PROJECT_ID", "rag-chatbot-475316")
 DOCUMENTAI_LOCATION = "us"  # Processor location: "us", "eu", or "asia"
 DOCUMENTAI_PROCESSOR_ID = None  # Optional: Specific processor ID (None = use default OCR processor)
 
