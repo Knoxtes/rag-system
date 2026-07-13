@@ -17,13 +17,25 @@ console.log('');
 // Start Flask backend
 let flaskProcess;
 
+function checkFlaskHealth(cb) {
+  const http = require('http');
+  const req = http.get(
+    { hostname: '127.0.0.1', port: FLASK_PORT, path: '/health', timeout: 3000 },
+    (res) => { res.resume(); cb(res.statusCode === 200); }
+  );
+  req.on('error', () => cb(false));
+  req.on('timeout', () => { req.destroy(); cb(false); });
+}
+
 function startFlaskBackend() {
   console.log('🐍 Starting Flask backend...');
-  
+
   // Use python or python3 depending on system
   const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
-  
-  flaskProcess = spawn(pythonCommand, ['chat_api.py', '--port', FLASK_PORT, '--host', '127.0.0.1'], {
+
+  // --production: no debug mode, no Werkzeug auto-reloader (which forks a
+  // second process and fights over the port)
+  flaskProcess = spawn(pythonCommand, ['chat_api.py', '--production', '--port', FLASK_PORT, '--host', '127.0.0.1'], {
     cwd: __dirname,
     stdio: ['pipe', 'pipe', 'pipe'],
     // Lets Flask detect parent death (stdin EOF) and exit instead of orphaning
@@ -39,24 +51,32 @@ function startFlaskBackend() {
   });
 
   flaskProcess.on('close', (code) => {
-    if (code !== 0) {
-      console.error(`❌ Flask process exited with code ${code}`);
-      // Restart Flask if it crashes
-      setTimeout(() => {
-        console.log('🔄 Restarting Flask backend...');
-        startFlaskBackend();
-      }, 5000);
-    }
+    console.error(`Flask process exited with code ${code}`);
+    flaskProcess = null;
+    setTimeout(ensureFlaskBackend, 5000);
   });
 
   flaskProcess.on('error', (err) => {
     console.error('❌ Flask process error:', err);
   });
+}
 
-  // Give Flask more time to start
-  setTimeout(() => {
-    console.log('✅ Flask backend should be running on port', FLASK_PORT);
-  }, 8000);
+// Passenger may run several instances of this app. Only one should own the
+// Flask backend; the others detect the healthy backend and just proxy to it.
+let flaskProbeInFlight = false;
+function ensureFlaskBackend() {
+  if (flaskProbeInFlight) return;
+  if (flaskProcess && flaskProcess.exitCode === null) return; // our child is alive
+  flaskProbeInFlight = true;
+  checkFlaskHealth((healthy) => {
+    flaskProbeInFlight = false;
+    if (healthy) {
+      console.log('✅ Existing Flask backend detected on port', FLASK_PORT);
+      return;
+    }
+    if (flaskProcess && flaskProcess.exitCode === null) return;
+    startFlaskBackend();
+  });
 }
 
 // Graceful shutdown
@@ -76,8 +96,9 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-// Start Flask backend
-startFlaskBackend();
+// Start (or adopt) the Flask backend, and keep watching it
+ensureFlaskBackend();
+setInterval(ensureFlaskBackend, 15000);
 
 // Serve static files from React build
 const buildPath = path.join(__dirname, 'chat-app', 'build');
